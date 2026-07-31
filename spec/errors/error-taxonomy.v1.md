@@ -1,0 +1,27 @@
+# iRoute v1 error taxonomy
+
+Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 9457 problem details with the code in `code`. Failures after an execution record exists appear in `ExecutionSnapshot.error` and in the terminal event.
+
+| Code | Surface | Retryable default | Meaning |
+|---|---|---:|---|
+| `idempotency_key_conflict` | HTTP 400 | no | Header and body idempotency keys disagree. |
+| `identity_scope_conflict` | HTTP 403 | no | Request scope conflicts with authenticated identity. |
+| `invalid_task_request` | HTTP 400 | no | The request violates the v1 task-request contract. |
+| `execution_already_terminal` | HTTP 409 | no | A terminal execution cannot be cancelled. |
+| `unknown_task_type` | execution | no | No active task definition exists. |
+| `invalid_execution_plan` | execution | no | The plan failed structural, DAG, or budget validation. |
+| `workflow_step_failed` | execution | no | A bounded step exhausted its allowed attempts. |
+| `workflow_step_timed_out` | execution | yes | A step exceeded its declared timeout. |
+| `validation_failed` | execution | no | The outcome failed task-specific validation. |
+| `execution_timed_out` | execution | yes | The execution deadline elapsed. |
+| `execution_cancelled` | execution | no | Cancellation was requested. |
+| `execution_failed` | execution | no | An unclassified internal execution failure occurred. |
+| `external_write_not_allowed` | execution | no | The task requires external-write permission. |
+| `model_budget_exhausted` | execution | no | Generation is required but the model-call budget is zero. |
+| `cost_budget_exceeded` | execution | no | Reported cost exceeded the request ceiling. |
+| `model_call_budget_exceeded` | execution | no | Reported model calls exceeded the request ceiling. |
+| `model_gateway_unavailable` | execution | yes | The configured gateway could not be reached. |
+| `model_gateway_http_error` | execution | classified | The gateway returned a non-success HTTP status. |
+| `model_gateway_invalid_response` | execution | no | The gateway returned empty or invalid JSON. |
+
+`model_gateway_http_error` is retryable for HTTP 408, 429, and 5xx responses. New codes may be added within v1; consumers must preserve and surface unknown codes rather than converting them to success.

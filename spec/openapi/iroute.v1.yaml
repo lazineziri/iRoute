@@ -1,0 +1,508 @@
+openapi: 3.1.0
+info:
+  title: iRoute Runtime API
+  version: 1.0.0
+  description: Task-aware execution, event streaming, and reusable artifact API.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+  - {}
+paths:
+  /v1/executions:
+    post:
+      operationId: createExecution
+      tags: [Executions]
+      summary: Resolve and execute one typed task.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/ActorId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskRequest'
+      responses:
+        '200':
+          description: The synchronous execution reached a terminal state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionSnapshot'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /v1/executions/{executionId}:
+    get:
+      operationId: getExecution
+      tags: [Executions]
+      summary: Get the current execution snapshot.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Current execution state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionSnapshot'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+  /v1/executions/{executionId}/events:
+    get:
+      operationId: streamExecutionEvents
+      tags: [Executions]
+      summary: Stream ordered execution events using Server-Sent Events.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/TenantId'
+        - name: after
+          in: query
+          description: Return events after this sequence number.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            default: 0
+        - name: Last-Event-ID
+          in: header
+          description: SSE reconnection cursor used when `after` is omitted.
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+      responses:
+        '200':
+          description: Each SSE `data` field contains one serialized ExecutionEvent.
+          x-sse-frame:
+            id: TaskEvent.sequence
+            event: TaskEvent.type
+            data: TaskEvent JSON
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/TaskEvent'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+  /v1/executions/{executionId}/cancel:
+    post:
+      operationId: cancelExecution
+      tags: [Executions]
+      summary: Request cancellation of a non-terminal execution.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '202':
+          description: Cancellation was recorded and signalled to the local executor.
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+  /v1/artifacts/{artifactId}:
+    get:
+      operationId: getArtifact
+      tags: [Artifacts]
+      summary: Get a materialized artifact and its provenance.
+      parameters:
+        - $ref: '#/components/parameters/ArtifactId'
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Artifact content and metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactSnapshot'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [Health]
+      summary: Check whether the API process is live.
+      responses:
+        '200':
+          description: Process is live.
+  /health/ready:
+    get:
+      operationId: getReadiness
+      tags: [Health]
+      summary: Check whether required runtime dependencies are ready.
+      responses:
+        '200':
+          description: Required dependencies are ready.
+        '503':
+          description: At least one required dependency is unavailable.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Required when `Identity:Mode` is `Jwt`.
+  parameters:
+    ExecutionId:
+      name: executionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ArtifactId:
+      name: artifactId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      required: false
+      description: Development-only tenant scope. JWT mode ignores this header and uses the configured tenant claim.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+    ActorId:
+      name: X-Actor-Id
+      in: header
+      required: false
+      description: Development-only actor scope. JWT mode ignores this header and uses the configured actor claim.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Tenant-scoped idempotency key. A body value must match this header.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+  responses:
+    Problem:
+      description: RFC 9457 problem details with a stable iRoute error code.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/HttpProblem'
+  schemas:
+    TaskRequest:
+      type: object
+      additionalProperties: false
+      required: [taskType, input]
+      properties:
+        taskType:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: '^[a-z][a-z0-9_.-]+$'
+        input: {}
+        projectId:
+          type: [string, 'null']
+          maxLength: 200
+        idempotencyKey:
+          type: [string, 'null']
+          maxLength: 200
+        constraints:
+          oneOf:
+            - $ref: '#/components/schemas/TaskConstraints'
+            - type: 'null'
+        metadata:
+          type: [object, 'null']
+          additionalProperties:
+            type: string
+          maxProperties: 32
+        tenantId:
+          type: [string, 'null']
+          maxLength: 200
+          description: Development scope hint. In JWT mode, a supplied value must match the authenticated claim.
+        actorId:
+          type: [string, 'null']
+          maxLength: 200
+          description: Development scope hint. In JWT mode, a supplied value must match the authenticated claim.
+    TaskConstraints:
+      type: object
+      additionalProperties: false
+      properties:
+        maxInputTokens: { type: [integer, 'null'], minimum: 1, maximum: 2000000 }
+        maxOutputTokens: { type: [integer, 'null'], minimum: 1, maximum: 200000 }
+        maxCost: { type: [number, 'null'], minimum: 0 }
+        deadlineMilliseconds: { type: [integer, 'null'], minimum: 1, maximum: 900000 }
+        minimumQuality: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        requireEvidence: { type: boolean, default: false }
+        allowExternalWrites: { type: boolean, default: false }
+        maxModelCalls: { type: [integer, 'null'], minimum: 0, maximum: 16 }
+        maxToolCalls: { type: [integer, 'null'], minimum: 0, maximum: 64 }
+        maxParallelCalls: { type: [integer, 'null'], minimum: 1, maximum: 32 }
+        maxTaskDepth: { type: [integer, 'null'], minimum: 1, maximum: 16 }
+    ExecutionSnapshot:
+      type: object
+      additionalProperties: false
+      required: [executionId, taskType, status, createdAt, updatedAt, tenantId, actorId]
+      properties:
+        executionId: { type: string, format: uuid }
+        taskType: { type: string }
+        status: { $ref: '#/components/schemas/ExecutionStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        outcome:
+          oneOf:
+            - $ref: '#/components/schemas/TaskOutcome'
+            - type: 'null'
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/ExecutionProblem'
+            - type: 'null'
+        tenantId: { type: string }
+        actorId: { type: string }
+        projectId: { type: [string, 'null'] }
+        taskDefinitionVersion: { type: [integer, 'null'], minimum: 1 }
+        cancellationRequestedAt: { type: [string, 'null'], format: date-time }
+    ExecutionStatus:
+      type: string
+      enum:
+        - Accepted
+        - Resolving
+        - Planning
+        - WaitingForApproval
+        - Running
+        - Validating
+        - Materializing
+        - Compensating
+        - Succeeded
+        - Failed
+        - Cancelled
+        - TimedOut
+    TaskOutcome:
+      type: object
+      additionalProperties: false
+      required: [output, resolutionLevel, confidence, evidence, usage, artifacts]
+      properties:
+        output: {}
+        resolutionLevel:
+          $ref: '#/components/schemas/ResolutionLevel'
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/EvidenceReference' }
+        usage: { $ref: '#/components/schemas/UsageSummary' }
+        artifacts:
+          type: array
+          items: { $ref: '#/components/schemas/ArtifactReference' }
+        validation:
+          oneOf:
+            - $ref: '#/components/schemas/ValidationSummary'
+            - type: 'null'
+        context:
+          oneOf:
+            - $ref: '#/components/schemas/ContextManifest'
+            - type: 'null'
+    ResolutionLevel:
+      type: string
+      enum:
+        - ExactArtifact
+        - StructuredState
+        - SemanticMemory
+        - DeterministicCapability
+        - SmallModel
+        - StrongModel
+        - VerifiedOrHuman
+    EvidenceReference:
+      type: object
+      additionalProperties: false
+      required: [kind, reference]
+      properties:
+        kind: { type: string }
+        reference: { type: string }
+        contentHash: { type: [string, 'null'] }
+        observedAt: { type: [string, 'null'], format: date-time }
+    ArtifactReference:
+      type: object
+      additionalProperties: false
+      required: [artifactId, artifactType, version, contentHash]
+      properties:
+        artifactId: { type: string, format: uuid }
+        artifactType: { type: string }
+        version: { type: integer, minimum: 1 }
+        contentHash: { type: string }
+    ArtifactSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - artifact
+        - tenantId
+        - taskType
+        - taskDefinitionVersion
+        - content
+        - evidence
+        - createdAt
+        - isActive
+      properties:
+        artifact: { $ref: '#/components/schemas/ArtifactReference' }
+        tenantId: { type: string }
+        projectId: { type: [string, 'null'] }
+        taskType: { type: string }
+        taskDefinitionVersion: { type: integer, minimum: 1 }
+        content: {}
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/EvidenceReference' }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        isActive: { type: boolean }
+    UsageSummary:
+      type: object
+      additionalProperties: false
+      required: [inputTokens, outputTokens, cost, durationMilliseconds, modelCalls, toolCalls]
+      properties:
+        inputTokens: { type: integer, minimum: 0 }
+        outputTokens: { type: integer, minimum: 0 }
+        cost: { type: number, minimum: 0 }
+        durationMilliseconds: { type: integer, format: int64, minimum: 0 }
+        modelCalls: { type: integer, minimum: 0 }
+        toolCalls: { type: integer, minimum: 0 }
+    ValidationSummary:
+      type: object
+      additionalProperties: false
+      required: [passed, quality, checks, failures]
+      properties:
+        passed: { type: boolean }
+        quality: { type: number, minimum: 0, maximum: 1 }
+        checks:
+          type: array
+          items: { type: string }
+        failures:
+          type: array
+          items: { type: string }
+    ContextManifest:
+      type: object
+      additionalProperties: false
+      required: [estimatedTokens, budgetTokens, truncated, entries]
+      properties:
+        estimatedTokens: { type: integer, minimum: 0 }
+        budgetTokens: { type: integer, minimum: 0 }
+        truncated: { type: boolean }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/ContextManifestEntry' }
+    ContextManifestEntry:
+      type: object
+      additionalProperties: false
+      required: [kind, reference, included, reason, estimatedTokens]
+      properties:
+        kind: { type: string }
+        reference: { type: string }
+        included: { type: boolean }
+        reason: { type: string }
+        estimatedTokens: { type: integer, minimum: 0 }
+        contentHash: { type: [string, 'null'] }
+    TaskEvent:
+      type: object
+      additionalProperties: false
+      required: [sequence, executionId, type, occurredAt, data]
+      properties:
+        sequence: { type: integer, format: int64, minimum: 1 }
+        executionId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/TaskEventType' }
+        occurredAt: { type: string, format: date-time }
+        data:
+          type: object
+          additionalProperties: true
+    TaskEventType:
+      type: string
+      description: Additive event types may be introduced in v1; consumers must ignore unknown types.
+      enum:
+        - execution.created
+        - execution.status_changed
+        - resolution.considered
+        - plan.validated
+        - workflow.checkpointed
+        - workflow.resumed
+        - step.started
+        - step.completed
+        - step.retry_scheduled
+        - step.failed
+        - context.compiled
+        - gateway.completed
+        - validation.completed
+        - artifact.materialized
+        - execution.cancellation_requested
+        - execution.completed
+        - execution.failed
+    ErrorCode:
+      type: string
+      description: Stable machine-readable error code. Additive codes may be introduced in v1.
+      enum:
+        - idempotency_key_conflict
+        - identity_scope_conflict
+        - invalid_task_request
+        - execution_already_terminal
+        - unknown_task_type
+        - invalid_execution_plan
+        - workflow_step_failed
+        - workflow_step_timed_out
+        - validation_failed
+        - execution_timed_out
+        - execution_cancelled
+        - execution_failed
+        - external_write_not_allowed
+        - model_budget_exhausted
+        - cost_budget_exceeded
+        - model_call_budget_exceeded
+        - model_gateway_unavailable
+        - model_gateway_http_error
+        - model_gateway_invalid_response
+    ExecutionProblem:
+      type: object
+      additionalProperties: false
+      required: [code, title, detail, retryable]
+      properties:
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        title: { type: string }
+        detail: { type: string }
+        retryable: { type: boolean }
+        metadata:
+          type: [object, 'null']
+          additionalProperties: { type: string }
+    HttpProblem:
+      type: object
+      required: [title, status]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 100, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        code: { $ref: '#/components/schemas/ErrorCode' }

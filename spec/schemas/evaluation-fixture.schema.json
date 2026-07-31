@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/evaluation-fixture.schema.json",
+  "title": "EvaluationFixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["caseId", "request", "expected"],
+  "properties": {
+    "caseId": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$", "maxLength": 200 },
+    "repeat": { "type": "integer", "minimum": 1, "maximum": 10 },
+    "request": { "$ref": "task-request.schema.json" },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"]
+        },
+        "resolutionLevel": {
+          "enum": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"]
+        },
+        "requiredOutputFields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "errorCode": { "$ref": "problem.schema.json#/properties/code" },
+        "secondResolutionLevel": {
+          "enum": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"]
+        },
+        "secondModelCalls": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

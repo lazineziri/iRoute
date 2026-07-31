@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json",
+  "title": "ArtifactSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
+  "properties": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "artifactType", "version", "contentHash"],
+      "properties": {
+        "artifactId": { "type": "string", "format": "uuid" },
+        "artifactType": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "contentHash": { "type": "string" }
+      }
+    },
+    "tenantId": { "type": "string" },
+    "projectId": { "type": ["string", "null"] },
+    "taskType": { "type": "string" },
+    "taskDefinitionVersion": { "type": "integer", "minimum": 1 },
+    "content": true,
+    "evidence": { "type": "array", "items": { "$ref": "evidence-reference.schema.json" } },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+    "isActive": { "type": "boolean" }
+  }
+}

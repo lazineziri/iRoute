@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/evidence-reference.schema.json",
+  "title": "EvidenceReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "reference"],
+  "properties": {
+    "kind": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "reference": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "contentHash": { "type": ["string", "null"], "maxLength": 256 },
+    "observedAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

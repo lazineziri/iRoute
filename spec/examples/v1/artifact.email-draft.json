@@ -1,0 +1,27 @@
+{
+  "artifact": {
+    "artifactId": "0198f6b4-6f3c-7de1-86e8-5d223ab25451",
+    "artifactType": "email.draft",
+    "version": 1,
+    "contentHash": "ab4b3f1e61a336a30753b4f7f130b5e77989d64e3205689947fa9e05d8e9920d"
+  },
+  "tenantId": "tenant-a",
+  "projectId": "iroute-project",
+  "taskType": "email.draft",
+  "taskDefinitionVersion": 1,
+  "content": {
+    "subject": "Update on iRoute",
+    "body": "Hi Ada,\n\nThe first runtime milestone is working."
+  },
+  "evidence": [
+    {
+      "kind": "request",
+      "reference": "input.activeDecisions",
+      "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f",
+      "observedAt": null
+    }
+  ],
+  "createdAt": "2026-07-31T12:00:01Z",
+  "expiresAt": null,
+  "isActive": true
+}

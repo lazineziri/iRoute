@@ -1,0 +1,45 @@
+{
+  "taskType": "email.draft",
+  "version": 1,
+  "description": "Draft an evidence-backed email without sending it.",
+  "category": "email",
+  "inputSchema": {
+    "type": "object",
+    "required": ["recipient", "objective"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": ["subject", "body"]
+  },
+  "requiredCapabilities": [],
+  "allowedCapabilities": ["text.generation"],
+  "contextSourcePolicy": {
+    "allowedSources": ["active-decisions", "project-history", "authoritative-sources"],
+    "includeFullHistoryByDefault": false,
+    "requireProvenance": true
+  },
+  "sideEffectClass": "None",
+  "permissionScopes": ["email:draft"],
+  "approvalRequired": false,
+  "qualityFloor": 0.8,
+  "budget": {
+    "maxInputTokens": 4000,
+    "maxOutputTokens": 800,
+    "maxModelCalls": 1,
+    "maxToolCalls": 0,
+    "maxParallelCalls": 1,
+    "maxTaskDepth": 1,
+    "maxCost": 0.1,
+    "deadlineMilliseconds": 30000,
+    "retryCount": 0
+  },
+  "validationStrategy": ["output-schema", "quality-floor", "evidence-coverage"],
+  "escalationPolicy": {
+    "onValidationFailure": "Fail",
+    "onEvidenceConflict": "HumanApproval",
+    "onLowConfidence": "StrongerCapability"
+  },
+  "cachePolicy": { "enabled": true, "ttlSeconds": 3600 },
+  "memoryPolicy": { "enabled": true, "ttlSeconds": 2592000 },
+  "retentionPolicy": { "enabled": true, "ttlSeconds": null }
+}

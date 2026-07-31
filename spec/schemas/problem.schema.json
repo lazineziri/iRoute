@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/problem.schema.json",
+  "title": "Problem",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "title", "detail", "retryable"],
+  "properties": {
+    "code": {
+      "enum": [
+        "idempotency_key_conflict",
+        "identity_scope_conflict",
+        "invalid_task_request",
+        "execution_already_terminal",
+        "unknown_task_type",
+        "invalid_execution_plan",
+        "workflow_step_failed",
+        "workflow_step_timed_out",
+        "validation_failed",
+        "execution_timed_out",
+        "execution_cancelled",
+        "execution_failed",
+        "external_write_not_allowed",
+        "model_budget_exhausted",
+        "cost_budget_exceeded",
+        "model_call_budget_exceeded",
+        "model_gateway_unavailable",
+        "model_gateway_http_error",
+        "model_gateway_invalid_response"
+      ]
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "detail": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "retryable": { "type": "boolean" },
+    "metadata": {
+      "type": ["object", "null"],
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

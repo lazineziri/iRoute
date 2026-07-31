@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Sdk.DotNet</AssemblyName>
+    <RootNamespace>iRoute.Sdk.DotNet</RootNamespace>
+    <PackageId>iRoute.Sdk</PackageId>
+    <Version>0.1.0-alpha.1</Version>
+    <Description>Thin .NET client for the iRoute task-aware runtime.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Contracts/iRoute.Contracts.csproj" />
+  </ItemGroup>
+</Project>

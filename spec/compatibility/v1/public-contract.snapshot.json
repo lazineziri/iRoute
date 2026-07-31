@@ -1,0 +1,130 @@
+{
+  "apiMajor": 1,
+  "operations": {
+    "POST /v1/executions": "createExecution",
+    "GET /v1/executions/{executionId}": "getExecution",
+    "GET /v1/executions/{executionId}/events": "streamExecutionEvents",
+    "POST /v1/executions/{executionId}/cancel": "cancelExecution",
+    "GET /v1/artifacts/{artifactId}": "getArtifact",
+    "GET /health/live": "getLiveness",
+    "GET /health/ready": "getReadiness"
+  },
+  "openApiSchemas": {
+    "TaskRequest": {
+      "required": ["taskType", "input"],
+      "properties": ["taskType", "input", "projectId", "idempotencyKey", "constraints", "metadata", "tenantId", "actorId"]
+    },
+    "TaskConstraints": {
+      "required": [],
+      "properties": ["maxInputTokens", "maxOutputTokens", "maxCost", "deadlineMilliseconds", "minimumQuality", "requireEvidence", "allowExternalWrites", "maxModelCalls", "maxToolCalls", "maxParallelCalls", "maxTaskDepth"]
+    },
+    "ExecutionSnapshot": {
+      "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
+      "properties": ["executionId", "taskType", "status", "createdAt", "updatedAt", "outcome", "error", "tenantId", "actorId", "projectId", "taskDefinitionVersion", "cancellationRequestedAt"]
+    },
+    "TaskOutcome": {
+      "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
+      "properties": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts", "validation", "context"]
+    },
+    "EvidenceReference": {
+      "required": ["kind", "reference"],
+      "properties": ["kind", "reference", "contentHash", "observedAt"]
+    },
+    "ArtifactReference": {
+      "required": ["artifactId", "artifactType", "version", "contentHash"],
+      "properties": ["artifactId", "artifactType", "version", "contentHash"]
+    },
+    "ArtifactSnapshot": {
+      "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
+      "properties": ["artifact", "tenantId", "projectId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "expiresAt", "isActive"]
+    },
+    "UsageSummary": {
+      "required": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"],
+      "properties": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"]
+    },
+    "ValidationSummary": {
+      "required": ["passed", "quality", "checks", "failures"],
+      "properties": ["passed", "quality", "checks", "failures"]
+    },
+    "ContextManifest": {
+      "required": ["estimatedTokens", "budgetTokens", "truncated", "entries"],
+      "properties": ["estimatedTokens", "budgetTokens", "truncated", "entries"]
+    },
+    "ContextManifestEntry": {
+      "required": ["kind", "reference", "included", "reason", "estimatedTokens"],
+      "properties": ["kind", "reference", "included", "reason", "estimatedTokens", "contentHash"]
+    },
+    "TaskEvent": {
+      "required": ["sequence", "executionId", "type", "occurredAt", "data"],
+      "properties": ["sequence", "executionId", "type", "occurredAt", "data"]
+    },
+    "ExecutionProblem": {
+      "required": ["code", "title", "detail", "retryable"],
+      "properties": ["code", "title", "detail", "retryable", "metadata"]
+    },
+    "HttpProblem": {
+      "required": ["title", "status"],
+      "properties": ["type", "title", "status", "detail", "instance", "code"]
+    }
+  },
+  "enums": {
+    "ExecutionStatus": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"],
+    "ResolutionLevel": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"],
+    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "plan.validated", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "execution.cancellation_requested", "execution.completed", "execution.failed"],
+    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "model_budget_exhausted", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
+  },
+  "jsonSchemas": {
+    "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json": {
+      "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
+      "properties": ["artifact", "content", "createdAt", "evidence", "expiresAt", "isActive", "projectId", "taskDefinitionVersion", "taskType", "tenantId"]
+    },
+    "https://schemas.iroute.dev/v1/capability-definition.schema.json": {
+      "required": ["capability", "version", "kind", "description", "inputSchema", "outputSchema", "sideEffectClass", "authenticationScopes", "permissionScopes", "idempotency", "retry", "serviceProfile", "cacheability", "freshnessSeconds", "dataSensitivity", "trustLevel", "isolation"],
+      "properties": ["authenticationScopes", "cacheability", "capability", "dataSensitivity", "description", "freshnessSeconds", "idempotency", "inputSchema", "isolation", "kind", "outputSchema", "permissionScopes", "retry", "serviceProfile", "sideEffectClass", "trustLevel", "version"]
+    },
+    "https://schemas.iroute.dev/v1/evaluation-fixture.schema.json": {
+      "required": ["caseId", "request", "expected"],
+      "properties": ["caseId", "expected", "repeat", "request"]
+    },
+    "https://schemas.iroute.dev/v1/evidence-reference.schema.json": {
+      "required": ["kind", "reference"],
+      "properties": ["contentHash", "kind", "observedAt", "reference"]
+    },
+    "https://schemas.iroute.dev/v1/execution-plan.schema.json": {
+      "required": ["planId", "version", "taskType", "taskVersion", "steps", "budget"],
+      "properties": ["budget", "planId", "steps", "taskType", "taskVersion", "version"]
+    },
+    "https://schemas.iroute.dev/v1/execution-snapshot.schema.json": {
+      "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
+      "properties": ["actorId", "cancellationRequestedAt", "createdAt", "error", "executionId", "outcome", "projectId", "status", "taskDefinitionVersion", "taskType", "tenantId", "updatedAt"]
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
+      "required": ["capability", "input", "context", "maxOutputTokens"],
+      "properties": ["capability", "context", "correlationId", "input", "maxOutputTokens"]
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
+      "required": ["output", "usage", "confidence", "evidence"],
+      "properties": ["confidence", "evidence", "output", "usage"]
+    },
+    "https://schemas.iroute.dev/v1/problem.schema.json": {
+      "required": ["code", "title", "detail", "retryable"],
+      "properties": ["code", "detail", "metadata", "retryable", "title"]
+    },
+    "https://schemas.iroute.dev/v1/task-definition.schema.json": {
+      "required": ["taskType", "version", "description", "category", "inputSchema", "outputSchema", "requiredCapabilities", "allowedCapabilities", "contextSourcePolicy", "sideEffectClass", "permissionScopes", "approvalRequired", "qualityFloor", "budget", "validationStrategy", "escalationPolicy", "cachePolicy", "memoryPolicy", "retentionPolicy"],
+      "properties": ["allowedCapabilities", "approvalRequired", "budget", "cachePolicy", "category", "contextSourcePolicy", "description", "escalationPolicy", "inputSchema", "memoryPolicy", "outputSchema", "permissionScopes", "qualityFloor", "requiredCapabilities", "retentionPolicy", "sideEffectClass", "taskType", "validationStrategy", "version"]
+    },
+    "https://schemas.iroute.dev/v1/task-event.schema.json": {
+      "required": ["sequence", "executionId", "type", "occurredAt", "data"],
+      "properties": ["data", "executionId", "occurredAt", "sequence", "type"]
+    },
+    "https://schemas.iroute.dev/v1/task-outcome.schema.json": {
+      "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
+      "properties": ["artifacts", "confidence", "context", "evidence", "output", "resolutionLevel", "usage", "validation"]
+    },
+    "https://schemas.iroute.dev/v1/task-request.schema.json": {
+      "required": ["taskType", "input"],
+      "properties": ["actorId", "constraints", "idempotencyKey", "input", "metadata", "projectId", "taskType", "tenantId"]
+    }
+  }
+}

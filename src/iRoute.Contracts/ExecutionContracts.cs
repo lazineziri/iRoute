@@ -1,0 +1,292 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace iRoute.Contracts;
+
+public sealed record TaskRequest(
+    string TaskType,
+    JsonElement Input,
+    string? ProjectId = null,
+    string? IdempotencyKey = null,
+    TaskConstraints? Constraints = null,
+    IReadOnlyDictionary<string, string>? Metadata = null,
+    string? TenantId = null,
+    string? ActorId = null);
+
+public sealed record TaskConstraints(
+    int? MaxInputTokens = null,
+    int? MaxOutputTokens = null,
+    decimal? MaxCost = null,
+    int? DeadlineMilliseconds = null,
+    decimal? MinimumQuality = null,
+    bool RequireEvidence = false,
+    bool AllowExternalWrites = false,
+    int? MaxModelCalls = null,
+    int? MaxToolCalls = null,
+    int? MaxParallelCalls = null,
+    int? MaxTaskDepth = null);
+
+public sealed record ExecutionPlan(
+    string PlanId,
+    int Version,
+    string TaskType,
+    int TaskVersion,
+    IReadOnlyList<ExecutionPlanStep> Steps,
+    ExecutionPlanBudget Budget);
+
+public sealed record ExecutionPlanStep(
+    string Id,
+    ExecutionStepKind Kind,
+    string Capability,
+    IReadOnlyList<string> DependsOn,
+    SideEffectClass SideEffectClass,
+    int TimeoutMilliseconds,
+    int MaxAttempts = 1);
+
+public sealed record ExecutionPlanBudget(
+    int MaxSteps,
+    int MaxModelCalls,
+    int MaxToolCalls,
+    int MaxParallelCalls,
+    int MaxTaskDepth,
+    int DeadlineMilliseconds,
+    int? MaxInputTokens = null,
+    int? MaxOutputTokens = null,
+    decimal? MaxCost = null);
+
+public sealed record ExecutionAccepted(
+    Guid ExecutionId,
+    ExecutionStatus Status,
+    DateTimeOffset CreatedAt,
+    Uri StatusUrl,
+    Uri EventsUrl);
+
+public sealed record ExecutionSnapshot(
+    Guid ExecutionId,
+    string TaskType,
+    ExecutionStatus Status,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    TaskOutcome? Outcome = null,
+    Problem? Error = null,
+    string TenantId = "local",
+    string ActorId = "local",
+    string? ProjectId = null,
+    int? TaskDefinitionVersion = null,
+    DateTimeOffset? CancellationRequestedAt = null);
+
+public sealed record TaskOutcome(
+    JsonElement Output,
+    ResolutionLevel ResolutionLevel,
+    decimal Confidence,
+    IReadOnlyList<EvidenceReference> Evidence,
+    UsageSummary Usage,
+    IReadOnlyList<ArtifactReference> Artifacts,
+    ValidationSummary? Validation = null,
+    ContextManifest? Context = null);
+
+public sealed record UsageSummary(
+    int InputTokens = 0,
+    int OutputTokens = 0,
+    decimal Cost = 0,
+    long DurationMilliseconds = 0,
+    int ModelCalls = 0,
+    int ToolCalls = 0);
+
+public sealed record EvidenceReference(
+    string Kind,
+    string Reference,
+    string? ContentHash = null,
+    DateTimeOffset? ObservedAt = null);
+
+public sealed record ArtifactReference(
+    Guid ArtifactId,
+    string ArtifactType,
+    int Version,
+    string ContentHash);
+
+public sealed record ArtifactSnapshot(
+    ArtifactReference Artifact,
+    string TenantId,
+    string? ProjectId,
+    string TaskType,
+    int TaskDefinitionVersion,
+    JsonElement Content,
+    IReadOnlyList<EvidenceReference> Evidence,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ExpiresAt = null,
+    bool IsActive = true);
+
+public sealed record ValidationSummary(
+    bool Passed,
+    decimal Quality,
+    IReadOnlyList<string> Checks,
+    IReadOnlyList<string> Failures);
+
+public sealed record ContextManifest(
+    int EstimatedTokens,
+    int BudgetTokens,
+    bool Truncated,
+    IReadOnlyList<ContextManifestEntry> Entries);
+
+public sealed record ContextManifestEntry(
+    string Kind,
+    string Reference,
+    bool Included,
+    string Reason,
+    int EstimatedTokens,
+    string? ContentHash = null);
+
+public sealed record ApprovalDecision(
+    string ActionId,
+    bool Approved,
+    string? Reason = null);
+
+public sealed record Problem(
+    string Code,
+    string Title,
+    string Detail,
+    bool Retryable = false,
+    IReadOnlyDictionary<string, string>? Metadata = null);
+
+public sealed record ExecutionEvent(
+    long Sequence,
+    Guid ExecutionId,
+    string Type,
+    DateTimeOffset OccurredAt,
+    JsonElement Data);
+
+[JsonConverter(typeof(JsonStringEnumConverter<ExecutionStatus>))]
+public enum ExecutionStatus
+{
+    Accepted,
+    Resolving,
+    Planning,
+    WaitingForApproval,
+    Running,
+    Validating,
+    Materializing,
+    Compensating,
+    Succeeded,
+    Failed,
+    Cancelled,
+    TimedOut
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ResolutionLevel>))]
+public enum ResolutionLevel
+{
+    ExactArtifact,
+    StructuredState,
+    SemanticMemory,
+    DeterministicCapability,
+    SmallModel,
+    StrongModel,
+    VerifiedOrHuman
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ExecutionStepKind>))]
+public enum ExecutionStepKind
+{
+    Deterministic,
+    Model,
+    Tool,
+    Approval
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<SideEffectClass>))]
+public enum SideEffectClass
+{
+    None,
+    ReadOnly,
+    ReversibleWrite,
+    IrreversibleWrite
+}
+
+public static class ExecutionEventTypes
+{
+    public const string Created = "execution.created";
+    public const string StatusChanged = "execution.status_changed";
+    public const string ResolutionConsidered = "resolution.considered";
+    public const string PlanValidated = "plan.validated";
+    public const string WorkflowCheckpointed = "workflow.checkpointed";
+    public const string WorkflowResumed = "workflow.resumed";
+    public const string StepStarted = "step.started";
+    public const string StepCompleted = "step.completed";
+    public const string StepRetryScheduled = "step.retry_scheduled";
+    public const string StepFailed = "step.failed";
+    public const string ContextCompiled = "context.compiled";
+    public const string GatewayCompleted = "gateway.completed";
+    public const string ValidationCompleted = "validation.completed";
+    public const string ArtifactMaterialized = "artifact.materialized";
+    public const string CancellationRequested = "execution.cancellation_requested";
+    public const string Completed = "execution.completed";
+    public const string Failed = "execution.failed";
+
+    public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Created,
+        StatusChanged,
+        ResolutionConsidered,
+        PlanValidated,
+        WorkflowCheckpointed,
+        WorkflowResumed,
+        StepStarted,
+        StepCompleted,
+        StepRetryScheduled,
+        StepFailed,
+        ContextCompiled,
+        GatewayCompleted,
+        ValidationCompleted,
+        ArtifactMaterialized,
+        CancellationRequested,
+        Completed,
+        Failed
+    };
+}
+
+public static class ErrorCodes
+{
+    public const string IdempotencyKeyConflict = "idempotency_key_conflict";
+    public const string IdentityScopeConflict = "identity_scope_conflict";
+    public const string InvalidTaskRequest = "invalid_task_request";
+    public const string ExecutionAlreadyTerminal = "execution_already_terminal";
+    public const string UnknownTaskType = "unknown_task_type";
+    public const string InvalidExecutionPlan = "invalid_execution_plan";
+    public const string WorkflowStepFailed = "workflow_step_failed";
+    public const string WorkflowStepTimedOut = "workflow_step_timed_out";
+    public const string ValidationFailed = "validation_failed";
+    public const string ExecutionTimedOut = "execution_timed_out";
+    public const string ExecutionCancelled = "execution_cancelled";
+    public const string ExecutionFailed = "execution_failed";
+    public const string ExternalWriteNotAllowed = "external_write_not_allowed";
+    public const string ModelBudgetExhausted = "model_budget_exhausted";
+    public const string CostBudgetExceeded = "cost_budget_exceeded";
+    public const string ModelCallBudgetExceeded = "model_call_budget_exceeded";
+    public const string ModelGatewayUnavailable = "model_gateway_unavailable";
+    public const string ModelGatewayHttpError = "model_gateway_http_error";
+    public const string ModelGatewayInvalidResponse = "model_gateway_invalid_response";
+
+    public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        IdempotencyKeyConflict,
+        IdentityScopeConflict,
+        InvalidTaskRequest,
+        ExecutionAlreadyTerminal,
+        UnknownTaskType,
+        InvalidExecutionPlan,
+        WorkflowStepFailed,
+        WorkflowStepTimedOut,
+        ValidationFailed,
+        ExecutionTimedOut,
+        ExecutionCancelled,
+        ExecutionFailed,
+        ExternalWriteNotAllowed,
+        ModelBudgetExhausted,
+        CostBudgetExceeded,
+        ModelCallBudgetExceeded,
+        ModelGatewayUnavailable,
+        ModelGatewayHttpError,
+        ModelGatewayInvalidResponse
+    };
+}

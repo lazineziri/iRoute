@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Contracts</AssemblyName>
+    <RootNamespace>iRoute.Contracts</RootNamespace>
+    <Description>Stable public contracts for iRoute clients and hosts.</Description>
+  </PropertyGroup>
+</Project>

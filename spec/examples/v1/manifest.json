@@ -1,0 +1,13 @@
+{
+  "examples": [
+    { "file": "../../../examples/email-draft.json", "schema": "https://schemas.iroute.dev/v1/task-request.schema.json" },
+    { "file": "task-definition.email-draft.json", "schema": "https://schemas.iroute.dev/v1/task-definition.schema.json" },
+    { "file": "capability-definition.text-generation.json", "schema": "https://schemas.iroute.dev/v1/capability-definition.schema.json" },
+    { "file": "execution-plan.email-draft.json", "schema": "https://schemas.iroute.dev/v1/execution-plan.schema.json" },
+    { "file": "task-event.created.json", "schema": "https://schemas.iroute.dev/v1/task-event.schema.json" },
+    { "file": "task-outcome.email-draft.json", "schema": "https://schemas.iroute.dev/v1/task-outcome.schema.json" },
+    { "file": "artifact.email-draft.json", "schema": "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json" },
+    { "file": "evidence-reference.request.json", "schema": "https://schemas.iroute.dev/v1/evidence-reference.schema.json" },
+    { "file": "problem.invalid-plan.json", "schema": "https://schemas.iroute.dev/v1/problem.schema.json" }
+  ]
+}

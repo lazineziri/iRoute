@@ -1,0 +1,30 @@
+{
+  "capability": "text.generation",
+  "version": 1,
+  "kind": "Model",
+  "description": "Generate typed text output through the provider-neutral model gateway.",
+  "inputSchema": { "type": "object" },
+  "outputSchema": { "type": "object" },
+  "sideEffectClass": "None",
+  "authenticationScopes": ["gateway:execute"],
+  "permissionScopes": ["model:generate"],
+  "idempotency": {
+    "supported": true,
+    "requiredForWrites": false
+  },
+  "retry": {
+    "maxAttempts": 1,
+    "retryableFailureClasses": ["timeout", "rate-limit", "unavailable"]
+  },
+  "serviceProfile": {
+    "expectedLatencyMilliseconds": 2000,
+    "estimatedCost": 0.01,
+    "availability": 0.99,
+    "reliability": 0.98
+  },
+  "cacheability": "Scoped",
+  "freshnessSeconds": 3600,
+  "dataSensitivity": "Confidential",
+  "trustLevel": "Registered",
+  "isolation": "Remote"
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/model-gateway-request.schema.json",
+  "title": "ModelGatewayRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capability", "input", "context", "maxOutputTokens"],
+  "properties": {
+    "capability": { "type": "string", "minLength": 1 },
+    "input": true,
+    "context": true,
+    "maxOutputTokens": { "type": "integer", "minimum": 1 },
+    "correlationId": { "type": ["string", "null"], "maxLength": 200 }
+  }
+}

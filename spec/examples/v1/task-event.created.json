@@ -1,0 +1,12 @@
+{
+  "sequence": 1,
+  "executionId": "0198f6b4-6f3c-7de1-86e8-5d223ab25450",
+  "type": "execution.created",
+  "occurredAt": "2026-07-31T12:00:00Z",
+  "data": {
+    "taskType": "email.draft",
+    "tenantId": "tenant-a",
+    "actorId": "user-a",
+    "projectId": "iroute-project"
+  }
+}

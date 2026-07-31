@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/task-request.schema.json",
+  "title": "TaskRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["taskType", "input"],
+  "properties": {
+    "taskType": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]+$", "maxLength": 120 },
+    "input": true,
+    "projectId": { "type": ["string", "null"], "maxLength": 200 },
+    "idempotencyKey": { "type": ["string", "null"], "maxLength": 200 },
+    "constraints": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "maxInputTokens": { "type": ["integer", "null"], "minimum": 1, "maximum": 2000000 },
+        "maxOutputTokens": { "type": ["integer", "null"], "minimum": 1, "maximum": 200000 },
+        "maxCost": { "type": ["number", "null"], "minimum": 0 },
+        "deadlineMilliseconds": { "type": ["integer", "null"], "minimum": 1, "maximum": 900000 },
+        "minimumQuality": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "requireEvidence": { "type": "boolean" },
+        "allowExternalWrites": { "type": "boolean" },
+        "maxModelCalls": { "type": ["integer", "null"], "minimum": 0, "maximum": 16 },
+        "maxToolCalls": { "type": ["integer", "null"], "minimum": 0, "maximum": 64 },
+        "maxParallelCalls": { "type": ["integer", "null"], "minimum": 1, "maximum": 32 },
+        "maxTaskDepth": { "type": ["integer", "null"], "minimum": 1, "maximum": 16 }
+      }
+    },
+    "metadata": {
+      "type": ["object", "null"],
+      "maxProperties": 32,
+      "additionalProperties": { "type": "string" }
+    },
+    "tenantId": { "type": ["string", "null"], "maxLength": 200 },
+    "actorId": { "type": ["string", "null"], "maxLength": 200 }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/task-outcome.schema.json",
+  "title": "TaskOutcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "artifactType", "version", "contentHash"],
+      "properties": {
+        "artifactId": { "type": "string", "format": "uuid" },
+        "artifactType": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "contentHash": { "type": "string" }
+      }
+    }
+  },
+  "properties": {
+    "output": true,
+    "resolutionLevel": {
+      "enum": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"]
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidence": { "type": "array", "items": { "$ref": "evidence-reference.schema.json" } },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"],
+      "properties": {
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "cost": { "type": "number", "minimum": 0 },
+        "durationMilliseconds": { "type": "integer", "minimum": 0 },
+        "modelCalls": { "type": "integer", "minimum": 0 },
+        "toolCalls": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },
+    "validation": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["passed", "quality", "checks", "failures"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "quality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "checks": { "type": "array", "items": { "type": "string" } },
+        "failures": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "context": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["estimatedTokens", "budgetTokens", "truncated", "entries"],
+      "properties": {
+        "estimatedTokens": { "type": "integer", "minimum": 0 },
+        "budgetTokens": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "reference", "included", "reason", "estimatedTokens"],
+            "properties": {
+              "kind": { "type": "string" },
+              "reference": { "type": "string" },
+              "included": { "type": "boolean" },
+              "reason": { "type": "string" },
+              "estimatedTokens": { "type": "integer", "minimum": 0 },
+              "contentHash": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

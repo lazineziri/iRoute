@@ -1,0 +1,28 @@
+{
+  "planId": "email.draft@1:direct",
+  "version": 1,
+  "taskType": "email.draft",
+  "taskVersion": 1,
+  "steps": [
+    {
+      "id": "execute",
+      "kind": "Model",
+      "capability": "text.generation",
+      "dependsOn": [],
+      "sideEffectClass": "None",
+      "timeoutMilliseconds": 30000,
+      "maxAttempts": 1
+    }
+  ],
+  "budget": {
+    "maxSteps": 1,
+    "maxModelCalls": 1,
+    "maxToolCalls": 0,
+    "maxParallelCalls": 1,
+    "maxTaskDepth": 1,
+    "deadlineMilliseconds": 30000,
+    "maxInputTokens": 4000,
+    "maxOutputTokens": 800,
+    "maxCost": 0.1
+  }
+}

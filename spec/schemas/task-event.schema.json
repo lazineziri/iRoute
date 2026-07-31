@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/task-event.schema.json",
+  "title": "TaskEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sequence", "executionId", "type", "occurredAt", "data"],
+  "properties": {
+    "sequence": { "type": "integer", "minimum": 1 },
+    "executionId": { "type": "string", "format": "uuid" },
+    "type": {
+      "enum": [
+        "execution.created",
+        "execution.status_changed",
+        "resolution.considered",
+        "plan.validated",
+        "workflow.checkpointed",
+        "workflow.resumed",
+        "step.started",
+        "step.completed",
+        "step.retry_scheduled",
+        "step.failed",
+        "context.compiled",
+        "gateway.completed",
+        "validation.completed",
+        "artifact.materialized",
+        "execution.cancellation_requested",
+        "execution.completed",
+        "execution.failed"
+      ]
+    },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "data": { "type": "object", "additionalProperties": true }
+  }
+}

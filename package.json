@@ -1,0 +1,17 @@
+{
+  "name": "iroute-contract-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "scripts": {
+    "test:contracts": "node --test tools/schema-smoke.test.mjs tools/contract-compatibility.test.mjs"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.8.1"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/execution-snapshot.schema.json",
+  "title": "ExecutionSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
+  "properties": {
+    "executionId": { "type": "string", "format": "uuid" },
+    "taskType": { "type": "string" },
+    "status": {
+      "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"]
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "outcome": {
+      "oneOf": [
+        { "$ref": "task-outcome.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "error": {
+      "oneOf": [
+        { "$ref": "problem.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "tenantId": { "type": "string" },
+    "actorId": { "type": "string" },
+    "projectId": { "type": ["string", "null"] },
+    "taskDefinitionVersion": { "type": ["integer", "null"], "minimum": 1 },
+    "cancellationRequestedAt": { "type": ["string", "null"], "format": "date-time" }
+  }
+}
