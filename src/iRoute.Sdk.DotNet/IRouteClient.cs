@@ -94,6 +94,19 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
         return await response.Content.ReadFromJsonAsync<ArtifactSnapshot>(JsonOptions, cancellationToken);
     }
 
+    public async Task<ModelGatewayHealth> GetModelGatewayHealthAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync("health/model-gateway", cancellationToken);
+        if (response.StatusCode is not HttpStatusCode.OK and not HttpStatusCode.ServiceUnavailable)
+        {
+            response.EnsureSuccessStatusCode();
+        }
+
+        return await response.Content.ReadFromJsonAsync<ModelGatewayHealth>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("iRoute returned an empty model-gateway health response.");
+    }
+
     public async IAsyncEnumerable<ExecutionEvent> StreamEventsAsync(
         Guid executionId,
         long afterSequence = 0,

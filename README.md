@@ -4,14 +4,14 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0 and M1 are complete; W08 is complete**. See [the workstream status](docs/workstream-status.md). M2 continues with W09.
+Formal backlog status: **M0 and M1 are complete; W09 is complete**. See [the workstream status](docs/workstream-status.md). M2 continues with W10.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
 - synchronous task execution through ASP.NET Core
 - tenant-scoped idempotency and artifact reuse
 - bounded context compilation with a context manifest
-- deterministic development gateway or configurable HTTP model gateway
+- deterministic development gateway or configurable buffered/streaming HTTP model gateway
 - fail-closed output and quality validation
 - durable SQLite and PostgreSQL stores for executions, ordered events, versioned artifacts, facts, decisions, and dependency edges
 - cancellation requests, deadlines, health checks, and SSE event replay
@@ -23,6 +23,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - explainable no-model resolution from exact results, project facts/decisions, explicit artifacts, and registered deterministic handlers
 - ranked context compilation with explicit artifact sections, full-history exclusion, serialized token bounds, and fact-level provenance
 - measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
+- provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
@@ -58,7 +59,7 @@ Useful endpoints:
 - `POST /v1/executions/{executionId}/cancel`
 - `POST /v1/executions/{executionId}/approvals`
 - `GET /v1/artifacts/{artifactId}`
-- `GET /health/live`, `GET /health/ready`, and `GET /openapi/v1.json`
+- `GET /health/live`, `GET /health/ready`, `GET /health/model-gateway`, and `GET /openapi/v1.json`
 
 ## Verification
 
@@ -75,7 +76,7 @@ With the API running, execute the initial behavioral evaluation fixture:
 node tools/run-evaluation.mjs
 ```
 
-To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. The gateway request/result schemas are under `spec/schemas`.
+To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. Set `ModelGateway__Transport=Streaming` to use bounded NDJSON streaming. `node tools/check-gateway-contract.mjs` verifies an external endpoint directly; run it against separate buffered and streaming gateways to prove contract parity. Gateway request/result, stream, health, and failure schemas are under `spec/schemas`.
 
 ## Configuration
 
@@ -87,6 +88,8 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Storage__AutoInitialize` | Create the prototype schema at startup | `true` |
 | `ConnectionStrings__iRoute` | Durable database connection | `Data Source=iroute.db` |
 | `ModelGateway__Mode` | `Deterministic` or `Http` | `Deterministic` |
+| `ModelGateway__GatewayId` | Stable operator-defined external gateway identity | `external` |
+| `ModelGateway__Transport` | `Buffered` or bounded NDJSON `Streaming` | `Buffered` |
 | `ModelGateway__BaseUrl` | Generic HTTP gateway base URL | unset |
 | `ModelGateway__ApiKey` | Generic HTTP gateway bearer credential | unset |
 | `Workflow__QueueCapacity` | Maximum queued ready steps per scheduling round | `16` |
@@ -99,7 +102,7 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Identity__PermissionClaim` | Claim containing space- or comma-separated permission scopes | `scope` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Opt-in telemetry export | unset |
 
-Use the deterministic gateway only for local development and repeatable tests. The HTTP mode expects `POST {BaseUrl}/v1/execute` using the provider-neutral gateway contract.
+Use the deterministic gateway only for local development and repeatable tests. Buffered HTTP mode expects `POST {BaseUrl}/v1/execute`; streaming mode expects `POST {BaseUrl}/v1/stream` with monotonic NDJSON events and one terminal result. Both use the same provider-neutral request/result contract. `GET {BaseUrl}/health` supplies normalized optional-gateway health without affecting `/health/ready`.
 
 `DevelopmentHeaders` trusts `X-Tenant-Id`, `X-Actor-Id`, and `X-Permission-Scopes` and must not be exposed as an internet-facing production configuration. JWT mode requires an authenticated token with the configured tenant claim and obtains permission scopes only from `Identity__PermissionClaim`; request headers and body fields cannot elevate them.
 

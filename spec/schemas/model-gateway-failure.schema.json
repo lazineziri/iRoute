@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json",
+  "title": "ModelGatewayFailure",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "kind", "message", "retryable"],
+  "properties": {
+    "code": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "kind": {
+      "enum": ["InvalidRequest", "Authentication", "RateLimited", "Timeout", "Unavailable", "InvalidResponse", "Cancelled", "Internal"]
+    },
+    "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "retryable": { "type": "boolean" },
+    "statusCode": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+    "gatewayId": { "type": ["string", "null"], "maxLength": 200 },
+    "correlationId": { "type": ["string", "null"], "maxLength": 200 }
+  }
+}

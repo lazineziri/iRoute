@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/model-gateway-health.schema.json",
+  "title": "ModelGatewayHealth",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
+  "properties": {
+    "gatewayId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": ["Healthy", "Degraded", "Unavailable"] },
+    "latencyMilliseconds": { "type": "integer", "minimum": 0 },
+    "checkedAt": { "type": "string", "format": "date-time" },
+    "message": { "type": ["string", "null"], "maxLength": 1000 }
+  }
+}

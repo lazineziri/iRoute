@@ -1,0 +1,9 @@
+{
+  "code": "model_gateway_http_error",
+  "kind": "RateLimited",
+  "message": "The configured model gateway returned HTTP 429.",
+  "retryable": true,
+  "statusCode": 429,
+  "gatewayId": "external-alpha",
+  "correlationId": "019b2c00-1111-7000-8000-000000000001"
+}

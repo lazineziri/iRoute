@@ -73,6 +73,9 @@ public static class ServiceCollectionExtensions
                 ? provider.GetRequiredService<GenericHttpModelGateway>()
                 : provider.GetRequiredService<DeterministicModelGateway>();
         });
+        services.AddHealthChecks().AddCheck<ModelGatewayHealthCheck>(
+            "model_gateway",
+            tags: ["gateway"]);
         return services;
     }
 }

@@ -141,4 +141,24 @@ Acceptance evidence:
 - Orchestrator tests prove the selected profile reaches the provider-neutral model gateway and the durable outcome/events explain the route and escalation without exposing payloads.
 - The SQLite restart suite preserves the routing decision beside the plan; PostgreSQL evaluation checks direct planner avoidance, strong-profile escalation, measured candidates, and both routing audit events.
 
-## Next: W09 — Generic model-gateway integration
+### W09 — Generic model-gateway integration: complete
+
+Deliverables:
+
+- Provider-neutral request/result contract with capability, selected profile, bounded input/context, output-token limit, correlation ID, and effective deadline.
+- Buffered JSON and bounded NDJSON streaming transports behind the same `IModelGateway` port, with monotonic sequence, event-count, line-size, and terminal-completion enforcement.
+- End-to-end cancellation propagation through HTTP send and stream reads.
+- Normalized usage, configured gateway identity, transport, finish reason, and runtime-observed latency on successful calls.
+- Normalized health contract plus `/health/model-gateway`, intentionally separate from API readiness.
+- Classified failures for invalid request, authentication, rate limit, timeout, unavailability, invalid response, cancellation, and internal errors, with safe `gateway.failed` reporting.
+- Versioned request/result/stream/health/failure schemas and examples, gateway lifecycle event taxonomy, .NET and Node SDK health access, a standalone gateway contract checker, and external-gateway evaluation coverage.
+
+Acceptance evidence:
+
+- Conformance tests prove separately identified buffered and streaming external gateways satisfy the same provider-neutral contract and normalize to the same result semantics.
+- Streaming tests prove incremental events are consumed without buffering the HTTP response, sequence/completion bounds fail closed, and payload deltas are represented only as aggregate audit counts.
+- Cancellation tests prove caller cancellation reaches the external HTTP handler without being converted into a retryable gateway failure.
+- Failure tests prove HTTP statuses map consistently to retryability and normalized failure kinds; orchestration emits `gateway.failed` without provider bodies.
+- Orchestrator and PostgreSQL evaluation prove selected profile/deadline propagation, configured gateway identity, normalized usage and observed latency, health reporting, and buffered/streaming lifecycle events without provider-specific planning logic.
+
+## Next: W10 — Evaluation and regression harness

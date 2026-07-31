@@ -11,6 +11,7 @@
     "context": true,
     "maxOutputTokens": { "type": "integer", "minimum": 1 },
     "correlationId": { "type": ["string", "null"], "maxLength": 200 },
-    "profileId": { "type": ["string", "null"], "maxLength": 200 }
+    "profileId": { "type": ["string", "null"], "maxLength": 200 },
+    "deadlineMilliseconds": { "type": ["integer", "null"], "minimum": 1 }
   }
 }

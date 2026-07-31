@@ -95,6 +95,77 @@ for (const fixture of cases) {
 }
 
 try {
+  const healthResponse = await fetch(new URL('/health/model-gateway', baseUrl));
+  if (healthResponse.status !== 200 && healthResponse.status !== 503) {
+    throw new Error(`gateway health returned HTTP ${healthResponse.status}`);
+  }
+  const health = await healthResponse.json();
+  if (!health.gatewayId) throw new Error('gateway health omitted gatewayId');
+  if (!['Healthy', 'Degraded', 'Unavailable'].includes(health.status)) {
+    throw new Error(`gateway health returned unknown status ${health.status}`);
+  }
+  if (health.status !== 'Healthy') throw new Error(`gateway health is ${health.status}`);
+
+  const response = await fetch(new URL('/v1/executions', baseUrl), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-tenant-id': 'evaluation',
+      'x-actor-id': 'evaluation-runner',
+      'idempotency-key': `w09-gateway-${evaluationRunId}`
+    },
+    body: JSON.stringify({
+      taskType: 'email.draft',
+      projectId: `evaluation-w09-${evaluationRunId}`,
+      input: {
+        recipient: { name: 'Ada' },
+        projectName: 'iRoute',
+        objective: 'Validate the generic model-gateway contract.',
+        activeDecisions: ['Keep provider-specific logic behind the external gateway boundary.']
+      },
+      constraints: {
+        maxModelCalls: 1,
+        deadlineMilliseconds: 30000
+      }
+    })
+  });
+  if (!response.ok) throw new Error(`execution returned HTTP ${response.status}: ${await response.text()}`);
+  const execution = await response.json();
+  assertEqual(execution.status, 'Succeeded', 'W09 execution status');
+  if (typeof execution.outcome?.usage?.durationMilliseconds !== 'number') {
+    throw new Error('W09 outcome omitted normalized observed latency');
+  }
+
+  const eventResponse = await fetch(
+    new URL(`/v1/executions/${execution.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!eventResponse.ok) throw new Error(`W09 event replay returned HTTP ${eventResponse.status}`);
+  const events = parseSseEvents(await eventResponse.text());
+  const started = events.find(item => item.type === 'gateway.started');
+  const completed = events.find(item => item.type === 'gateway.completed');
+  if (!started || !completed) throw new Error('W09 gateway lifecycle events were incomplete');
+  assertEqual(started.data?.deadlineMilliseconds, 30000, 'W09 gateway deadline');
+  assertEqual(completed.data?.gatewayId, health.gatewayId, 'W09 configured gateway identity');
+  if (!['Buffered', 'Streaming'].includes(completed.data?.transport)) {
+    throw new Error(`W09 gateway transport is invalid: ${completed.data?.transport}`);
+  }
+  assertEqual(
+    completed.data?.durationMilliseconds,
+    execution.outcome.usage.durationMilliseconds,
+    'W09 observed latency normalization'
+  );
+  if (completed.data.transport === 'Streaming' &&
+      !events.some(item => item.type === 'gateway.streamed')) {
+    throw new Error('W09 streaming gateway omitted gateway.streamed');
+  }
+  console.log('PASS w09-generic-model-gateway');
+} catch (error) {
+  failed++;
+  console.error(`FAIL w09-generic-model-gateway: ${error.message}`);
+}
+
+try {
   const response = await fetch(new URL('/v1/executions', baseUrl), {
     method: 'POST',
     headers: {

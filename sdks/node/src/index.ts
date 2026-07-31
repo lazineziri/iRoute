@@ -164,6 +164,71 @@ export interface ModelProfile {
   measurementSource: string;
 }
 
+export type ModelGatewayHealthStatus = 'Healthy' | 'Degraded' | 'Unavailable';
+export type ModelGatewayTransport = 'Buffered' | 'Streaming';
+export type ModelGatewayFinishReason =
+  | 'Completed'
+  | 'Length'
+  | 'ContentFiltered'
+  | 'ToolCall'
+  | 'Other';
+export type ModelGatewayStreamEventKind = 'OutputDelta' | 'Usage' | 'Completed';
+export type ModelGatewayFailureKind =
+  | 'InvalidRequest'
+  | 'Authentication'
+  | 'RateLimited'
+  | 'Timeout'
+  | 'Unavailable'
+  | 'InvalidResponse'
+  | 'Cancelled'
+  | 'Internal';
+
+export interface ModelGatewayRequest {
+  capability: string;
+  input: unknown;
+  context: unknown;
+  maxOutputTokens: number;
+  correlationId?: string | null;
+  profileId?: string | null;
+  deadlineMilliseconds?: number | null;
+}
+
+export interface ModelGatewayResult {
+  output: unknown;
+  usage: UsageSummary;
+  confidence: number;
+  evidence: readonly EvidenceReference[];
+  gatewayId?: string | null;
+  transport?: ModelGatewayTransport;
+  finishReason?: ModelGatewayFinishReason;
+}
+
+export interface ModelGatewayStreamEvent {
+  sequence: number;
+  kind: ModelGatewayStreamEventKind;
+  delta?: string | null;
+  usage?: UsageSummary | null;
+  result?: ModelGatewayResult | null;
+}
+
+export interface ModelGatewayFailure {
+  code: string;
+  kind: ModelGatewayFailureKind;
+  message: string;
+  retryable: boolean;
+  statusCode?: number | null;
+  gatewayId?: string | null;
+  correlationId?: string | null;
+}
+
+export interface ModelGatewayHealth {
+  gatewayId: string;
+  status: ModelGatewayHealthStatus;
+  latencyMilliseconds: number;
+  checkedAt: string;
+  message?: string | null;
+}
+
 export interface TaskOutcome {
   output: unknown;
   resolutionLevel: ResolutionLevel;
@@ -380,6 +445,17 @@ export class IRouteClient {
     );
     if (response.status === 404) return undefined;
     return await this.readJson<ArtifactSnapshot>(response);
+  }
+
+  async getModelGatewayHealth(signal?: AbortSignal): Promise<ModelGatewayHealth> {
+    const response = await fetch(
+      new URL('/health/model-gateway', this.baseUrl),
+      this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
+    );
+    if (response.status !== 200 && response.status !== 503) {
+      throw await this.createError(response);
+    }
+    return await response.json() as ModelGatewayHealth;
   }
 
   async *streamEvents(

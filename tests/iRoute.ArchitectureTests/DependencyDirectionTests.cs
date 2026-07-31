@@ -4,6 +4,16 @@ namespace iRoute.ArchitectureTests;
 
 public sealed class DependencyDirectionTests
 {
+    private static readonly string[] RuntimeProjects = ["iRoute.Core", "iRoute.Runtime"];
+    private static readonly string[] ProviderTokens =
+    [
+        "api.openai.com",
+        "Anthropic",
+        "Azure.AI.OpenAI",
+        "/chat/completions",
+        "/responses"
+    ];
+
     [Fact]
     public void ContractsProjectHasNoProjectReferences()
     {
@@ -20,6 +30,22 @@ public sealed class DependencyDirectionTests
         Assert.DoesNotContain("Infrastructure", project, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("iRoute.Api", project, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("iRoute.Worker", project, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PlanningAndRuntimeContainNoProviderSpecificGatewayProtocol()
+    {
+        var root = FindRepositoryRoot();
+        var files = RuntimeProjects
+            .SelectMany(project => Directory.EnumerateFiles(
+                Path.Combine(root, "src", project),
+                "*.cs",
+                SearchOption.TopDirectoryOnly));
+        var source = string.Join('\n', files.Select(File.ReadAllText));
+        foreach (var providerToken in ProviderTokens)
+        {
+            Assert.DoesNotContain(providerToken, source, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static string FindRepositoryRoot()

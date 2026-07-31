@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using iRoute.Contracts;
 using iRoute.Core;
@@ -525,7 +526,53 @@ public sealed class ExecutionOrchestratorTests
         var problem = Assert.IsType<Problem>(result.Error);
         Assert.Equal("model_gateway_http_error", problem.Code);
         Assert.True(problem.Retryable);
-        Assert.Equal("503", Assert.IsType<Dictionary<string, string>>(problem.Metadata)["gatewayStatusCode"]);
+        var metadata = Assert.IsType<Dictionary<string, string>>(problem.Metadata);
+        Assert.Equal("503", metadata["gatewayStatusCode"]);
+        Assert.Equal(ModelGatewayFailureKind.Unavailable.ToString(), metadata["gatewayFailureKind"]);
+        Assert.Equal("external-failure", metadata["gatewayId"]);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayStarted);
+        var failed = Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayFailed);
+        Assert.Equal("Unavailable", failed.Data.GetProperty("kind").GetString());
+        Assert.True(failed.Data.GetProperty("retryable").GetBoolean());
+        Assert.Equal(503, failed.Data.GetProperty("statusCode").GetInt32());
+    }
+
+    [Fact]
+    public async Task StreamingGatewayReportsProgressAndObservedLatencyWithoutBufferingProviderDetails()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            new StreamingModelGateway());
+
+        var result = await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "streaming-gateway"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
+        Assert.True(outcome.Usage.DurationMilliseconds >= 10);
+        Assert.Equal(1, outcome.Usage.ModelCalls);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        var started = Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayStarted);
+        Assert.Equal("external-stream", started.Data.GetProperty("gatewayId").GetString());
+        Assert.Equal(30_000, started.Data.GetProperty("deadlineMilliseconds").GetInt32());
+        var streamed = Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayStreamed);
+        Assert.Equal("external-stream", streamed.Data.GetProperty("gatewayId").GetString());
+        Assert.Equal(3, streamed.Data.GetProperty("streamEvents").GetInt32());
+        Assert.Equal(1, streamed.Data.GetProperty("deltaEvents").GetInt32());
+        Assert.Equal(1, streamed.Data.GetProperty("usageUpdates").GetInt32());
+        var completed = Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayCompleted);
+        Assert.Equal("external-stream", completed.Data.GetProperty("gatewayId").GetString());
+        Assert.Equal("Streaming", completed.Data.GetProperty("transport").GetString());
+        Assert.Equal(
+            outcome.Usage.DurationMilliseconds,
+            completed.Data.GetProperty("durationMilliseconds").GetInt64());
     }
 
     [Fact]
@@ -774,7 +821,46 @@ public sealed class ExecutionOrchestratorTests
                 "model_gateway_http_error",
                 "The configured model gateway returned HTTP 503.",
                 true,
-                503);
+                503,
+                failureKind: ModelGatewayFailureKind.Unavailable,
+                gatewayId: "external-failure",
+                correlationId: request.CorrelationId);
+    }
+
+    private sealed class StreamingModelGateway : IModelGateway
+    {
+        private readonly DeterministicModelGateway _inner = new();
+
+        public string GatewayId => "external-stream";
+
+        public Task<ModelGatewayResult> ExecuteAsync(
+            ModelGatewayRequest request,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The orchestrator must consume the streaming contract.");
+
+        public async IAsyncEnumerable<ModelGatewayStreamEvent> StreamAsync(
+            ModelGatewayRequest request,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var result = await _inner.ExecuteAsync(request, cancellationToken);
+            yield return new ModelGatewayStreamEvent(
+                1,
+                ModelGatewayStreamEventKind.OutputDelta,
+                Delta: "{\"subject\":");
+            yield return new ModelGatewayStreamEvent(
+                2,
+                ModelGatewayStreamEventKind.Usage,
+                Usage: result.Usage);
+            await Task.Delay(TimeSpan.FromMilliseconds(15), cancellationToken);
+            yield return new ModelGatewayStreamEvent(
+                3,
+                ModelGatewayStreamEventKind.Completed,
+                Result: result with
+                {
+                    GatewayId = "external-stream",
+                    Transport = ModelGatewayTransport.Streaming
+                });
+        }
     }
 
     private static TaskRouter CreateTaskRouter()

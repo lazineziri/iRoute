@@ -8,7 +8,8 @@
     "POST /v1/executions/{executionId}/approvals": "submitExecutionApproval",
     "GET /v1/artifacts/{artifactId}": "getArtifact",
     "GET /health/live": "getLiveness",
-    "GET /health/ready": "getReadiness"
+    "GET /health/ready": "getReadiness",
+    "GET /health/model-gateway": "getModelGatewayHealth"
   },
   "openApiSchemas": {
     "TaskRequest": {
@@ -87,6 +88,10 @@
       "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
       "properties": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"]
     },
+    "ModelGatewayHealth": {
+      "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
+      "properties": ["gatewayId", "status", "latencyMilliseconds", "checkedAt", "message"]
+    },
     "TaskEvent": {
       "required": ["sequence", "executionId", "type", "occurredAt", "data"],
       "properties": ["sequence", "executionId", "type", "occurredAt", "data"]
@@ -114,8 +119,9 @@
     "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
     "RoutingPath": ["Direct", "Workflow"],
     "ModelTier": ["Small", "Strong", "Verifier"],
+    "ModelGatewayHealthStatus": ["Healthy", "Degraded", "Unavailable"],
     "ResolutionDecisionCode": ["exact_cache_hit", "exact_cache_miss", "permission_denied", "unsupported_task", "project_scope_required", "state_key_required", "state_hit", "state_unavailable", "artifact_reference_required", "artifact_hit", "artifact_unavailable", "handler_unavailable", "handler_declined", "handler_stale", "handler_accepted", "external_write_blocked", "validation_failed"],
-    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "routing.decided", "routing.escalated", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
+    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "routing.decided", "routing.escalated", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.started", "gateway.streamed", "gateway.completed", "gateway.failed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
     "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "routing_no_eligible_capability", "routing_budget_exceeded", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
   },
   "jsonSchemas": {
@@ -165,7 +171,15 @@
     },
     "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
       "required": ["capability", "input", "context", "maxOutputTokens"],
-      "properties": ["capability", "context", "correlationId", "input", "maxOutputTokens", "profileId"]
+      "properties": ["capability", "context", "correlationId", "deadlineMilliseconds", "input", "maxOutputTokens", "profileId"]
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json": {
+      "required": ["code", "kind", "message", "retryable"],
+      "properties": ["code", "correlationId", "gatewayId", "kind", "message", "retryable", "statusCode"]
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-health.schema.json": {
+      "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
+      "properties": ["checkedAt", "gatewayId", "latencyMilliseconds", "message", "status"]
     },
     "https://schemas.iroute.dev/v1/model-profile.schema.json": {
       "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
@@ -173,7 +187,11 @@
     },
     "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
       "required": ["output", "usage", "confidence", "evidence"],
-      "properties": ["confidence", "evidence", "output", "usage"]
+      "properties": ["confidence", "evidence", "finishReason", "gatewayId", "output", "transport", "usage"]
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-stream-event.schema.json": {
+      "required": ["sequence", "kind"],
+      "properties": ["delta", "kind", "result", "sequence", "usage"]
     },
     "https://schemas.iroute.dev/v1/memory-snapshot.schema.json": {
       "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],

@@ -24,6 +24,9 @@
     "evidence": {
       "type": "array",
       "items": { "$ref": "evidence-reference.schema.json" }
-    }
+    },
+    "gatewayId": { "type": ["string", "null"], "maxLength": 200 },
+    "transport": { "enum": ["Buffered", "Streaming"] },
+    "finishReason": { "enum": ["Completed", "Length", "ContentFiltered", "ToolCall", "Other"] }
   }
 }

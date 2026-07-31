@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/model-gateway-stream-event.schema.json",
+  "title": "ModelGatewayStreamEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sequence", "kind"],
+  "properties": {
+    "sequence": { "type": "integer", "minimum": 1 },
+    "kind": { "enum": ["OutputDelta", "Usage", "Completed"] },
+    "delta": { "type": ["string", "null"], "maxLength": 65536 },
+    "usage": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"],
+      "properties": {
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "cost": { "type": "number", "minimum": 0 },
+        "durationMilliseconds": { "type": "integer", "minimum": 0 },
+        "modelCalls": { "type": "integer", "minimum": 0 },
+        "toolCalls": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "result": {
+      "anyOf": [
+        { "$ref": "model-gateway-result.schema.json" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "OutputDelta" } } },
+      "then": { "properties": { "delta": true }, "required": ["delta"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "Usage" } } },
+      "then": { "properties": { "usage": true }, "required": ["usage"] }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "Completed" } } },
+      "then": { "properties": { "result": true }, "required": ["result"] }
+    }
+  ]
+}

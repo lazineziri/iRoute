@@ -195,6 +195,24 @@ paths:
           description: Required dependencies are ready.
         '503':
           description: At least one required dependency is unavailable.
+  /health/model-gateway:
+    get:
+      operationId: getModelGatewayHealth
+      tags: [Health]
+      summary: Report the configured optional model gateway's normalized health.
+      responses:
+        '200':
+          description: The gateway is healthy or degraded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelGatewayHealth'
+        '503':
+          description: The optional model gateway is unavailable. API readiness is unaffected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelGatewayHealth'
 components:
   securitySchemes:
     bearerAuth:
@@ -662,6 +680,19 @@ components:
         maxOutputTokens: { type: integer, minimum: 1 }
         healthy: { type: boolean }
         measurementSource: { type: string }
+    ModelGatewayHealth:
+      type: object
+      additionalProperties: false
+      required: [gatewayId, status, latencyMilliseconds, checkedAt]
+      properties:
+        gatewayId: { type: string, minLength: 1, maxLength: 200 }
+        status: { $ref: '#/components/schemas/ModelGatewayHealthStatus' }
+        latencyMilliseconds: { type: integer, format: int64, minimum: 0 }
+        checkedAt: { type: string, format: date-time }
+        message: { type: [string, 'null'], maxLength: 1000 }
+    ModelGatewayHealthStatus:
+      type: string
+      enum: [Healthy, Degraded, Unavailable]
     TaskEvent:
       type: object
       additionalProperties: false
@@ -736,7 +767,10 @@ components:
         - external_action.reused
         - external_action.failed
         - context.compiled
+        - gateway.started
+        - gateway.streamed
         - gateway.completed
+        - gateway.failed
         - validation.completed
         - artifact.materialized
         - artifact.superseded

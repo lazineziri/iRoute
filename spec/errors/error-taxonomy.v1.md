@@ -34,6 +34,6 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `model_call_budget_exceeded` | execution | no | Reported model calls exceeded the request ceiling. |
 | `model_gateway_unavailable` | execution | yes | The configured gateway could not be reached. |
 | `model_gateway_http_error` | execution | classified | The gateway returned a non-success HTTP status. |
-| `model_gateway_invalid_response` | execution | no | The gateway returned empty or invalid JSON. |
+| `model_gateway_invalid_response` | execution | no | The gateway returned an invalid result, usage envelope, stream event, sequence, or completion boundary. |
 
-`model_gateway_http_error` is retryable for HTTP 408, 429, and 5xx responses. New codes may be added within v1; consumers must preserve and surface unknown codes rather than converting them to success.
+`model_gateway_http_error` is classified as `InvalidRequest`, `Authentication`, `RateLimited`, `Timeout`, `Unavailable`, or `Internal`. It is retryable only for timeout, rate-limit, and unavailable classifications. Transport cancellation is classified as `Cancelled` and remains an execution cancellation rather than an HTTP failure. New codes may be added within v1; consumers must preserve and surface unknown codes rather than converting them to success.

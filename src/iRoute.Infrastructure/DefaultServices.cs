@@ -1,7 +1,12 @@
+using System.Buffers;
+using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using iRoute.Contracts;
 using iRoute.Core;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
 namespace iRoute.Infrastructure;
@@ -152,8 +157,13 @@ public sealed class BuiltInModelProfileRegistry : IModelProfileRegistry
 public sealed record ModelGatewayOptions
 {
     public string Mode { get; init; } = "Deterministic";
+    public string GatewayId { get; init; } = "external";
+    public ModelGatewayTransport Transport { get; init; } = ModelGatewayTransport.Buffered;
     public string? BaseUrl { get; init; }
     public string? ApiKey { get; init; }
+    public string ExecutePath { get; init; } = "v1/execute";
+    public string StreamPath { get; init; } = "v1/stream";
+    public string HealthPath { get; init; } = "health";
 }
 
 public sealed class DevelopmentExternalActionExecutor : IExternalActionExecutor
@@ -183,6 +193,8 @@ public sealed class DevelopmentExternalActionExecutor : IExternalActionExecutor
 
 public sealed class DeterministicModelGateway : IModelGateway
 {
+    public string GatewayId => "deterministic-development";
+
     public Task<ModelGatewayResult> ExecuteAsync(
         ModelGatewayRequest request,
         CancellationToken cancellationToken)
@@ -219,7 +231,20 @@ public sealed class DeterministicModelGateway : IModelGateway
             output,
             new UsageSummary(inputTokens, outputTokens, 0m, ModelCalls: 1),
             0.92m,
-            []));
+            [],
+            "deterministic-development",
+            ModelGatewayTransport.Buffered));
+    }
+
+    public Task<ModelGatewayHealth> CheckHealthAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new ModelGatewayHealth(
+            "deterministic-development",
+            ModelGatewayHealthStatus.Healthy,
+            0,
+            DateTimeOffset.UtcNow,
+            "The deterministic development gateway is available."));
     }
 
     private static string? ReadString(JsonElement element, string propertyName) =>
@@ -279,33 +304,251 @@ public sealed class DeterministicModelGateway : IModelGateway
         Math.Max(1, (int)Math.Ceiling(value.GetRawText().Length / 4d));
 }
 
-public sealed class GenericHttpModelGateway(HttpClient httpClient, IOptions<ModelGatewayOptions> options) : IModelGateway
+public sealed class GenericHttpModelGateway(
+    HttpClient httpClient,
+    IOptions<ModelGatewayOptions> configuredOptions) : IModelGateway
 {
-    public async Task<ModelGatewayResult> ExecuteAsync(ModelGatewayRequest request, CancellationToken cancellationToken)
+    private const int MaximumStreamEvents = 10_000;
+    private const int MaximumStreamLineLength = 65_536;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly Encoding StrictUtf8 = new UTF8Encoding(false, true);
+    private readonly ModelGatewayOptions _options = configuredOptions.Value;
+
+    public string GatewayId => _options.GatewayId;
+
+    public async Task<ModelGatewayResult> ExecuteAsync(
+        ModelGatewayRequest request,
+        CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(options.Value.BaseUrl))
+        if (_options.Transport == ModelGatewayTransport.Buffered)
         {
-            throw new InvalidOperationException("ModelGateway:BaseUrl is not configured.");
+            return await ExecuteBufferedAsync(request, cancellationToken);
         }
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, "v1/execute")
+        ModelGatewayResult? completed = null;
+        await foreach (var streamEvent in StreamAsync(request, cancellationToken))
         {
-            Content = JsonContent.Create(request)
-        };
-        if (!string.IsNullOrWhiteSpace(options.Value.ApiKey))
-        {
-            message.Headers.Authorization = new("Bearer", options.Value.ApiKey);
+            if (streamEvent.Kind == ModelGatewayStreamEventKind.Completed)
+            {
+                completed = streamEvent.Result;
+            }
         }
 
-        if (!string.IsNullOrWhiteSpace(request.CorrelationId))
+        return completed ?? throw InvalidResponse(
+            request,
+            "The configured model gateway stream ended without a completed result.");
+    }
+
+    public async IAsyncEnumerable<ModelGatewayStreamEvent> StreamAsync(
+        ModelGatewayRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        EnsureConfigured(request);
+        if (_options.Transport == ModelGatewayTransport.Buffered)
         {
-            message.Headers.TryAddWithoutValidation("X-Correlation-Id", request.CorrelationId);
+            yield return new ModelGatewayStreamEvent(
+                1,
+                ModelGatewayStreamEventKind.Completed,
+                Result: await ExecuteBufferedAsync(request, cancellationToken));
+            yield break;
         }
 
-        HttpResponseMessage response;
+        using var response = await SendAsync(
+            request,
+            _options.StreamPath,
+            "application/x-ndjson",
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        EnsureSuccess(response, request);
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var previousSequence = 0L;
+        var eventCount = 0;
+        var completed = false;
+        await foreach (var line in ReadBoundedLinesAsync(
+            responseStream,
+            request,
+            cancellationToken))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            eventCount++;
+            if (eventCount > MaximumStreamEvents)
+            {
+                throw InvalidResponse(request, "The configured model gateway stream exceeded its safety bounds.");
+            }
+
+            ModelGatewayStreamEvent streamEvent;
+            try
+            {
+                streamEvent = JsonSerializer.Deserialize<ModelGatewayStreamEvent>(line, JsonOptions)
+                    ?? throw InvalidResponse(request, "The configured model gateway stream returned an empty event.");
+            }
+            catch (JsonException exception)
+            {
+                throw InvalidResponse(
+                    request,
+                    "The configured model gateway stream returned invalid NDJSON.",
+                    exception);
+            }
+
+            if (streamEvent.Sequence <= previousSequence)
+            {
+                throw InvalidResponse(request, "Model gateway stream event sequences must increase monotonically.");
+            }
+
+            previousSequence = streamEvent.Sequence;
+            streamEvent = NormalizeStreamEvent(streamEvent, request);
+            if (completed)
+            {
+                throw InvalidResponse(request, "The configured model gateway emitted data after completion.");
+            }
+
+            completed = streamEvent.Kind == ModelGatewayStreamEventKind.Completed;
+            yield return streamEvent;
+        }
+
+        if (!completed)
+        {
+            throw InvalidResponse(request, "The configured model gateway stream ended without a completed event.");
+        }
+    }
+
+    public async Task<ModelGatewayHealth> CheckHealthAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_options.BaseUrl) || httpClient.BaseAddress is null)
+        {
+            return new ModelGatewayHealth(
+                _options.GatewayId,
+                ModelGatewayHealthStatus.Unavailable,
+                0,
+                DateTimeOffset.UtcNow,
+                "ModelGateway:BaseUrl is not configured with an absolute URI.");
+        }
+
+        var stopwatch = Stopwatch.StartNew();
         try
         {
-            response = await httpClient.SendAsync(message, cancellationToken);
+            using var message = CreateMessage(HttpMethod.Get, _options.HealthPath, null);
+            using var response = await httpClient.SendAsync(
+                message,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            stopwatch.Stop();
+            if (!response.IsSuccessStatusCode)
+            {
+                return new ModelGatewayHealth(
+                    _options.GatewayId,
+                    ModelGatewayHealthStatus.Unavailable,
+                    stopwatch.ElapsedMilliseconds,
+                    DateTimeOffset.UtcNow,
+                    $"Gateway health probe returned HTTP {(int)response.StatusCode}.");
+            }
+
+            try
+            {
+                var reported = await response.Content.ReadFromJsonAsync<ModelGatewayHealth>(
+                    JsonOptions,
+                    cancellationToken);
+                return reported is null || !Enum.IsDefined(reported.Status)
+                    ? new ModelGatewayHealth(
+                        _options.GatewayId,
+                        ModelGatewayHealthStatus.Degraded,
+                        stopwatch.ElapsedMilliseconds,
+                        DateTimeOffset.UtcNow,
+                        "Gateway health probe returned an empty response.")
+                    : reported with
+                    {
+                        GatewayId = _options.GatewayId,
+                        LatencyMilliseconds = stopwatch.ElapsedMilliseconds,
+                        CheckedAt = DateTimeOffset.UtcNow
+                    };
+            }
+            catch (JsonException)
+            {
+                return new ModelGatewayHealth(
+                    _options.GatewayId,
+                    ModelGatewayHealthStatus.Degraded,
+                    stopwatch.ElapsedMilliseconds,
+                    DateTimeOffset.UtcNow,
+                    "Gateway health probe returned invalid JSON.");
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            stopwatch.Stop();
+            return new ModelGatewayHealth(
+                _options.GatewayId,
+                ModelGatewayHealthStatus.Unavailable,
+                stopwatch.ElapsedMilliseconds,
+                DateTimeOffset.UtcNow,
+                "Gateway health probe could not reach the configured endpoint.");
+        }
+    }
+
+    private async Task<ModelGatewayResult> ExecuteBufferedAsync(
+        ModelGatewayRequest request,
+        CancellationToken cancellationToken)
+    {
+        EnsureConfigured(request);
+        using var response = await SendAsync(
+            request,
+            _options.ExecutePath,
+            "application/json",
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        EnsureSuccess(response, request);
+        try
+        {
+            var result = await response.Content.ReadFromJsonAsync<ModelGatewayResult>(
+                JsonOptions,
+                cancellationToken);
+            return result is null
+                ? throw InvalidResponse(request, "The configured model gateway returned an empty response.")
+                : NormalizeResult(result, request, ModelGatewayTransport.Buffered);
+        }
+        catch (JsonException exception)
+        {
+            throw InvalidResponse(
+                request,
+                "The configured model gateway returned invalid JSON.",
+                exception);
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(
+        ModelGatewayRequest request,
+        string path,
+        string accept,
+        HttpCompletionOption completionOption,
+        CancellationToken cancellationToken)
+    {
+        using var message = CreateMessage(HttpMethod.Post, path, request);
+        message.Headers.Accept.ParseAdd(accept);
+        try
+        {
+            return await httpClient.SendAsync(message, completionOption, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TaskCanceledException exception)
+        {
+            throw new ModelGatewayException(
+                ErrorCodes.ModelGatewayUnavailable,
+                "The configured model gateway timed out.",
+                true,
+                innerException: exception,
+                failureKind: ModelGatewayFailureKind.Timeout,
+                gatewayId: _options.GatewayId,
+                correlationId: request.CorrelationId);
         }
         catch (HttpRequestException exception)
         {
@@ -313,38 +556,252 @@ public sealed class GenericHttpModelGateway(HttpClient httpClient, IOptions<Mode
                 ErrorCodes.ModelGatewayUnavailable,
                 "The configured model gateway could not be reached.",
                 true,
-                innerException: exception);
+                innerException: exception,
+                failureKind: ModelGatewayFailureKind.Unavailable,
+                gatewayId: _options.GatewayId,
+                correlationId: request.CorrelationId);
         }
+    }
 
-        using (response)
+    private HttpRequestMessage CreateMessage(
+        HttpMethod method,
+        string path,
+        ModelGatewayRequest? request)
+    {
+        var message = new HttpRequestMessage(method, path);
+        if (request is not null)
         {
-            if (!response.IsSuccessStatusCode)
+            message.Content = JsonContent.Create(request, options: JsonOptions);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            message.Headers.Authorization = new("Bearer", _options.ApiKey);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request?.CorrelationId))
+        {
+            message.Headers.TryAddWithoutValidation("X-Correlation-Id", request.CorrelationId);
+        }
+
+        if (request?.DeadlineMilliseconds is { } deadline)
+        {
+            message.Headers.TryAddWithoutValidation("X-Deadline-Milliseconds", deadline.ToString(
+                System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        return message;
+    }
+
+    private void EnsureSuccess(HttpResponseMessage response, ModelGatewayRequest request)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var statusCode = (int)response.StatusCode;
+        var kind = statusCode switch
+        {
+            400 or 404 or 409 or 422 => ModelGatewayFailureKind.InvalidRequest,
+            401 or 403 => ModelGatewayFailureKind.Authentication,
+            408 => ModelGatewayFailureKind.Timeout,
+            429 => ModelGatewayFailureKind.RateLimited,
+            >= 500 => ModelGatewayFailureKind.Unavailable,
+            _ => ModelGatewayFailureKind.Internal
+        };
+        var retryable = kind is ModelGatewayFailureKind.Timeout or
+            ModelGatewayFailureKind.RateLimited or
+            ModelGatewayFailureKind.Unavailable;
+        throw new ModelGatewayException(
+            ErrorCodes.ModelGatewayHttpError,
+            $"The configured model gateway returned HTTP {statusCode}.",
+            retryable,
+            statusCode,
+            failureKind: kind,
+            gatewayId: _options.GatewayId,
+            correlationId: request.CorrelationId);
+    }
+
+    private ModelGatewayStreamEvent NormalizeStreamEvent(
+        ModelGatewayStreamEvent streamEvent,
+        ModelGatewayRequest request) =>
+        streamEvent.Kind switch
+        {
+            ModelGatewayStreamEventKind.OutputDelta when !string.IsNullOrEmpty(streamEvent.Delta) => streamEvent,
+            ModelGatewayStreamEventKind.Usage when streamEvent.Usage is { } usage =>
+                streamEvent with { Usage = NormalizeUsage(usage, request) },
+            ModelGatewayStreamEventKind.Completed when streamEvent.Result is { } result =>
+                streamEvent with
+                {
+                    Result = NormalizeResult(result, request, ModelGatewayTransport.Streaming)
+                },
+            _ => throw InvalidResponse(
+                request,
+                $"The configured model gateway returned an invalid {streamEvent.Kind} stream event.")
+        };
+
+    private ModelGatewayResult NormalizeResult(
+        ModelGatewayResult result,
+        ModelGatewayRequest request,
+        ModelGatewayTransport transport)
+    {
+        if (result.Output.ValueKind == JsonValueKind.Undefined ||
+            result.Confidence is < 0m or > 1m ||
+            result.Evidence is null ||
+            !Enum.IsDefined(result.FinishReason))
+        {
+            throw InvalidResponse(request, "The configured model gateway returned an invalid result envelope.");
+        }
+
+        return result with
+        {
+            Usage = NormalizeUsage(result.Usage, request) with
             {
-                var statusCode = (int)response.StatusCode;
-                var retryable = statusCode is 408 or 429 || statusCode >= 500;
-                throw new ModelGatewayException(
-                    ErrorCodes.ModelGatewayHttpError,
-                    $"The configured model gateway returned HTTP {statusCode}.",
-                    retryable,
-                    statusCode);
+                ModelCalls = Math.Max(1, result.Usage.ModelCalls)
+            },
+            GatewayId = _options.GatewayId,
+            Transport = transport
+        };
+    }
+
+    private UsageSummary NormalizeUsage(
+        UsageSummary usage,
+        ModelGatewayRequest request)
+    {
+        if (usage.InputTokens < 0 ||
+            usage.OutputTokens < 0 ||
+            usage.Cost < 0m ||
+            usage.DurationMilliseconds < 0 ||
+            usage.ModelCalls < 0 ||
+            usage.ToolCalls < 0)
+        {
+            throw new ModelGatewayException(
+                ErrorCodes.ModelGatewayInvalidResponse,
+                "The configured model gateway returned invalid normalized usage.",
+                false,
+                failureKind: ModelGatewayFailureKind.InvalidResponse,
+                gatewayId: _options.GatewayId,
+                correlationId: request.CorrelationId);
+        }
+
+        return usage;
+    }
+
+    private void EnsureConfigured(ModelGatewayRequest? request)
+    {
+        if (string.IsNullOrWhiteSpace(_options.BaseUrl) || httpClient.BaseAddress is null)
+        {
+            throw new ModelGatewayException(
+                ErrorCodes.ModelGatewayUnavailable,
+                "ModelGateway:BaseUrl is not configured with an absolute URI.",
+                false,
+                failureKind: ModelGatewayFailureKind.InvalidRequest,
+                gatewayId: _options.GatewayId,
+                correlationId: request?.CorrelationId);
+        }
+    }
+
+    private ModelGatewayException InvalidResponse(
+        ModelGatewayRequest request,
+        string message,
+        Exception? innerException = null) =>
+        new(
+            ErrorCodes.ModelGatewayInvalidResponse,
+            message,
+            false,
+            innerException: innerException,
+            failureKind: ModelGatewayFailureKind.InvalidResponse,
+            gatewayId: _options.GatewayId,
+            correlationId: request.CorrelationId);
+
+    private async IAsyncEnumerable<string> ReadBoundedLinesAsync(
+        Stream stream,
+        ModelGatewayRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var readBuffer = ArrayPool<byte>.Shared.Rent(4_096);
+        var lineBuffer = new ArrayBufferWriter<byte>();
+        try
+        {
+            while (true)
+            {
+                var read = await stream.ReadAsync(readBuffer.AsMemory(), cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                for (var index = 0; index < read; index++)
+                {
+                    var value = readBuffer[index];
+                    if (value == (byte)'\n')
+                    {
+                        var line = DecodeLine(lineBuffer.WrittenSpan, request);
+                        lineBuffer.Clear();
+                        yield return line.EndsWith('\r') ? line[..^1] : line;
+                        continue;
+                    }
+
+                    if (lineBuffer.WrittenCount >= MaximumStreamLineLength)
+                    {
+                        throw InvalidResponse(
+                            request,
+                            "The configured model gateway stream exceeded its line-size bound.");
+                    }
+
+                    lineBuffer.GetSpan(1)[0] = value;
+                    lineBuffer.Advance(1);
+                }
             }
 
-            try
+            if (lineBuffer.WrittenCount > 0)
             {
-                return await response.Content.ReadFromJsonAsync<ModelGatewayResult>(cancellationToken)
-                    ?? throw new ModelGatewayException(
-                        ErrorCodes.ModelGatewayInvalidResponse,
-                        "The configured model gateway returned an empty response.",
-                        false);
-            }
-            catch (JsonException exception)
-            {
-                throw new ModelGatewayException(
-                    ErrorCodes.ModelGatewayInvalidResponse,
-                    "The configured model gateway returned invalid JSON.",
-                    false,
-                    innerException: exception);
+                yield return DecodeLine(lineBuffer.WrittenSpan, request);
             }
         }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(readBuffer);
+        }
+    }
+
+    private string DecodeLine(
+        ReadOnlySpan<byte> value,
+        ModelGatewayRequest request)
+    {
+        try
+        {
+            return StrictUtf8.GetString(value);
+        }
+        catch (DecoderFallbackException exception)
+        {
+            throw InvalidResponse(
+                request,
+                "The configured model gateway stream returned invalid UTF-8.",
+                exception);
+        }
+    }
+}
+
+public sealed class ModelGatewayHealthCheck(IModelGateway gateway) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var health = await gateway.CheckHealthAsync(cancellationToken);
+        var data = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["gatewayId"] = health.GatewayId,
+            ["latencyMilliseconds"] = health.LatencyMilliseconds,
+            ["checkedAt"] = health.CheckedAt
+        };
+        return health.Status switch
+        {
+            ModelGatewayHealthStatus.Healthy => HealthCheckResult.Healthy(health.Message, data),
+            ModelGatewayHealthStatus.Degraded => HealthCheckResult.Degraded(health.Message, data: data),
+            _ => HealthCheckResult.Unhealthy(health.Message, data: data)
+        };
     }
 }

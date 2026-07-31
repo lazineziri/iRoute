@@ -1,0 +1,7 @@
+{
+  "gatewayId": "external-alpha",
+  "status": "Healthy",
+  "latencyMilliseconds": 18,
+  "checkedAt": "2026-08-01T00:00:00Z",
+  "message": "Gateway contract endpoint is healthy."
+}

@@ -121,6 +121,47 @@ public sealed record RoutingCandidateEvaluation(
     decimal Availability,
     decimal Score);
 
+public sealed record ModelGatewayRequest(
+    string Capability,
+    JsonElement Input,
+    JsonElement Context,
+    int MaxOutputTokens,
+    string? CorrelationId = null,
+    string? ProfileId = null,
+    int? DeadlineMilliseconds = null);
+
+public sealed record ModelGatewayResult(
+    JsonElement Output,
+    UsageSummary Usage,
+    decimal Confidence,
+    IReadOnlyList<EvidenceReference> Evidence,
+    string? GatewayId = null,
+    ModelGatewayTransport Transport = ModelGatewayTransport.Buffered,
+    ModelGatewayFinishReason FinishReason = ModelGatewayFinishReason.Completed);
+
+public sealed record ModelGatewayStreamEvent(
+    long Sequence,
+    ModelGatewayStreamEventKind Kind,
+    string? Delta = null,
+    UsageSummary? Usage = null,
+    ModelGatewayResult? Result = null);
+
+public sealed record ModelGatewayHealth(
+    string GatewayId,
+    ModelGatewayHealthStatus Status,
+    long LatencyMilliseconds,
+    DateTimeOffset CheckedAt,
+    string? Message = null);
+
+public sealed record ModelGatewayFailure(
+    string Code,
+    ModelGatewayFailureKind Kind,
+    string Message,
+    bool Retryable,
+    int? StatusCode = null,
+    string? GatewayId = null,
+    string? CorrelationId = null);
+
 public sealed record UsageSummary(
     int InputTokens = 0,
     int OutputTokens = 0,
@@ -353,6 +394,52 @@ public enum ModelTier
     Verifier
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<ModelGatewayTransport>))]
+public enum ModelGatewayTransport
+{
+    Buffered,
+    Streaming
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ModelGatewayStreamEventKind>))]
+public enum ModelGatewayStreamEventKind
+{
+    OutputDelta,
+    Usage,
+    Completed
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ModelGatewayFinishReason>))]
+public enum ModelGatewayFinishReason
+{
+    Completed,
+    Length,
+    ContentFiltered,
+    ToolCall,
+    Other
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ModelGatewayHealthStatus>))]
+public enum ModelGatewayHealthStatus
+{
+    Healthy,
+    Degraded,
+    Unavailable
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ModelGatewayFailureKind>))]
+public enum ModelGatewayFailureKind
+{
+    InvalidRequest,
+    Authentication,
+    RateLimited,
+    Timeout,
+    Unavailable,
+    InvalidResponse,
+    Cancelled,
+    Internal
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SideEffectClass>))]
 public enum SideEffectClass
 {
@@ -416,7 +503,10 @@ public static class ExecutionEventTypes
     public const string ExternalActionReused = "external_action.reused";
     public const string ExternalActionFailed = "external_action.failed";
     public const string ContextCompiled = "context.compiled";
+    public const string GatewayStarted = "gateway.started";
+    public const string GatewayStreamed = "gateway.streamed";
     public const string GatewayCompleted = "gateway.completed";
+    public const string GatewayFailed = "gateway.failed";
     public const string ValidationCompleted = "validation.completed";
     public const string ArtifactMaterialized = "artifact.materialized";
     public const string ArtifactSuperseded = "artifact.superseded";
@@ -451,7 +541,10 @@ public static class ExecutionEventTypes
         ExternalActionReused,
         ExternalActionFailed,
         ContextCompiled,
+        GatewayStarted,
+        GatewayStreamed,
         GatewayCompleted,
+        GatewayFailed,
         ValidationCompleted,
         ArtifactMaterialized,
         ArtifactSuperseded,

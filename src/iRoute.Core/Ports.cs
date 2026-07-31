@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using iRoute.Contracts;
 
@@ -62,7 +63,31 @@ public interface IDeterministicTaskHandler
 
 public interface IModelGateway
 {
+    string GatewayId => "unspecified";
+
     Task<ModelGatewayResult> ExecuteAsync(ModelGatewayRequest request, CancellationToken cancellationToken);
+
+    async IAsyncEnumerable<ModelGatewayStreamEvent> StreamAsync(
+        ModelGatewayRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var result = await ExecuteAsync(request, cancellationToken);
+        yield return new ModelGatewayStreamEvent(
+            1,
+            ModelGatewayStreamEventKind.Completed,
+            Result: result);
+    }
+
+    Task<ModelGatewayHealth> CheckHealthAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new ModelGatewayHealth(
+            GatewayId,
+            ModelGatewayHealthStatus.Degraded,
+            0,
+            DateTimeOffset.UtcNow,
+            "The gateway does not expose a health probe."));
+    }
 }
 
 public sealed class ModelGatewayException(
@@ -70,11 +95,26 @@ public sealed class ModelGatewayException(
     string message,
     bool retryable,
     int? statusCode = null,
-    Exception? innerException = null) : Exception(message, innerException)
+    Exception? innerException = null,
+    ModelGatewayFailureKind failureKind = ModelGatewayFailureKind.Internal,
+    string? gatewayId = null,
+    string? correlationId = null) : Exception(message, innerException)
 {
     public string Code { get; } = code;
     public bool Retryable { get; } = retryable;
     public int? StatusCode { get; } = statusCode;
+    public ModelGatewayFailureKind FailureKind { get; } = failureKind;
+    public string? GatewayId { get; } = gatewayId;
+    public string? CorrelationId { get; } = correlationId;
+
+    public ModelGatewayFailure ToFailure() => new(
+        Code,
+        FailureKind,
+        Message,
+        Retryable,
+        StatusCode,
+        GatewayId,
+        CorrelationId);
 }
 
 public interface IContextCompiler
@@ -195,20 +235,6 @@ public sealed record DeterministicHandlerResult(
     IReadOnlyList<EvidenceReference> Evidence,
     DateTimeOffset? ExpiresAt = null,
     IReadOnlyList<string>? Checks = null);
-
-public sealed record ModelGatewayRequest(
-    string Capability,
-    JsonElement Input,
-    JsonElement Context,
-    int MaxOutputTokens,
-    string? CorrelationId = null,
-    string? ProfileId = null);
-
-public sealed record ModelGatewayResult(
-    JsonElement Output,
-    UsageSummary Usage,
-    decimal Confidence,
-    IReadOnlyList<EvidenceReference> Evidence);
 
 public sealed record CompiledContext(
     JsonElement Content,

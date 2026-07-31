@@ -42,7 +42,10 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `external_action.reused` | A completed idempotent action result was reused without invoking the executor. |
 | `external_action.failed` | The action failed or became indeterminate; event data contains references, not payloads. |
 | `context.compiled` | The bounded context manifest was created. |
-| `gateway.completed` | The model gateway returned normalized usage. |
+| `gateway.started` | A bounded provider-neutral gateway call began with a capability, profile, and deadline. |
+| `gateway.streamed` | A streaming call completed; data contains event/delta/character counts, never generated content. |
+| `gateway.completed` | The model gateway returned normalized usage, observed latency, transport, finish reason, and configured gateway identity. |
+| `gateway.failed` | A call failed with a normalized failure kind, retryability, status, gateway identity, and observed latency. |
 | `validation.completed` | Task-specific validation completed. |
 | `artifact.materialized` | A versioned artifact was stored. |
 | `artifact.superseded` | A new artifact version records the artifact version it supersedes. |
@@ -67,3 +70,7 @@ Every `context.compiled` event contains `estimatedTokens`, `budgetTokens`, `proj
 ## Routing decision data
 
 Every `routing.decided` event contains the routing policy version, direct/workflow path, selected capability and model profile, quality floor, expected quality/cost/latency, uncertainty, score, planner invocation count, escalation result, and all measured candidates with eligibility reasons. `routing.escalated` repeats that payload only when a cheaper candidate was rejected. These events contain policy measurements and identifiers, never prompts or outputs. The outcome's `RoutingDecision` is the durable public explanation.
+
+## Model gateway data
+
+`gateway.started` records only the step, capability, selected profile, and effective deadline. For streaming transports, `gateway.streamed` reports aggregate stream counts without persisting deltas. `gateway.completed` uses camel-case normalized usage fields and records `gatewayId`, `transport`, and `finishReason`. `gateway.failed` records the normalized failure kind and never copies a provider response body, credential, prompt, context, or generated output into the event stream.

@@ -1,0 +1,23 @@
+{
+  "sequence": 3,
+  "kind": "Completed",
+  "result": {
+    "output": {
+      "subject": "iRoute W09 update",
+      "body": "The provider-neutral gateway now supports bounded streaming."
+    },
+    "usage": {
+      "inputTokens": 124,
+      "outputTokens": 31,
+      "cost": 0.004,
+      "durationMilliseconds": 842,
+      "modelCalls": 1,
+      "toolCalls": 0
+    },
+    "confidence": 0.92,
+    "evidence": [],
+    "gatewayId": "external-alpha",
+    "transport": "Streaming",
+    "finishReason": "Completed"
+  }
+}

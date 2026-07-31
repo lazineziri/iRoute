@@ -118,6 +118,23 @@ flowchart LR
 
 The direct selector never invokes the planner for a one-capability task. The deterministic planner compiles multiple required capabilities into a typed DAG once and cannot raise task-definition or request limits. Capability matching rejects candidates that miss the allow list, measured task coverage, health, mandatory quality floor, deadline, context/output capacity, cost ceiling, or call budget. The versioned routing decision preserves every candidate's measurements, score, eligibility, and reason; it is emitted as an event, persisted beside the workflow plan, passed to the model gateway through the selected profile ID, and returned with generated outcomes.
 
+W09 keeps every provider protocol behind one external gateway boundary:
+
+```mermaid
+flowchart LR
+    A["Runtime capability request"] --> B["Generic gateway envelope"]
+    B --> C{"Configured transport"}
+    C -->|"buffered"| D["JSON result"]
+    C -->|"streaming"| E["Bounded NDJSON events"]
+    D --> F["Usage and latency normalization"]
+    E --> F
+    F --> G["Typed task validation"]
+    H["Gateway health endpoint"] --> I["Optional health report"]
+    J["HTTP or contract failure"] --> K["Normalized failure classification"]
+```
+
+The request contains capability, profile, projected input, compiled context, maximum output tokens, correlation ID, and deadline—not a provider model name or provider payload. Both transports end in the same typed result. Streaming sequences and sizes are bounded before validation; generated deltas are counted but never persisted in audit data. Runtime-measured wall-clock latency replaces gateway-reported duration so buffered and streaming calls are comparable. Health is reported through a dedicated endpoint and is excluded from API readiness because model execution is an optional capability. Provider credentials, aliases, protocols, and failover remain gateway responsibilities in Infrastructure or the external gateway deployment, never routing concerns.
+
 ## Code dependency topology
 
 ```mermaid

@@ -4,7 +4,8 @@
 
 - `/health/live` reports process liveness without probing dependencies.
 - `/health/ready` probes the configured durable database when SQLite or PostgreSQL is active.
-- The model gateway is intentionally not a readiness dependency; an unavailable optional capability should fail its execution, not remove the API from service.
+- `/health/model-gateway` probes the configured gateway and returns its normalized identity, state, observed probe latency, timestamp, and safe message.
+- The model gateway is intentionally not a readiness dependency; an unavailable optional capability returns HTTP 503 from its dedicated health endpoint and fails its execution without removing the API from service.
 
 ## Storage profiles
 
@@ -39,6 +40,14 @@ Raw `projectHistory` is removed from the model task input and never passed throu
 The current routing policy is `routing.w08.v1`. For single-capability tasks the direct selector must report `plannerInvoked=false` and `planningCalls=0`. Multi-capability definitions invoke the deterministic bounded planner once; it must fail with `routing_budget_exceeded` before checkpointing if required depth or calls exceed the lower request/task-definition ceiling.
 
 Model profiles are evaluation-derived measurements, not provider marketing names. A candidate is eligible only when its task coverage, health, quality, deadline, token capacity, cost, model-call budget, and capability allow list all pass. Operators should compare `routing.decided` candidate measurements with actual `gateway.completed` usage. An unexplained profile change, a missing candidate reason, or routing below the quality floor is an incident. Profile edits require the evaluation and contract suites; do not raise request limits or quality estimates dynamically in production.
+
+## Model-gateway operations
+
+`ModelGateway:Mode=Http` uses only the generic W09 contract. Buffered mode calls `POST v1/execute`; streaming mode calls `POST v1/stream` and consumes monotonic `application/x-ndjson` events with a maximum of 10,000 events and 65,536 characters per line. A stream is valid only when it ends with exactly one completed result and emits nothing afterward. The request includes the selected capability/profile, maximum output tokens, correlation ID, and effective step deadline. Cancellation is passed directly to the HTTP request and response reader.
+
+The runtime treats its own wall-clock duration as authoritative latency and normalizes every successful model call to at least one model invocation. Negative usage, confidence outside zero-to-one, missing output/evidence, malformed JSON, non-monotonic stream sequences, missing completion, or post-completion data fail with `model_gateway_invalid_response`. `gateway.started`, `gateway.streamed`, `gateway.completed`, and `gateway.failed` expose identities, counts, normalized usage, classifications, and latency only; prompts, context, deltas, outputs, credentials, and provider response bodies must never enter audit events.
+
+HTTP failures are classified as invalid request, authentication, timeout, rate limit, unavailable, or internal. Only timeout, rate-limit, and unavailable failures are retryable. The gateway remains responsible for provider credentials, provider model aliases, provider protocols, and provider health. Do not add provider model names, request fields, or response parsing to Contracts, Core, Runtime, routing policy, or task definitions.
 
 ## Identity
 

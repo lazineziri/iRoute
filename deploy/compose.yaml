@@ -9,8 +9,11 @@ services:
       Storage__Provider: Postgres
       Storage__AutoInitialize: "true"
       ConnectionStrings__iRoute: Host=postgres;Port=5432;Database=iroute;Username=iroute;Password=${IROUTE_DB_PASSWORD:-local-development-only}
+      ModelGateway__Mode: ${IROUTE_MODEL_GATEWAY_MODE:-Deterministic}
       ModelGateway__BaseUrl: ${IROUTE_MODEL_GATEWAY_URL:-}
       ModelGateway__ApiKey: ${IROUTE_MODEL_GATEWAY_KEY:-}
+      ModelGateway__GatewayId: ${IROUTE_MODEL_GATEWAY_ID:-external}
+      ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
       Workflow__QueueCapacity: ${IROUTE_WORKFLOW_QUEUE_CAPACITY:-16}
       Workflow__MaxParallelSteps: ${IROUTE_WORKFLOW_MAX_PARALLEL_STEPS:-4}
       Identity__Mode: ${IROUTE_IDENTITY_MODE:-DevelopmentHeaders}

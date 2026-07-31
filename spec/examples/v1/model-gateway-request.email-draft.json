@@ -1,0 +1,15 @@
+{
+  "capability": "text.generation",
+  "input": {
+    "recipient": { "name": "Ada" },
+    "projectName": "iRoute",
+    "objective": "Share the W09 gateway milestone."
+  },
+  "context": {
+    "activeDecisions": ["Keep provider protocols outside Core and Runtime."]
+  },
+  "maxOutputTokens": 800,
+  "correlationId": "019b2c00-1111-7000-8000-000000000001",
+  "profileId": "text.generation.small.eval-v1",
+  "deadlineMilliseconds": 30000
+}

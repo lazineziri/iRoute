@@ -1,4 +1,6 @@
 using iRoute.Api;
+using iRoute.Contracts;
+using iRoute.Core;
 using iRoute.Infrastructure;
 using iRoute.Runtime;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -45,6 +47,15 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready")
 });
+app.MapGet("/health/model-gateway", async (
+    IModelGateway gateway,
+    CancellationToken cancellationToken) =>
+{
+    var health = await gateway.CheckHealthAsync(cancellationToken);
+    return Results.Json(
+        health,
+        statusCode: health.Status == ModelGatewayHealthStatus.Unavailable ? 503 : 200);
+}).AllowAnonymous().WithName("getModelGatewayHealth");
 app.MapIRouteEndpoints(identityOptions.UsesJwt);
 app.Run();
 
