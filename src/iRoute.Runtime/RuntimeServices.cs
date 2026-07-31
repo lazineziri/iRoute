@@ -14,8 +14,11 @@ public sealed class DirectExecutionPlanFactory : IExecutionPlanFactory
         var deadline = Math.Min(
             request.Constraints?.DeadlineMilliseconds ?? definition.DefaultDeadlineMilliseconds,
             definition.DefaultDeadlineMilliseconds);
+        var stepKind = definition.SideEffectClass == SideEffectClass.None
+            ? ExecutionStepKind.Model
+            : ExecutionStepKind.Tool;
         var maxModelCalls = request.Constraints?.MaxModelCalls ?? definition.DefaultMaxModelCalls;
-        var maxToolCalls = request.Constraints?.MaxToolCalls ?? 0;
+        var maxToolCalls = request.Constraints?.MaxToolCalls ?? (stepKind == ExecutionStepKind.Tool ? 1 : 0);
 
         return new ExecutionPlan(
             $"{definition.TaskType}@{definition.Version}:direct",
@@ -25,7 +28,7 @@ public sealed class DirectExecutionPlanFactory : IExecutionPlanFactory
             [
                 new ExecutionPlanStep(
                     "execute",
-                    ExecutionStepKind.Model,
+                    stepKind,
                     definition.Capability,
                     [],
                     definition.SideEffectClass,
@@ -237,6 +240,75 @@ public sealed class EmailDraftOutcomeValidator : ITaskOutcomeValidator
         }
 
         failures.Add($"The email draft requires a non-empty '{propertyName}' field.");
+    }
+}
+
+public sealed class EmailSendOutcomeValidator : ITaskOutcomeValidator
+{
+    public bool Supports(string taskType) =>
+        string.Equals(taskType, "email.send", StringComparison.OrdinalIgnoreCase);
+
+    public Task<OutcomeValidationResult> ValidateAsync(
+        TaskRequest request,
+        TaskDefinition definition,
+        ModelGatewayResult result,
+        CompiledContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var failures = new List<string>();
+        var checks = new List<string>();
+        if (result.Output.ValueKind != JsonValueKind.Object)
+        {
+            failures.Add("The email action did not return a structured delivery receipt.");
+        }
+        else
+        {
+            RequireNonEmptyString(result.Output, "receiptId", checks, failures);
+            RequireNonEmptyString(result.Output, "status", checks, failures);
+            if (result.Output.TryGetProperty("capability", out var capability) &&
+                capability.ValueKind == JsonValueKind.String &&
+                string.Equals(capability.GetString(), definition.Capability, StringComparison.Ordinal))
+            {
+                checks.Add("The delivery receipt confirms the requested capability.");
+            }
+            else
+            {
+                failures.Add("The delivery receipt does not confirm the requested capability.");
+            }
+        }
+
+        if (result.Evidence.Count > 0)
+        {
+            checks.Add("The external action returned receipt evidence.");
+        }
+        else
+        {
+            failures.Add("The external action returned no receipt evidence.");
+        }
+
+        return Task.FromResult<OutcomeValidationResult>(new(
+            failures.Count == 0,
+            failures.Count == 0 ? 1m : 0m,
+            checks,
+            failures));
+    }
+
+    private static void RequireNonEmptyString(
+        JsonElement output,
+        string propertyName,
+        List<string> checks,
+        List<string> failures)
+    {
+        if (output.TryGetProperty(propertyName, out var value) &&
+            value.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(value.GetString()))
+        {
+            checks.Add($"The delivery receipt contains '{propertyName}'.");
+            return;
+        }
+
+        failures.Add($"The delivery receipt requires a non-empty '{propertyName}'.");
     }
 }
 

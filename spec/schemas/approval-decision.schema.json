@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/approval-decision.schema.json",
+  "title": "ApprovalDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["actionId", "approved"],
+  "properties": {
+    "actionId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "approved": { "type": "boolean" },
+    "reason": { "type": ["string", "null"], "maxLength": 2000 }
+  }
+}

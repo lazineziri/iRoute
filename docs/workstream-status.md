@@ -46,6 +46,21 @@ Acceptance evidence:
 - A queue-capacity-one test proves producers wait under load and step concurrency never exceeds the lower configured/plan bound.
 - A step-timeout test proves the timed-out step and cancelled downstream checkpoint states are durable.
 
-## Next: W04 — Policy, permissions and approvals
+### W04 — Policy, permissions and approvals: complete
 
-W04 has early foundations—side-effect classes, external-write denial, tenant identity, and idempotent task submission—but is not complete. Approval records/resumption, capability allow lists, scoped permissions, external-action idempotency, and complete audit events remain.
+Deliverables:
+
+- Versioned task policy evaluation with capability allow lists, side-effect classes, request intent, and authenticated permission scopes.
+- Durable tenant-scoped approval records and workflow resumption for policy-gated external actions.
+- Idempotent external-action reservations, completed-result reuse, conflict detection, and fail-closed indeterminate-action handling.
+- Immutable audit events for policy decisions, capability denials, approval decisions, and external-action lifecycle transitions. Audit data uses hashes/references instead of request or result payloads.
+- Development and JWT identity boundaries that derive permission scopes at the server and prevent request-body scope escalation.
+
+Acceptance evidence:
+
+- Tests prove an external write cannot execute without write intent, the task capability, the required permission scope, and an authorized approval.
+- Approval denial reaches a terminal auditable state without invoking the external executor.
+- Repeated approval and task submissions reuse the recorded execution/action result and do not duplicate the side effect.
+- A SQLite process-restart test creates a pending approval, reconstructs all durable stores, resumes the approved workflow, and executes the action once.
+
+## Next: W05 — Typed tasks and capability registry

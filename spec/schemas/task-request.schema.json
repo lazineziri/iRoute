@@ -33,6 +33,12 @@
       "additionalProperties": { "type": "string" }
     },
     "tenantId": { "type": ["string", "null"], "maxLength": 200 },
-    "actorId": { "type": ["string", "null"], "maxLength": 200 }
+    "actorId": { "type": ["string", "null"], "maxLength": 200 },
+    "permissionScopes": {
+      "type": ["array", "null"],
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
   }
 }

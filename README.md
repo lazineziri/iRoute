@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0 is complete and W03 is complete**. See [the workstream status](docs/workstream-status.md). M1 continues with W04; some later vertical-slice components already exist, but they do not change the formal dependency sequence.
+Formal backlog status: **M0 is complete and W04 is complete**. See [the workstream status](docs/workstream-status.md). M1 continues with W05.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -17,10 +17,12 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - cancellation requests, deadlines, health checks, and SSE event replay
 - bounded dependency scheduling with durable per-step checkpoints and restart-safe resume
 - optional JWT authentication with claim-derived tenant and actor identity
+- capability allow lists and authenticated permission-scope enforcement
+- durable external-action approvals, restart-safe resumption, and idempotent action results
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
-This is a development milestone, not a production release. Durable worker leasing, approval resumption, granular authorization, and real connector execution are still ahead.
+This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and real connector execution are still ahead. The current `email.send` executor is deterministic and development-only.
 
 ## Quick start
 
@@ -50,6 +52,7 @@ Useful endpoints:
 - `GET /v1/executions/{executionId}`
 - `GET /v1/executions/{executionId}/events?after=0`
 - `POST /v1/executions/{executionId}/cancel`
+- `POST /v1/executions/{executionId}/approvals`
 - `GET /v1/artifacts/{artifactId}`
 - `GET /health/live`, `GET /health/ready`, and `GET /openapi/v1.json`
 
@@ -89,11 +92,12 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Identity__Audience` | Expected JWT audience | required in JWT mode |
 | `Identity__TenantClaim` | Claim containing tenant identity | `tenant_id` |
 | `Identity__ActorClaim` | Claim containing actor identity | `sub` |
+| `Identity__PermissionClaim` | Claim containing space- or comma-separated permission scopes | `scope` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Opt-in telemetry export | unset |
 
 Use the deterministic gateway only for local development and repeatable tests. The HTTP mode expects `POST {BaseUrl}/v1/execute` using the provider-neutral gateway contract.
 
-`DevelopmentHeaders` trusts `X-Tenant-Id` and `X-Actor-Id` and must not be exposed as an internet-facing production configuration. JWT mode requires an authenticated token with the configured tenant claim; request headers cannot override it.
+`DevelopmentHeaders` trusts `X-Tenant-Id`, `X-Actor-Id`, and `X-Permission-Scopes` and must not be exposed as an internet-facing production configuration. JWT mode requires an authenticated token with the configured tenant claim and obtains permission scopes only from `Identity__PermissionClaim`; request headers and body fields cannot elevate them.
 
 ## Architecture and source of truth
 

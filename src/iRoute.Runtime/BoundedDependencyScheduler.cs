@@ -76,6 +76,8 @@ public sealed class BoundedDependencyScheduler(
             plan,
             clock.UtcNow,
             cancellationToken);
+        var hadPriorExecution = initialization.Checkpoint.Steps.Any(step =>
+            step.Attempt > 0 || step.Status != WorkflowStepStatus.Pending);
         if (initialization.Created)
         {
             await AppendEventAsync(
@@ -89,7 +91,7 @@ public sealed class BoundedDependencyScheduler(
             executionId,
             clock.UtcNow,
             cancellationToken);
-        if (!initialization.Created)
+        if (!initialization.Created && (hadPriorExecution || recovered > 0))
         {
             await AppendEventAsync(
                 executionId,
@@ -377,16 +379,23 @@ public sealed class BoundedDependencyScheduler(
                         step.Id,
                         $"Workflow step '{step.Id}' failed after {checkpoint.Attempt} attempt(s): {exception.Message}",
                         exception);
-                var problem = exception is ModelGatewayException gatewayException
-                    ? new Problem(
+                var problem = exception switch
+                {
+                    ModelGatewayException gatewayException => new Problem(
                         gatewayException.Code,
                         "Model gateway failed",
                         gatewayException.Message,
-                        gatewayException.Retryable)
-                    : new Problem(
+                        gatewayException.Retryable),
+                    ExternalActionExecutionException actionException => new Problem(
+                        actionException.Code,
+                        actionException.Title,
+                        actionException.Message,
+                        actionException.Retryable),
+                    _ => new Problem(
                         ErrorCodes.WorkflowStepFailed,
                         "Workflow step failed",
-                        wrapped.Message);
+                        wrapped.Message)
+                };
                 await FailStepAsync(
                     executionId,
                     step.Id,
@@ -394,7 +403,7 @@ public sealed class BoundedDependencyScheduler(
                     problem,
                     CancellationToken.None);
                 states[step.Id] = WorkflowStepStatus.Failed;
-                if (exception is ModelGatewayException)
+                if (exception is ModelGatewayException or ExternalActionExecutionException)
                 {
                     throw;
                 }

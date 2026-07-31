@@ -19,6 +19,8 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton<IExecutionStore, InMemoryExecutionStore>();
             services.AddSingleton<IWorkflowCheckpointStore, InMemoryWorkflowCheckpointStore>();
+            services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
+            services.AddSingleton<IExternalActionStore, InMemoryExternalActionStore>();
             services.AddSingleton<IArtifactStore, InMemoryArtifactStore>();
         }
         else
@@ -43,12 +45,15 @@ public static class ServiceCollectionExtensions
             });
             services.AddSingleton<IExecutionStore, EfExecutionStore>();
             services.AddSingleton<IWorkflowCheckpointStore, EfWorkflowCheckpointStore>();
+            services.AddSingleton<IApprovalStore, EfApprovalStore>();
+            services.AddSingleton<IExternalActionStore, EfExternalActionStore>();
             services.AddSingleton<IArtifactStore, EfArtifactStore>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);
         }
 
         services.AddSingleton<ITaskDefinitionRegistry, BuiltInTaskDefinitionRegistry>();
+        services.AddSingleton<IExternalActionExecutor, DevelopmentExternalActionExecutor>();
         services.AddSingleton<DeterministicModelGateway>();
         services.AddHttpClient<GenericHttpModelGateway>((provider, client) =>
         {

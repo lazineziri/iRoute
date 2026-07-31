@@ -22,6 +22,8 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
     public DbSet<ExecutionEventEntity> ExecutionEvents => Set<ExecutionEventEntity>();
     public DbSet<WorkflowPlanEntity> WorkflowPlans => Set<WorkflowPlanEntity>();
     public DbSet<WorkflowStepEntity> WorkflowSteps => Set<WorkflowStepEntity>();
+    public DbSet<ApprovalEntity> Approvals => Set<ApprovalEntity>();
+    public DbSet<ExternalActionEntity> ExternalActions => Set<ExternalActionEntity>();
     public DbSet<ArtifactEntity> Artifacts => Set<ArtifactEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -53,6 +55,40 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
         workflowStep.Property(x => x.StepId).HasMaxLength(64);
         workflowStep.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
         workflowStep.HasIndex(x => new { x.ExecutionId, x.Status });
+
+        var approval = modelBuilder.Entity<ApprovalEntity>();
+        approval.ToTable("Approvals");
+        approval.HasKey(x => new { x.ExecutionId, x.ActionId });
+        approval.Property(x => x.ActionId).HasMaxLength(64);
+        approval.Property(x => x.TenantId).HasMaxLength(200);
+        approval.Property(x => x.Capability).HasMaxLength(200);
+        approval.Property(x => x.SideEffectClass).HasConversion<string>().HasMaxLength(40);
+        approval.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+        approval.Property(x => x.RequestedByActorId).HasMaxLength(200);
+        approval.Property(x => x.DecidedByActorId).HasMaxLength(200);
+        approval.Property(x => x.InputReference).HasMaxLength(64);
+        approval.Property(x => x.IdempotencyReference).HasMaxLength(64);
+        approval.HasIndex(x => new { x.TenantId, x.Status });
+        approval.HasOne<ExecutionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ExecutionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var externalAction = modelBuilder.Entity<ExternalActionEntity>();
+        externalAction.ToTable("ExternalActions");
+        externalAction.HasKey(x => new { x.TenantId, x.IdempotencyReference });
+        externalAction.Property(x => x.TenantId).HasMaxLength(200);
+        externalAction.Property(x => x.IdempotencyReference).HasMaxLength(64);
+        externalAction.Property(x => x.ActionId).HasMaxLength(64);
+        externalAction.Property(x => x.Capability).HasMaxLength(200);
+        externalAction.Property(x => x.InputReference).HasMaxLength(64);
+        externalAction.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+        externalAction.HasIndex(x => new { x.ExecutionId, x.ActionId });
+        externalAction.HasIndex(x => x.Status);
+        externalAction.HasOne<ExecutionEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.ExecutionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var artifact = modelBuilder.Entity<ArtifactEntity>();
         artifact.ToTable("Artifacts");

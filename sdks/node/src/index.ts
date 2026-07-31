@@ -21,6 +21,7 @@ export interface TaskRequest {
   metadata?: Readonly<Record<string, string>>;
   tenantId?: string;
   actorId?: string;
+  permissionScopes?: readonly string[];
 }
 
 export type ExecutionStatus =
@@ -147,10 +148,40 @@ export interface ExecutionEvent {
   data: unknown;
 }
 
+export type ApprovalStatus = 'Pending' | 'Approved' | 'Denied';
+
+export interface ApprovalDecision {
+  actionId: string;
+  approved: boolean;
+  reason?: string | null;
+}
+
+export interface ApprovalSnapshot {
+  executionId: string;
+  actionId: string;
+  status: ApprovalStatus;
+  capability: string;
+  sideEffectClass: 'None' | 'ReadOnly' | 'ReversibleWrite' | 'IrreversibleWrite';
+  requiredPermissionScopes: readonly string[];
+  requestedByActorId: string;
+  decidedByActorId?: string | null;
+  inputReference: string;
+  idempotencyReference: string;
+  createdAt: string;
+  decidedAt?: string | null;
+  reason?: string | null;
+}
+
+export interface ApprovalResult {
+  approval: ApprovalSnapshot;
+  execution: ExecutionSnapshot;
+}
+
 export interface IRouteClientOptions {
   token?: string;
   tenantId?: string;
   actorId?: string;
+  permissionScopes?: readonly string[];
 }
 
 export class IRouteClient {
@@ -166,7 +197,10 @@ export class IRouteClient {
         'content-type': 'application/json',
         ...(request.idempotencyKey ? { 'idempotency-key': request.idempotencyKey } : {}),
         ...(request.tenantId ? { 'x-tenant-id': request.tenantId } : {}),
-        ...(request.actorId ? { 'x-actor-id': request.actorId } : {})
+        ...(request.actorId ? { 'x-actor-id': request.actorId } : {}),
+        ...(request.permissionScopes?.length
+          ? { 'x-permission-scopes': request.permissionScopes.join(' ') }
+          : {})
       },
       body: JSON.stringify(request),
       ...(signal ? { signal } : {})
@@ -191,6 +225,23 @@ export class IRouteClient {
     if (response.status === 404) return false;
     if (!response.ok) throw await this.createError(response);
     return true;
+  }
+
+  async submitApproval(
+    executionId: string,
+    decision: ApprovalDecision,
+    signal?: AbortSignal
+  ): Promise<ApprovalResult> {
+    const response = await fetch(
+      new URL(`/v1/executions/${encodeURIComponent(executionId)}/approvals`, this.baseUrl),
+      this.requestInit({
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(decision),
+        ...(signal ? { signal } : {})
+      })
+    );
+    return await this.readJson<ApprovalResult>(response);
   }
 
   async getArtifact(artifactId: string, signal?: AbortSignal): Promise<ArtifactSnapshot | undefined> {
@@ -250,6 +301,9 @@ export class IRouteClient {
     }
     if (this.options.actorId && !headers.has('x-actor-id')) {
       headers.set('x-actor-id', this.options.actorId);
+    }
+    if (this.options.permissionScopes?.length && !headers.has('x-permission-scopes')) {
+      headers.set('x-permission-scopes', this.options.permissionScopes.join(' '));
     }
     return { ...init, headers };
   }

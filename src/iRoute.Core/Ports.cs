@@ -191,4 +191,13 @@ public sealed record TaskDefinition(
     int DefaultMaxInputTokens = 4000,
     int DefaultDeadlineMilliseconds = 30000,
     int DefaultMaxModelCalls = 1,
-    TimeSpan? ArtifactTimeToLive = null);
+    TimeSpan? ArtifactTimeToLive = null,
+    IReadOnlyList<string>? AllowedCapabilities = null,
+    IReadOnlyList<string>? PermissionScopes = null,
+    bool ApprovalRequired = false)
+{
+    public IReadOnlyList<string> EffectiveAllowedCapabilities =>
+        AllowedCapabilities is { Count: > 0 } ? AllowedCapabilities : [Capability];
+
+    public IReadOnlyList<string> EffectivePermissionScopes => PermissionScopes ?? [];
+}

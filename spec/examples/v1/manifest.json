@@ -1,6 +1,8 @@
 {
   "examples": [
     { "file": "../../../examples/email-draft.json", "schema": "https://schemas.iroute.dev/v1/task-request.schema.json" },
+    { "file": "../../../examples/email-send.json", "schema": "https://schemas.iroute.dev/v1/task-request.schema.json" },
+    { "file": "approval-decision.email-send.json", "schema": "https://schemas.iroute.dev/v1/approval-decision.schema.json" },
     { "file": "task-definition.email-draft.json", "schema": "https://schemas.iroute.dev/v1/task-definition.schema.json" },
     { "file": "capability-definition.text-generation.json", "schema": "https://schemas.iroute.dev/v1/capability-definition.schema.json" },
     { "file": "execution-plan.email-draft.json", "schema": "https://schemas.iroute.dev/v1/execution-plan.schema.json" },

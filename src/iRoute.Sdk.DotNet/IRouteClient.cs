@@ -8,7 +8,10 @@ using iRoute.Contracts;
 
 namespace iRoute.Sdk.DotNet;
 
-public sealed record IRouteClientOptions(string? TenantId = null, string? ActorId = null);
+public sealed record IRouteClientOptions(
+    string? TenantId = null,
+    string? ActorId = null,
+    IReadOnlyCollection<string>? PermissionScopes = null);
 
 public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? options = null)
 {
@@ -23,7 +26,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
         {
             Content = JsonContent.Create(request, options: JsonOptions)
         };
-        AddScopeHeaders(message, request.TenantId, request.ActorId);
+        AddScopeHeaders(message, request.TenantId, request.ActorId, request.PermissionScopes);
         if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
         {
             message.Headers.TryAddWithoutValidation("Idempotency-Key", request.IdempotencyKey);
@@ -61,6 +64,19 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
 
         response.EnsureSuccessStatusCode();
         return true;
+    }
+
+    public async Task<ApprovalResult> SubmitApprovalAsync(
+        Guid executionId,
+        ApprovalDecision decision,
+        CancellationToken cancellationToken = default)
+    {
+        using var message = CreateScopedRequest(HttpMethod.Post, $"v1/executions/{executionId}/approvals");
+        message.Content = JsonContent.Create(decision, options: JsonOptions);
+        using var response = await httpClient.SendAsync(message, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ApprovalResult>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("iRoute returned an empty approval response.");
     }
 
     public async Task<ArtifactSnapshot?> GetArtifactAsync(
@@ -120,14 +136,23 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
     private HttpRequestMessage CreateScopedRequest(HttpMethod method, string path)
     {
         var message = new HttpRequestMessage(method, path);
-        AddScopeHeaders(message, null, null);
+        AddScopeHeaders(message, null, null, null);
         return message;
     }
 
-    private void AddScopeHeaders(HttpRequestMessage message, string? tenantId, string? actorId)
+    private void AddScopeHeaders(
+        HttpRequestMessage message,
+        string? tenantId,
+        string? actorId,
+        IReadOnlyCollection<string>? permissionScopes)
     {
         AddOptionalHeader(message, "X-Tenant-Id", tenantId ?? _options.TenantId);
         AddOptionalHeader(message, "X-Actor-Id", actorId ?? _options.ActorId);
+        var scopes = permissionScopes ?? _options.PermissionScopes;
+        if (scopes is { Count: > 0 })
+        {
+            AddOptionalHeader(message, "X-Permission-Scopes", string.Join(' ', scopes));
+        }
     }
 
     private static void AddOptionalHeader(HttpRequestMessage message, string name, string? value)

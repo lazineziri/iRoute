@@ -217,6 +217,9 @@ public sealed class ExecutionOrchestratorTests
                 Assert.Contains(
                     iRoute.Infrastructure.Migrations.WorkflowCheckpoints.MigrationId,
                     appliedMigrations);
+                Assert.Contains(
+                    iRoute.Infrastructure.Migrations.PolicyApprovals.MigrationId,
+                    appliedMigrations);
             }
 
             ExecutionSnapshot first;
@@ -259,12 +262,17 @@ public sealed class ExecutionOrchestratorTests
         ExecutionCancellationRegistry cancellations,
         IModelGateway? modelGateway = null,
         IExecutionPlanFactory? planFactory = null,
-        IWorkflowCheckpointStore? checkpoints = null)
+        IWorkflowCheckpointStore? checkpoints = null,
+        IApprovalStore? approvals = null,
+        IExternalActionStore? externalActions = null,
+        IExternalActionExecutor? externalActionExecutor = null)
     {
         var definitions = new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
         var clock = new SystemClock();
         checkpoints ??= new InMemoryWorkflowCheckpointStore();
+        approvals ??= new InMemoryApprovalStore();
+        externalActions ??= new InMemoryExternalActionStore();
         var scheduler = new BoundedDependencyScheduler(
             checkpoints,
             store,
@@ -277,8 +285,13 @@ public sealed class ExecutionOrchestratorTests
             definitions,
             planFactory ?? new DirectExecutionPlanFactory(),
             new ExecutionPlanValidator(),
+            new TaskPolicyEngine(),
+            checkpoints,
+            approvals,
+            externalActions,
             scheduler,
             modelGateway ?? new DeterministicModelGateway(),
+            externalActionExecutor ?? new DevelopmentExternalActionExecutor(),
             new BoundedContextCompiler(),
             [new EmailDraftOutcomeValidator(), new DefaultTaskOutcomeValidator()],
             fingerprint,

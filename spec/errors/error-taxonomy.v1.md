@@ -17,6 +17,15 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `execution_cancelled` | execution | no | Cancellation was requested. |
 | `execution_failed` | execution | no | An unclassified internal execution failure occurred. |
 | `external_write_not_allowed` | execution | no | The task requires external-write permission. |
+| `capability_not_allowed` | execution | no | The compiled capability is outside the task definition's allow list. |
+| `permission_scope_denied` | execution / HTTP 403 | no | The authenticated actor lacks a required action or approval scope. |
+| `approval_not_found` | HTTP 404 | no | No tenant-visible pending or decided approval matches the action. |
+| `approval_already_decided` | HTTP 409 | no | A conflicting decision was submitted for an approval or the execution is no longer waiting. |
+| `approval_denied` | execution | no | An authorized actor denied the proposed external action. |
+| `external_action_idempotency_required` | execution | no | An external action did not include a tenant-scoped idempotency key. |
+| `external_action_idempotency_conflict` | execution | no | An idempotency reference is bound to another action or input. |
+| `external_action_in_progress` | execution | yes | A prior action reservation is indeterminate and requires reconciliation. |
+| `external_action_failed` | execution | no | The external capability failed after its durable reservation was acquired. |
 | `model_budget_exhausted` | execution | no | Generation is required but the model-call budget is zero. |
 | `cost_budget_exceeded` | execution | no | Reported cost exceeded the request ceiling. |
 | `model_call_budget_exceeded` | execution | no | Reported model calls exceeded the request ceiling. |

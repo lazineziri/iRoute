@@ -25,12 +25,20 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `execution.status_changed` | The state machine accepted a transition. |
 | `resolution.considered` | A no-model resolver candidate was accepted or rejected. |
 | `plan.validated` | A typed plan passed graph and budget validation. |
+| `policy.evaluated` | The versioned capability, side-effect, scope, and approval policy produced a decision. |
+| `capability.denied` | Policy denied a capability before its executor could run. |
+| `approval.required` | A durable pending approval was created for an external action. |
+| `approval.decided` | An authorized actor durably approved or denied the action. |
 | `workflow.checkpointed` | The validated plan and initial step states were persisted. |
 | `workflow.resumed` | An existing checkpoint was loaded after interruption. |
 | `step.started` | A durable step attempt began. |
 | `step.completed` | A step output was checkpointed successfully. |
 | `step.retry_scheduled` | A failed attempt was reset within its retry bound. |
 | `step.failed` | A step failed, timed out, or was cancelled. |
+| `external_action.started` | An idempotency reservation was acquired and the external executor was invoked. |
+| `external_action.completed` | The external action and its result reference were durably recorded. |
+| `external_action.reused` | A completed idempotent action result was reused without invoking the executor. |
+| `external_action.failed` | The action failed or became indeterminate; event data contains references, not payloads. |
 | `context.compiled` | The bounded context manifest was created. |
 | `gateway.completed` | The model gateway returned normalized usage. |
 | `validation.completed` | Task-specific validation completed. |

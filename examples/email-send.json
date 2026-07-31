@@ -1,0 +1,16 @@
+{
+  "taskType": "email.send",
+  "projectId": "iroute-project",
+  "idempotencyKey": "email-send-example-001",
+  "input": {
+    "to": "ada@example.com",
+    "subject": "iRoute W04 approval flow",
+    "body": "The policy-controlled external action is ready for review."
+  },
+  "constraints": {
+    "allowExternalWrites": true,
+    "maxModelCalls": 0,
+    "maxToolCalls": 1,
+    "deadlineMilliseconds": 30000
+  }
+}

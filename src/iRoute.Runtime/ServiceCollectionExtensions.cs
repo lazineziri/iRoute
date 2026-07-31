@@ -14,10 +14,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(schedulerOptions ?? new WorkflowSchedulerOptions());
         services.AddSingleton<IExecutionPlanFactory, DirectExecutionPlanFactory>();
         services.AddSingleton<IExecutionPlanValidator, ExecutionPlanValidator>();
+        services.AddSingleton<ITaskPolicyEngine, TaskPolicyEngine>();
         services.AddSingleton<IInputFingerprint, Sha256InputFingerprint>();
         services.AddSingleton<IContextCompiler, BoundedContextCompiler>();
         services.AddSingleton<INoModelResolver, ArtifactReuseResolver>();
         services.AddSingleton<ITaskOutcomeValidator, EmailDraftOutcomeValidator>();
+        services.AddSingleton<ITaskOutcomeValidator, EmailSendOutcomeValidator>();
         services.AddSingleton<ITaskOutcomeValidator, DefaultTaskOutcomeValidator>();
         services.AddSingleton<IExecutionCancellationRegistry, ExecutionCancellationRegistry>();
         return services;

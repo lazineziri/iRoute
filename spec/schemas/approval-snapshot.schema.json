@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/approval-snapshot.schema.json",
+  "title": "ApprovalSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "executionId",
+    "actionId",
+    "status",
+    "capability",
+    "sideEffectClass",
+    "requiredPermissionScopes",
+    "requestedByActorId",
+    "inputReference",
+    "idempotencyReference",
+    "createdAt"
+  ],
+  "properties": {
+    "executionId": { "type": "string", "format": "uuid" },
+    "actionId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": ["Pending", "Approved", "Denied"] },
+    "capability": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "sideEffectClass": { "enum": ["None", "ReadOnly", "ReversibleWrite", "IrreversibleWrite"] },
+    "requiredPermissionScopes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "requestedByActorId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "decidedByActorId": { "type": ["string", "null"], "maxLength": 200 },
+    "inputReference": { "type": "string", "minLength": 1 },
+    "idempotencyReference": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "decidedAt": { "type": ["string", "null"], "format": "date-time" },
+    "reason": { "type": ["string", "null"], "maxLength": 2000 }
+  }
+}

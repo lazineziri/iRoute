@@ -42,6 +42,14 @@ public static class ExecutionEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
+        executions.MapPost("/{executionId:guid}/approvals", SubmitApprovalAsync)
+            .WithName("SubmitExecutionApproval")
+            .Produces<ApprovalResult>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
         artifacts.MapGet("/{artifactId:guid}", GetArtifactAsync)
             .WithName("GetArtifact")
             .Produces<ArtifactSnapshot>()
@@ -87,6 +95,7 @@ public static class ExecutionEndpoints
         {
             TenantId = scope.TenantId,
             ActorId = scope.ActorId,
+            PermissionScopes = scope.PermissionScopes.Order(StringComparer.Ordinal).ToArray(),
             IdempotencyKey = headerIdempotencyKey ?? request.IdempotencyKey
         };
         try
@@ -101,6 +110,40 @@ public static class ExecutionEndpoints
                 ErrorCodes.InvalidTaskRequest,
                 "Invalid task request",
                 exception.Message);
+        }
+    }
+
+    private static async Task<IResult> SubmitApprovalAsync(
+        Guid executionId,
+        ApprovalDecision decision,
+        HttpRequest request,
+        IOptions<IRouteIdentityOptions> identityOptions,
+        ExecutionOrchestrator orchestrator,
+        CancellationToken cancellationToken)
+    {
+        var identity = RequestIdentity.Resolve(request, identityOptions.Value);
+        try
+        {
+            var result = await orchestrator.SubmitApprovalAsync(
+                executionId,
+                decision,
+                identity.TenantId,
+                identity.ActorId,
+                identity.PermissionScopes,
+                cancellationToken);
+            return Results.Ok(result);
+        }
+        catch (ApprovalSubmissionException exception)
+        {
+            var status = exception.Code switch
+            {
+                ErrorCodes.InvalidTaskRequest => StatusCodes.Status400BadRequest,
+                ErrorCodes.PermissionScopeDenied => StatusCodes.Status403Forbidden,
+                ErrorCodes.ApprovalNotFound => StatusCodes.Status404NotFound,
+                ErrorCodes.ApprovalAlreadyDecided => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status409Conflict
+            };
+            return Problem(status, exception.Code, exception.Title, exception.Message);
         }
     }
 
@@ -122,6 +165,7 @@ public static class ExecutionEndpoints
         HttpRequest request,
         IOptions<IRouteIdentityOptions> identityOptions,
         IExecutionStore store,
+        IWorkflowCheckpointStore checkpoints,
         IExecutionCancellationRegistry cancellationRegistry,
         IClock clock,
         CancellationToken cancellationToken)
@@ -150,6 +194,49 @@ public static class ExecutionEndpoints
             requestedAt,
             JsonSerializer.SerializeToElement(new { requestedAt }),
             cancellationToken);
+        if (snapshot.Status == ExecutionStatus.WaitingForApproval)
+        {
+            var problem = new Problem(
+                ErrorCodes.ExecutionCancelled,
+                "Execution cancelled",
+                "The execution was cancelled while waiting for approval.");
+            await checkpoints.CancelIncompleteStepsAsync(
+                executionId,
+                problem,
+                requestedAt,
+                cancellationToken);
+            var cancelled = snapshot with
+            {
+                Status = ExecutionStatus.Cancelled,
+                Error = problem,
+                UpdatedAt = requestedAt
+            };
+            await store.UpdateAsync(cancelled, cancellationToken);
+            await store.AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.StatusChanged,
+                requestedAt,
+                JsonSerializer.SerializeToElement(new
+                {
+                    from = ExecutionStatus.WaitingForApproval,
+                    to = ExecutionStatus.Cancelled
+                }),
+                cancellationToken);
+            await store.AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.Failed,
+                requestedAt,
+                JsonSerializer.SerializeToElement(new
+                {
+                    status = ExecutionStatus.Cancelled,
+                    code = problem.Code,
+                    title = problem.Title,
+                    retryable = problem.Retryable
+                }),
+                cancellationToken);
+            return Results.Accepted($"/v1/executions/{executionId}");
+        }
+
         cancellationRegistry.RequestCancellation(executionId);
         return Results.Accepted($"/v1/executions/{executionId}");
     }

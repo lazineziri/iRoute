@@ -20,6 +20,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TenantId'
         - $ref: '#/components/parameters/ActorId'
+        - $ref: '#/components/parameters/PermissionScopes'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -29,7 +30,7 @@ paths:
               $ref: '#/components/schemas/TaskRequest'
       responses:
         '200':
-          description: The synchronous execution reached a terminal state.
+          description: The execution reached a terminal state or paused in `WaitingForApproval`.
           content:
             application/json:
               schema:
@@ -122,6 +123,39 @@ paths:
           $ref: '#/components/responses/Problem'
         '403':
           $ref: '#/components/responses/Problem'
+  /v1/executions/{executionId}/approvals:
+    post:
+      operationId: submitExecutionApproval
+      tags: [Executions]
+      summary: Approve or deny a pending external action and resume the durable workflow when approved.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/ActorId'
+        - $ref: '#/components/parameters/PermissionScopes'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecision'
+      responses:
+        '200':
+          description: The approval decision and current execution snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalResult'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
   /v1/artifacts/{artifactId}:
     get:
       operationId: getArtifact
@@ -201,6 +235,14 @@ components:
         type: string
         minLength: 1
         maxLength: 200
+    PermissionScopes:
+      name: X-Permission-Scopes
+      in: header
+      required: false
+      description: Development-only space- or comma-separated permission scopes. JWT mode ignores this header and uses the configured permission claim.
+      schema:
+        type: string
+        maxLength: 4096
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -252,6 +294,15 @@ components:
           type: [string, 'null']
           maxLength: 200
           description: Development scope hint. In JWT mode, a supplied value must match the authenticated claim.
+        permissionScopes:
+          type: [array, 'null']
+          maxItems: 64
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 200
+          description: Server-derived authorization context. Request-body values are ignored and replaced by authenticated scopes.
     TaskConstraints:
       type: object
       additionalProperties: false
@@ -290,6 +341,48 @@ components:
         projectId: { type: [string, 'null'] }
         taskDefinitionVersion: { type: [integer, 'null'], minimum: 1 }
         cancellationRequestedAt: { type: [string, 'null'], format: date-time }
+    ApprovalDecision:
+      type: object
+      additionalProperties: false
+      required: [actionId, approved]
+      properties:
+        actionId: { type: string, minLength: 1, maxLength: 200 }
+        approved: { type: boolean }
+        reason: { type: [string, 'null'], maxLength: 2000 }
+    ApprovalSnapshot:
+      type: object
+      additionalProperties: false
+      required: [executionId, actionId, status, capability, sideEffectClass, requiredPermissionScopes, requestedByActorId, inputReference, idempotencyReference, createdAt]
+      properties:
+        executionId: { type: string, format: uuid }
+        actionId: { type: string }
+        status: { $ref: '#/components/schemas/ApprovalStatus' }
+        capability: { type: string }
+        sideEffectClass: { $ref: '#/components/schemas/SideEffectClass' }
+        requiredPermissionScopes:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        requestedByActorId: { type: string }
+        decidedByActorId: { type: [string, 'null'] }
+        inputReference: { type: string }
+        idempotencyReference: { type: string }
+        createdAt: { type: string, format: date-time }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        reason: { type: [string, 'null'] }
+    ApprovalResult:
+      type: object
+      additionalProperties: false
+      required: [approval, execution]
+      properties:
+        approval: { $ref: '#/components/schemas/ApprovalSnapshot' }
+        execution: { $ref: '#/components/schemas/ExecutionSnapshot' }
+    ApprovalStatus:
+      type: string
+      enum: [Pending, Approved, Denied]
+    SideEffectClass:
+      type: string
+      enum: [None, ReadOnly, ReversibleWrite, IrreversibleWrite]
     ExecutionStatus:
       type: string
       enum:
@@ -448,12 +541,20 @@ components:
         - execution.status_changed
         - resolution.considered
         - plan.validated
+        - policy.evaluated
+        - capability.denied
+        - approval.required
+        - approval.decided
         - workflow.checkpointed
         - workflow.resumed
         - step.started
         - step.completed
         - step.retry_scheduled
         - step.failed
+        - external_action.started
+        - external_action.completed
+        - external_action.reused
+        - external_action.failed
         - context.compiled
         - gateway.completed
         - validation.completed
@@ -478,6 +579,15 @@ components:
         - execution_cancelled
         - execution_failed
         - external_write_not_allowed
+        - capability_not_allowed
+        - permission_scope_denied
+        - approval_not_found
+        - approval_already_decided
+        - approval_denied
+        - external_action_idempotency_required
+        - external_action_idempotency_conflict
+        - external_action_in_progress
+        - external_action_failed
         - model_budget_exhausted
         - cost_budget_exceeded
         - model_call_budget_exceeded

@@ -17,15 +17,39 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
         new Dictionary<string, TaskDefinition>(StringComparer.OrdinalIgnoreCase)
         {
             ["email.draft"] = new(
-                "email.draft", 1, "text.generation", 800, 0.80m, true, SideEffectClass.None, "email.draft", 4000, 30000, 1),
+                "email.draft", 1, "text.generation", 800, 0.80m, true, SideEffectClass.None, "email.draft",
+                DefaultMaxInputTokens: 4000,
+                DefaultDeadlineMilliseconds: 30000,
+                DefaultMaxModelCalls: 1,
+                AllowedCapabilities: ["text.generation"]),
             ["email.send"] = new(
-                "email.send", 1, "email.send", 800, 0.90m, true, SideEffectClass.IrreversibleWrite, "email.send.receipt", 4000, 30000, 0),
+                "email.send", 1, "email.send", 800, 0.90m, true, SideEffectClass.IrreversibleWrite, "email.send.receipt",
+                DefaultMaxInputTokens: 4000,
+                DefaultDeadlineMilliseconds: 30000,
+                DefaultMaxModelCalls: 0,
+                AllowedCapabilities: ["email.send"],
+                PermissionScopes: ["email:send"],
+                ApprovalRequired: true),
             ["calendar.find_slots"] = new(
-                "calendar.find_slots", 1, "calendar.read", 400, 0.95m, true, SideEffectClass.ReadOnly, "calendar.slot-proposal", 3000, 20000, 0),
+                "calendar.find_slots", 1, "calendar.read", 400, 0.95m, true, SideEffectClass.ReadOnly, "calendar.slot-proposal",
+                DefaultMaxInputTokens: 3000,
+                DefaultDeadlineMilliseconds: 20000,
+                DefaultMaxModelCalls: 0,
+                AllowedCapabilities: ["calendar.read"],
+                PermissionScopes: ["calendar:read"]),
             ["database.answer"] = new(
-                "database.answer", 1, "database.read", 600, 0.95m, true, SideEffectClass.ReadOnly, "database.answer", 3000, 20000, 0),
+                "database.answer", 1, "database.read", 600, 0.95m, true, SideEffectClass.ReadOnly, "database.answer",
+                DefaultMaxInputTokens: 3000,
+                DefaultDeadlineMilliseconds: 20000,
+                DefaultMaxModelCalls: 0,
+                AllowedCapabilities: ["database.read"],
+                PermissionScopes: ["database:read"]),
             ["document.summarize"] = new(
-                "document.summarize", 1, "text.summarization", 1200, 0.85m, true, SideEffectClass.None, "document.summary", 8000, 45000, 1)
+                "document.summarize", 1, "text.summarization", 1200, 0.85m, true, SideEffectClass.None, "document.summary",
+                DefaultMaxInputTokens: 8000,
+                DefaultDeadlineMilliseconds: 45000,
+                DefaultMaxModelCalls: 1,
+                AllowedCapabilities: ["text.summarization"])
         };
 
     public Task<TaskDefinition?> FindAsync(string taskType, CancellationToken cancellationToken)
@@ -40,6 +64,31 @@ public sealed record ModelGatewayOptions
     public string Mode { get; init; } = "Deterministic";
     public string? BaseUrl { get; init; }
     public string? ApiKey { get; init; }
+}
+
+public sealed class DevelopmentExternalActionExecutor : IExternalActionExecutor
+{
+    public Task<ExternalActionResult> ExecuteAsync(
+        ExternalActionRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!string.Equals(request.Capability, "email.send", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"The development external-action executor does not implement '{request.Capability}'.");
+        }
+
+        var output = JsonSerializer.SerializeToElement(new
+        {
+            receiptId = $"sim-{request.IdempotencyKey[..24]}",
+            status = "simulated",
+            capability = request.Capability
+        });
+        return Task.FromResult(new ExternalActionResult(
+            output,
+            [new EvidenceReference("external-action", $"receipt:{request.IdempotencyKey}")]));
+    }
 }
 
 public sealed class DeterministicModelGateway : IModelGateway

@@ -16,11 +16,16 @@ public sealed record IRouteIdentityOptions
     public bool RequireHttpsMetadata { get; init; } = true;
     public string TenantClaim { get; init; } = "tenant_id";
     public string ActorClaim { get; init; } = "sub";
+    public string PermissionClaim { get; init; } = "scope";
 
     public bool UsesJwt => string.Equals(Mode, JwtMode, StringComparison.OrdinalIgnoreCase);
 }
 
-internal sealed record RequestIdentityScope(string TenantId, string ActorId, bool Authenticated);
+internal sealed record RequestIdentityScope(
+    string TenantId,
+    string ActorId,
+    IReadOnlySet<string> PermissionScopes,
+    bool Authenticated);
 
 internal static class IdentityConfiguration
 {
@@ -84,12 +89,19 @@ internal static class RequestIdentity
                 ?? throw new InvalidOperationException("The authenticated identity has no tenant claim.");
             var actorId = ReadClaim(request.HttpContext.User, options.ActorClaim)
                 ?? throw new InvalidOperationException("The authenticated identity has no actor claim.");
-            return new RequestIdentityScope(tenantId, actorId, true);
+            return new RequestIdentityScope(
+                tenantId,
+                actorId,
+                ReadScopes(request.HttpContext.User.Claims
+                    .Where(claim => claim.Type == options.PermissionClaim)
+                    .Select(claim => claim.Value)),
+                true);
         }
 
         return new RequestIdentityScope(
             ReadHeader(request, "X-Tenant-Id") ?? Normalize(requestTenantId) ?? "local",
             ReadHeader(request, "X-Actor-Id") ?? Normalize(requestActorId) ?? "local",
+            ReadScopes([request.Headers["X-Permission-Scopes"].ToString()]),
             false);
     }
 
@@ -109,6 +121,11 @@ internal static class RequestIdentity
     private static bool HasDifferentValue(string? requested, string actual) =>
         Normalize(requested) is { } normalized &&
         !string.Equals(normalized, actual, StringComparison.Ordinal);
+
+    private static HashSet<string> ReadScopes(IEnumerable<string> values) =>
+        values
+            .SelectMany(value => value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToHashSet(StringComparer.Ordinal);
 
     private static string? Normalize(string? value)
     {

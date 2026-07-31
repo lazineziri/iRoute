@@ -11,7 +11,8 @@ public sealed record TaskRequest(
     TaskConstraints? Constraints = null,
     IReadOnlyDictionary<string, string>? Metadata = null,
     string? TenantId = null,
-    string? ActorId = null);
+    string? ActorId = null,
+    IReadOnlyList<string>? PermissionScopes = null);
 
 public sealed record TaskConstraints(
     int? MaxInputTokens = null,
@@ -142,6 +143,25 @@ public sealed record ApprovalDecision(
     bool Approved,
     string? Reason = null);
 
+public sealed record ApprovalSnapshot(
+    Guid ExecutionId,
+    string ActionId,
+    ApprovalStatus Status,
+    string Capability,
+    SideEffectClass SideEffectClass,
+    IReadOnlyList<string> RequiredPermissionScopes,
+    string RequestedByActorId,
+    string? DecidedByActorId,
+    string InputReference,
+    string IdempotencyReference,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? DecidedAt = null,
+    string? Reason = null);
+
+public sealed record ApprovalResult(
+    ApprovalSnapshot Approval,
+    ExecutionSnapshot Execution);
+
 public sealed record Problem(
     string Code,
     string Title,
@@ -203,18 +223,34 @@ public enum SideEffectClass
     IrreversibleWrite
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<ApprovalStatus>))]
+public enum ApprovalStatus
+{
+    Pending,
+    Approved,
+    Denied
+}
+
 public static class ExecutionEventTypes
 {
     public const string Created = "execution.created";
     public const string StatusChanged = "execution.status_changed";
     public const string ResolutionConsidered = "resolution.considered";
     public const string PlanValidated = "plan.validated";
+    public const string PolicyEvaluated = "policy.evaluated";
+    public const string CapabilityDenied = "capability.denied";
+    public const string ApprovalRequired = "approval.required";
+    public const string ApprovalDecided = "approval.decided";
     public const string WorkflowCheckpointed = "workflow.checkpointed";
     public const string WorkflowResumed = "workflow.resumed";
     public const string StepStarted = "step.started";
     public const string StepCompleted = "step.completed";
     public const string StepRetryScheduled = "step.retry_scheduled";
     public const string StepFailed = "step.failed";
+    public const string ExternalActionStarted = "external_action.started";
+    public const string ExternalActionCompleted = "external_action.completed";
+    public const string ExternalActionReused = "external_action.reused";
+    public const string ExternalActionFailed = "external_action.failed";
     public const string ContextCompiled = "context.compiled";
     public const string GatewayCompleted = "gateway.completed";
     public const string ValidationCompleted = "validation.completed";
@@ -229,12 +265,20 @@ public static class ExecutionEventTypes
         StatusChanged,
         ResolutionConsidered,
         PlanValidated,
+        PolicyEvaluated,
+        CapabilityDenied,
+        ApprovalRequired,
+        ApprovalDecided,
         WorkflowCheckpointed,
         WorkflowResumed,
         StepStarted,
         StepCompleted,
         StepRetryScheduled,
         StepFailed,
+        ExternalActionStarted,
+        ExternalActionCompleted,
+        ExternalActionReused,
+        ExternalActionFailed,
         ContextCompiled,
         GatewayCompleted,
         ValidationCompleted,
@@ -260,6 +304,15 @@ public static class ErrorCodes
     public const string ExecutionCancelled = "execution_cancelled";
     public const string ExecutionFailed = "execution_failed";
     public const string ExternalWriteNotAllowed = "external_write_not_allowed";
+    public const string CapabilityNotAllowed = "capability_not_allowed";
+    public const string PermissionScopeDenied = "permission_scope_denied";
+    public const string ApprovalNotFound = "approval_not_found";
+    public const string ApprovalAlreadyDecided = "approval_already_decided";
+    public const string ApprovalDenied = "approval_denied";
+    public const string ExternalActionIdempotencyRequired = "external_action_idempotency_required";
+    public const string ExternalActionIdempotencyConflict = "external_action_idempotency_conflict";
+    public const string ExternalActionInProgress = "external_action_in_progress";
+    public const string ExternalActionFailed = "external_action_failed";
     public const string ModelBudgetExhausted = "model_budget_exhausted";
     public const string CostBudgetExceeded = "cost_budget_exceeded";
     public const string ModelCallBudgetExceeded = "model_call_budget_exceeded";
@@ -282,6 +335,15 @@ public static class ErrorCodes
         ExecutionCancelled,
         ExecutionFailed,
         ExternalWriteNotAllowed,
+        CapabilityNotAllowed,
+        PermissionScopeDenied,
+        ApprovalNotFound,
+        ApprovalAlreadyDecided,
+        ApprovalDenied,
+        ExternalActionIdempotencyRequired,
+        ExternalActionIdempotencyConflict,
+        ExternalActionInProgress,
+        ExternalActionFailed,
         ModelBudgetExhausted,
         CostBudgetExceeded,
         ModelCallBudgetExceeded,

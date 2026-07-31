@@ -10,7 +10,7 @@
 
 The local API defaults to SQLite at `Data Source=iroute.db`. The Compose profile uses PostgreSQL. `Storage:AutoInitialize=true` applies checked-in migrations at startup. Disable automatic initialization where migrations are run as a separate deployment job. Every future migration requires upgrade, rollback, and mixed-version tests.
 
-Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. A restart resets only interrupted `Running` steps to `Pending`; completed step outputs remain authoritative inputs for downstream steps.
+Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs remain authoritative inputs for downstream steps.
 
 ## Scheduler bounds
 
@@ -18,11 +18,17 @@ Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowS
 
 ## Identity
 
-`Identity:Mode=DevelopmentHeaders` is intended only for local development. Internet-facing deployments must use `Jwt`, configure an HTTPS authority and audience, and issue tokens containing the configured tenant and actor claims. Tenant claims are enforced before execution or artifact access; finer-grained task/capability authorization remains a subsequent milestone.
+`Identity:Mode=DevelopmentHeaders` is intended only for local development. Internet-facing deployments must use `Jwt`, configure an HTTPS authority and audience, and issue tokens containing the configured tenant, actor, and permission claims. The API replaces caller-supplied request scopes with authenticated scopes before policy evaluation. External-action approval requires both the action scope (for example `email:send`) and `approval:grant`.
+
+## External-action safety and recovery
+
+An external write requires explicit request intent, a tenant-scoped idempotency key, an allowed task capability, its configured permission scopes, and an approved durable action record. Events persist the policy version, actor, decision, and input/result references; they never intentionally persist payload bodies.
+
+A completed external action is replayed from its durable result. A conflicting reference is rejected. If the process loses certainty after reserving or starting an action, the reservation remains `Running` and the runtime returns `external_action_in_progress` rather than invoking it again. Operators must reconcile the provider using the stored idempotency reference. A future administrative workflow will support repairing the durable action state; automatic distributed reconciliation is not part of W04.
 
 ## Scaling
 
-The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. Cross-replica leasing, renewal, automatic recovery scans, and distributed cancellation remain required before horizontal execution scaling.
+The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. Cross-replica leasing, renewal, automatic recovery scans, external-action reconciliation, and distributed cancellation remain required before horizontal execution scaling.
 
 ## Telemetry
 

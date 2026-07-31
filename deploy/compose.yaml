@@ -16,6 +16,7 @@ services:
       Identity__Mode: ${IROUTE_IDENTITY_MODE:-DevelopmentHeaders}
       Identity__Authority: ${IROUTE_IDENTITY_AUTHORITY:-}
       Identity__Audience: ${IROUTE_IDENTITY_AUDIENCE:-}
+      Identity__PermissionClaim: ${IROUTE_IDENTITY_PERMISSION_CLAIM:-scope}
     ports:
       - "8080:8080"
     depends_on:

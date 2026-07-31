@@ -76,6 +76,98 @@ for (const fixture of cases) {
   }
 }
 
+try {
+  const idempotencyKey = `w04-email-send-${evaluationRunId}`;
+  const sensitiveMarker = `w04-private-body-${evaluationRunId}`;
+  const requestBody = {
+    taskType: 'email.send',
+    projectId: `evaluation-w04-${evaluationRunId}`,
+    input: {
+      to: 'evaluation@example.com',
+      subject: 'W04 policy evaluation',
+      body: sensitiveMarker
+    },
+    constraints: {
+      allowExternalWrites: true,
+      maxModelCalls: 0,
+      maxToolCalls: 1,
+      deadlineMilliseconds: 30000
+    }
+  };
+  const executionHeaders = {
+    'content-type': 'application/json',
+    'x-tenant-id': 'evaluation',
+    'x-actor-id': 'evaluation-requester',
+    'x-permission-scopes': 'email:send',
+    'idempotency-key': idempotencyKey
+  };
+  const executionResponse = await fetch(new URL('/v1/executions', baseUrl), {
+    method: 'POST',
+    headers: executionHeaders,
+    body: JSON.stringify(requestBody)
+  });
+  if (!executionResponse.ok) {
+    throw new Error(`execution returned HTTP ${executionResponse.status}: ${await executionResponse.text()}`);
+  }
+  const waiting = await executionResponse.json();
+  assertEqual(waiting.status, 'WaitingForApproval', 'pre-approval status');
+
+  const approvalResponse = await fetch(
+    new URL(`/v1/executions/${waiting.executionId}/approvals`, baseUrl),
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'evaluation',
+        'x-actor-id': 'evaluation-approver',
+        'x-permission-scopes': 'email:send approval:grant'
+      },
+      body: JSON.stringify({ actionId: 'execute', approved: true, reason: 'Evaluation approval.' })
+    }
+  );
+  if (!approvalResponse.ok) {
+    throw new Error(`approval returned HTTP ${approvalResponse.status}: ${await approvalResponse.text()}`);
+  }
+  const approved = await approvalResponse.json();
+  assertEqual(approved.approval?.status, 'Approved', 'approval status');
+  assertEqual(approved.execution?.status, 'Succeeded', 'post-approval status');
+  assertEqual(approved.execution?.outcome?.resolutionLevel, 'DeterministicCapability', 'resolutionLevel');
+  assertEqual(approved.execution?.outcome?.usage?.toolCalls, 1, 'toolCalls');
+
+  const replayResponse = await fetch(new URL('/v1/executions', baseUrl), {
+    method: 'POST',
+    headers: executionHeaders,
+    body: JSON.stringify(requestBody)
+  });
+  if (!replayResponse.ok) throw new Error(`idempotent replay returned HTTP ${replayResponse.status}`);
+  const replay = await replayResponse.json();
+  assertEqual(replay.executionId, waiting.executionId, 'idempotent execution id');
+
+  const eventResponse = await fetch(
+    new URL(`/v1/executions/${waiting.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!eventResponse.ok) throw new Error(`event replay returned HTTP ${eventResponse.status}`);
+  const events = await eventResponse.text();
+  for (const eventType of [
+    'policy.evaluated',
+    'approval.required',
+    'approval.decided',
+    'external_action.started',
+    'external_action.completed'
+  ]) {
+    if (!events.includes(`event: ${eventType}`)) throw new Error(`event replay omitted ${eventType}`);
+  }
+  if ((events.match(/event: external_action\.completed/g) ?? []).length !== 1) {
+    throw new Error('external action completed more than once');
+  }
+  if (events.includes(sensitiveMarker)) throw new Error('audit events exposed the external-action payload');
+  console.log('PASS w04-policy-approval-idempotency');
+} catch (error) {
+  failed++;
+  console.error(`FAIL w04-policy-approval-idempotency: ${error.message}`);
+}
+
 if (failed > 0) process.exitCode = 1;
 
 function assertEqual(actual, expected, label) {
