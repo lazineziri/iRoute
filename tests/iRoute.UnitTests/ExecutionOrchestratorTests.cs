@@ -31,7 +31,7 @@ public sealed class ExecutionOrchestratorTests
 
         Assert.Equal(ExecutionStatus.Succeeded, result.Status);
         var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
-        Assert.Equal(ResolutionLevel.StrongModel, outcome.ResolutionLevel);
+        Assert.Equal(ResolutionLevel.SmallModel, outcome.ResolutionLevel);
         Assert.Equal(1, outcome.Usage.ModelCalls);
         Assert.True(Assert.IsType<ValidationSummary>(outcome.Validation).Passed);
         var context = Assert.IsType<ContextManifest>(outcome.Context);
@@ -39,6 +39,14 @@ public sealed class ExecutionOrchestratorTests
         Assert.False(context.FullHistoryIncluded);
         Assert.NotEmpty(context.Provenance);
         Assert.Equal(context.EstimatedTokens, outcome.Usage.InputTokens);
+        var routing = Assert.IsType<RoutingDecision>(outcome.Routing);
+        Assert.Equal(RoutingPath.Direct, routing.Path);
+        Assert.Equal("text.generation.small.eval-v1", routing.SelectedProfileId);
+        Assert.Equal(ModelTier.Small, routing.SelectedModelTier);
+        Assert.False(routing.PlannerInvoked);
+        Assert.Equal(0, routing.PlanningCalls);
+        Assert.False(routing.Escalated);
+        Assert.NotEmpty(routing.Candidates);
         Assert.All(
             context.Entries.Where(entry => entry.Included),
             entry => Assert.True(context.Provenance.ContainsKey(entry.OutputPath!)));
@@ -55,6 +63,12 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(ExecutionEventTypes.Created, events[0].Type);
         Assert.Equal(ExecutionEventTypes.Completed, events[^1].Type);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.PlanValidated);
+        var routingEvent = Assert.Single(events, x => x.Type == ExecutionEventTypes.RoutingDecided);
+        Assert.Equal("routing.w08.v1", routingEvent.Data.GetProperty("policyVersion").GetString());
+        Assert.Equal("Direct", routingEvent.Data.GetProperty("path").GetString());
+        Assert.False(routingEvent.Data.GetProperty("plannerInvoked").GetBoolean());
+        Assert.Equal(0, routingEvent.Data.GetProperty("planningCalls").GetInt32());
+        Assert.True(routingEvent.Data.GetProperty("candidates").GetArrayLength() >= 2);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.WorkflowCheckpointed);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.StepStarted);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.StepCompleted);
@@ -389,7 +403,7 @@ public sealed class ExecutionOrchestratorTests
 
         var firstOutcome = Assert.IsType<TaskOutcome>(first.Outcome);
         var secondOutcome = Assert.IsType<TaskOutcome>(second.Outcome);
-        Assert.Equal(ResolutionLevel.StrongModel, secondOutcome.ResolutionLevel);
+        Assert.Equal(ResolutionLevel.SmallModel, secondOutcome.ResolutionLevel);
         Assert.NotEqual(
             Assert.Single(firstOutcome.Artifacts).ArtifactId,
             Assert.Single(secondOutcome.Artifacts).ArtifactId);
@@ -411,7 +425,7 @@ public sealed class ExecutionOrchestratorTests
     }
 
     [Fact]
-    public async Task QualityBelowRequestedFloorFailsClosed()
+    public async Task UnsupportedQualityFloorFailsBeforeGeneration()
     {
         var store = new InMemoryExecutionStore();
         var artifacts = new InMemoryArtifactStore();
@@ -430,7 +444,7 @@ public sealed class ExecutionOrchestratorTests
         var result = await orchestrator.ExecuteAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(ExecutionStatus.Failed, result.Status);
-        Assert.Equal("validation_failed", Assert.IsType<Problem>(result.Error).Code);
+        Assert.Equal(ErrorCodes.RoutingNoEligibleCapability, Assert.IsType<Problem>(result.Error).Code);
         Assert.Null(await memories.GetActiveAsync(
             new MemoryLookup(
                 "tenant-a",
@@ -439,6 +453,38 @@ public sealed class ExecutionOrchestratorTests
                 "activeDecisions[0]",
                 DateTimeOffset.UtcNow),
             TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task HigherQualityFloorEscalatesToStrongProfileAndExplainsDecision()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var gateway = new CapturingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(store, artifacts, cancellations, gateway);
+        var request = CreateRequest("tenant-a", "strong-route") with
+        {
+            Constraints = new TaskConstraints(MinimumQuality: 0.9m, MaxModelCalls: 1)
+        };
+
+        var result = await orchestrator.ExecuteAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
+        Assert.Equal(ResolutionLevel.StrongModel, outcome.ResolutionLevel);
+        var routing = Assert.IsType<RoutingDecision>(outcome.Routing);
+        Assert.Equal("text.generation.strong.eval-v1", routing.SelectedProfileId);
+        Assert.True(routing.Escalated);
+        Assert.Contains("lower-cost route", routing.EscalationReason);
+        Assert.Equal(routing.SelectedProfileId, Assert.IsType<ModelGatewayRequest>(gateway.LastRequest).ProfileId);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        Assert.Single(events, item => item.Type == ExecutionEventTypes.RoutingDecided);
+        var escalation = Assert.Single(events, item => item.Type == ExecutionEventTypes.RoutingEscalated);
+        Assert.True(escalation.Data.GetProperty("escalated").GetBoolean());
+        Assert.Equal(
+            "text.generation.strong.eval-v1",
+            escalation.Data.GetProperty("selectedProfileId").GetString());
     }
 
     [Fact]
@@ -509,7 +555,7 @@ public sealed class ExecutionOrchestratorTests
             artifacts,
             cancellations,
             gateway,
-            new FixedExecutionPlanFactory(invalidPlan));
+            new FixedTaskRouter(invalidPlan));
 
         var result = await orchestrator.ExecuteAsync(
             CreateRequest("tenant-a", "invalid-plan"),
@@ -618,7 +664,7 @@ public sealed class ExecutionOrchestratorTests
         IArtifactStore artifacts,
         ExecutionCancellationRegistry cancellations,
         IModelGateway? modelGateway = null,
-        IExecutionPlanFactory? planFactory = null,
+        ITaskRouter? taskRouter = null,
         IWorkflowCheckpointStore? checkpoints = null,
         IApprovalStore? approvals = null,
         IExternalActionStore? externalActions = null,
@@ -649,7 +695,7 @@ public sealed class ExecutionOrchestratorTests
                 new DeterministicHandlerResolver(deterministicHandlers ?? [], clock)
             ],
             definitions,
-            planFactory ?? new DirectExecutionPlanFactory(),
+            taskRouter ?? CreateTaskRouter(),
             new ExecutionPlanValidator(),
             new TaskPolicyEngine(),
             checkpoints,
@@ -731,10 +777,43 @@ public sealed class ExecutionOrchestratorTests
                 503);
     }
 
-    private sealed class FixedExecutionPlanFactory(ExecutionPlan plan) : IExecutionPlanFactory
+    private static TaskRouter CreateTaskRouter()
     {
-        public ExecutionPlan Create(TaskRequest request, TaskDefinition definition) => plan;
+        var matcher = new MeasuredCapabilityMatcher(new BuiltInModelProfileRegistry());
+        var escalation = new MeasuredEscalationPolicy();
+        var validator = new ExecutionPlanValidator();
+        return new TaskRouter(
+            new DirectPathSelector(matcher, escalation),
+            new BoundedTaskPlanner(matcher, escalation, validator));
     }
+
+    private sealed class FixedTaskRouter(ExecutionPlan plan) : ITaskRouter
+    {
+        public Task<RoutingResult> RouteAsync(
+            TaskRequest request,
+            TaskDefinition definition,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new RoutingResult(plan, RoutingFor(plan)));
+    }
+
+    private static RoutingDecision RoutingFor(ExecutionPlan plan) => new(
+        "test.v1",
+        plan.Steps.Count == 1 ? RoutingPath.Direct : RoutingPath.Workflow,
+        "Fixed test route.",
+        plan.Steps[^1].Capability,
+        plan.Steps[^1].ProfileId,
+        plan.Steps[^1].Kind == ExecutionStepKind.Model ? ModelTier.Strong : null,
+        0.8m,
+        0.9m,
+        0.01m,
+        100,
+        0.01m,
+        0.8m,
+        plan.Steps.Count > 1,
+        plan.Steps.Count > 1 ? 1 : 0,
+        false,
+        null,
+        []);
 
     private sealed class ThrowIfInvokedModelGateway : IModelGateway
     {

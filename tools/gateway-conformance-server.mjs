@@ -20,6 +20,7 @@ const server = createServer(async (request, response) => {
       body.capability !== 'text.generation' ||
       !body.input ||
       !body.context ||
+      !body.profileId ||
       !Number.isInteger(body.maxOutputTokens) ||
       body.maxOutputTokens < 1
     ) {

@@ -10,6 +10,8 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `execution_already_terminal` | HTTP 409 | no | A terminal execution cannot be cancelled. |
 | `unknown_task_type` | execution | no | No active task definition exists. |
 | `invalid_execution_plan` | execution | no | The plan failed structural, DAG, or budget validation. |
+| `routing_no_eligible_capability` | execution | no | No measured capability profile satisfies the mandatory quality, safety, health, capacity, deadline, and cost constraints. |
+| `routing_budget_exceeded` | execution | no | A required workflow cannot fit its depth, model-call, tool-call, or step limits. |
 | `workflow_step_failed` | execution | no | A bounded step exhausted its allowed attempts. |
 | `workflow_step_timed_out` | execution | yes | A step exceeded its declared timeout. |
 | `validation_failed` | execution | no | The outcome failed task-specific validation. |

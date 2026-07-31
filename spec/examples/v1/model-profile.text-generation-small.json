@@ -1,0 +1,16 @@
+{
+  "profileId": "text.generation.small.eval-v1",
+  "capability": "text.generation",
+  "tier": "Small",
+  "supportedTaskTypes": ["email.draft"],
+  "expectedQuality": 0.84,
+  "estimatedCost": 0.004,
+  "expectedLatencyMilliseconds": 900,
+  "uncertainty": 0.06,
+  "reliability": 0.98,
+  "availability": 0.99,
+  "maxInputTokens": 8000,
+  "maxOutputTokens": 1500,
+  "healthy": true,
+  "measurementSource": "evaluation"
+}

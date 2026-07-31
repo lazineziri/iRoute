@@ -13,8 +13,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ProjectMemoryMaterializer>();
         services.AddSingleton<BoundedDependencyScheduler>();
         services.AddSingleton(schedulerOptions ?? new WorkflowSchedulerOptions());
-        services.AddSingleton<IExecutionPlanFactory, DirectExecutionPlanFactory>();
         services.AddSingleton<IExecutionPlanValidator, ExecutionPlanValidator>();
+        services.AddSingleton<IEscalationPolicy, MeasuredEscalationPolicy>();
+        services.AddSingleton<ICapabilityMatcher, MeasuredCapabilityMatcher>();
+        services.AddSingleton<IDirectPathSelector, DirectPathSelector>();
+        services.AddSingleton<IBoundedTaskPlanner, BoundedTaskPlanner>();
+        services.AddSingleton<ITaskRouter, TaskRouter>();
         services.AddSingleton<ITaskPolicyEngine, TaskPolicyEngine>();
         services.AddSingleton<IInputFingerprint, Sha256InputFingerprint>();
         services.AddSingleton<IContextCompiler, BoundedContextCompiler>();

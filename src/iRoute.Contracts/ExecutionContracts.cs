@@ -42,7 +42,8 @@ public sealed record ExecutionPlanStep(
     IReadOnlyList<string> DependsOn,
     SideEffectClass SideEffectClass,
     int TimeoutMilliseconds,
-    int MaxAttempts = 1);
+    int MaxAttempts = 1,
+    string? ProfileId = null);
 
 public sealed record ExecutionPlanBudget(
     int MaxSteps,
@@ -84,7 +85,41 @@ public sealed record TaskOutcome(
     UsageSummary Usage,
     IReadOnlyList<ArtifactReference> Artifacts,
     ValidationSummary? Validation = null,
-    ContextManifest? Context = null);
+    ContextManifest? Context = null,
+    RoutingDecision? Routing = null);
+
+public sealed record RoutingDecision(
+    string PolicyVersion,
+    RoutingPath Path,
+    string Reason,
+    string SelectedCapability,
+    string? SelectedProfileId,
+    ModelTier? SelectedModelTier,
+    decimal QualityFloor,
+    decimal ExpectedQuality,
+    decimal ExpectedCost,
+    int ExpectedLatencyMilliseconds,
+    decimal Uncertainty,
+    decimal Score,
+    bool PlannerInvoked,
+    int PlanningCalls,
+    bool Escalated,
+    string? EscalationReason,
+    IReadOnlyList<RoutingCandidateEvaluation> Candidates);
+
+public sealed record RoutingCandidateEvaluation(
+    string Capability,
+    string? ProfileId,
+    ModelTier? ModelTier,
+    bool Eligible,
+    string Reason,
+    decimal ExpectedQuality,
+    decimal ExpectedCost,
+    int ExpectedLatencyMilliseconds,
+    decimal Uncertainty,
+    decimal Reliability,
+    decimal Availability,
+    decimal Score);
 
 public sealed record UsageSummary(
     int InputTokens = 0,
@@ -303,6 +338,21 @@ public enum ExecutionStepKind
     Approval
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<RoutingPath>))]
+public enum RoutingPath
+{
+    Direct,
+    Workflow
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ModelTier>))]
+public enum ModelTier
+{
+    Small,
+    Strong,
+    Verifier
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SideEffectClass>))]
 public enum SideEffectClass
 {
@@ -348,6 +398,8 @@ public static class ExecutionEventTypes
     public const string Created = "execution.created";
     public const string StatusChanged = "execution.status_changed";
     public const string ResolutionConsidered = "resolution.considered";
+    public const string RoutingDecided = "routing.decided";
+    public const string RoutingEscalated = "routing.escalated";
     public const string PlanValidated = "plan.validated";
     public const string PolicyEvaluated = "policy.evaluated";
     public const string CapabilityDenied = "capability.denied";
@@ -381,6 +433,8 @@ public static class ExecutionEventTypes
         Created,
         StatusChanged,
         ResolutionConsidered,
+        RoutingDecided,
+        RoutingEscalated,
         PlanValidated,
         PolicyEvaluated,
         CapabilityDenied,
@@ -419,6 +473,8 @@ public static class ErrorCodes
     public const string ExecutionAlreadyTerminal = "execution_already_terminal";
     public const string UnknownTaskType = "unknown_task_type";
     public const string InvalidExecutionPlan = "invalid_execution_plan";
+    public const string RoutingNoEligibleCapability = "routing_no_eligible_capability";
+    public const string RoutingBudgetExceeded = "routing_budget_exceeded";
     public const string WorkflowStepFailed = "workflow_step_failed";
     public const string WorkflowStepTimedOut = "workflow_step_timed_out";
     public const string ValidationFailed = "validation_failed";
@@ -451,6 +507,8 @@ public static class ErrorCodes
         ExecutionAlreadyTerminal,
         UnknownTaskType,
         InvalidExecutionPlan,
+        RoutingNoEligibleCapability,
+        RoutingBudgetExceeded,
         WorkflowStepFailed,
         WorkflowStepTimedOut,
         ValidationFailed,

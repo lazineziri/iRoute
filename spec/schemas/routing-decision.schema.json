@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/routing-decision.schema.json",
+  "title": "RoutingDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policyVersion",
+    "path",
+    "reason",
+    "selectedCapability",
+    "selectedProfileId",
+    "selectedModelTier",
+    "qualityFloor",
+    "expectedQuality",
+    "expectedCost",
+    "expectedLatencyMilliseconds",
+    "uncertainty",
+    "score",
+    "plannerInvoked",
+    "planningCalls",
+    "escalated",
+    "escalationReason",
+    "candidates"
+  ],
+  "properties": {
+    "policyVersion": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "path": { "enum": ["Direct", "Workflow"] },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "selectedCapability": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "selectedProfileId": { "type": ["string", "null"], "maxLength": 200 },
+    "selectedModelTier": { "enum": ["Small", "Strong", "Verifier", null] },
+    "qualityFloor": { "type": "number", "minimum": 0, "maximum": 1 },
+    "expectedQuality": { "type": "number", "minimum": 0, "maximum": 1 },
+    "expectedCost": { "type": "number", "minimum": 0 },
+    "expectedLatencyMilliseconds": { "type": "integer", "minimum": 0 },
+    "uncertainty": { "type": "number", "minimum": 0, "maximum": 1 },
+    "score": { "type": "number" },
+    "plannerInvoked": { "type": "boolean" },
+    "planningCalls": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "escalated": { "type": "boolean" },
+    "escalationReason": { "type": ["string", "null"], "maxLength": 2000 },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/candidate" }
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "profileId",
+        "modelTier",
+        "eligible",
+        "reason",
+        "expectedQuality",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "reliability",
+        "availability",
+        "score"
+      ],
+      "properties": {
+        "capability": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "profileId": { "type": ["string", "null"], "maxLength": 200 },
+        "modelTier": { "enum": ["Small", "Strong", "Verifier", null] },
+        "eligible": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "expectedQuality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "expectedCost": { "type": "number", "minimum": 0 },
+        "expectedLatencyMilliseconds": { "type": "integer", "minimum": 0 },
+        "uncertainty": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reliability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "availability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "score": { "type": "number" }
+      }
+    }
+  }
+}

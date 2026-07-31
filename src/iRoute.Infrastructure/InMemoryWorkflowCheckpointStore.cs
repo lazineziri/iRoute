@@ -14,15 +14,17 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         Guid executionId,
         TaskRequest request,
         ExecutionPlan plan,
+        RoutingDecision routing,
         DateTimeOffset createdAt,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var candidate = new WorkflowState(request, plan, createdAt);
+        var candidate = new WorkflowState(request, plan, routing, createdAt);
         var state = _workflows.GetOrAdd(executionId, candidate);
         lock (state.Sync)
         {
             EnsureSamePlan(state.Plan, plan);
+            EnsureSameRouting(state.Routing, routing);
             return Task.FromResult(new WorkflowCheckpointInitialization(
                 ToCheckpoint(executionId, state),
                 ReferenceEquals(state, candidate)));
@@ -201,6 +203,7 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         executionId,
         state.Request,
         state.Plan,
+        state.Routing,
         state.CreatedAt,
         state.UpdatedAt,
         state.Steps.Values
@@ -248,12 +251,28 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         }
     }
 
+    private static void EnsureSameRouting(RoutingDecision current, RoutingDecision requested)
+    {
+        if (!string.Equals(
+                JsonSerializer.Serialize(current, JsonOptions),
+                JsonSerializer.Serialize(requested, JsonOptions),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A different routing decision is already checkpointed.");
+        }
+    }
+
     private sealed class WorkflowState
     {
-        public WorkflowState(TaskRequest request, ExecutionPlan plan, DateTimeOffset createdAt)
+        public WorkflowState(
+            TaskRequest request,
+            ExecutionPlan plan,
+            RoutingDecision routing,
+            DateTimeOffset createdAt)
         {
             Request = request with { Input = request.Input.Clone() };
             Plan = plan;
+            Routing = routing;
             CreatedAt = createdAt;
             UpdatedAt = createdAt;
             Steps = plan.Steps.ToDictionary(
@@ -265,6 +284,7 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         public object Sync { get; } = new();
         public TaskRequest Request { get; }
         public ExecutionPlan Plan { get; }
+        public RoutingDecision Routing { get; }
         public DateTimeOffset CreatedAt { get; }
         public DateTimeOffset UpdatedAt { get; set; }
         public Dictionary<string, StepState> Steps { get; }

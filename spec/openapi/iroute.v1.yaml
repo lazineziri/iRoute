@@ -423,6 +423,10 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ContextManifest'
             - type: 'null'
+        routing:
+          oneOf:
+            - $ref: '#/components/schemas/RoutingDecision'
+            - type: 'null'
     ResolutionLevel:
       type: string
       enum:
@@ -583,6 +587,81 @@ components:
         contentHash: { type: [string, 'null'] }
         rank: { type: integer, minimum: 0 }
         outputPath: { type: [string, 'null'] }
+    RoutingDecision:
+      type: object
+      additionalProperties: false
+      required: [policyVersion, path, reason, selectedCapability, selectedProfileId, selectedModelTier, qualityFloor, expectedQuality, expectedCost, expectedLatencyMilliseconds, uncertainty, score, plannerInvoked, planningCalls, escalated, escalationReason, candidates]
+      properties:
+        policyVersion: { type: string }
+        path: { $ref: '#/components/schemas/RoutingPath' }
+        reason: { type: string }
+        selectedCapability: { type: string }
+        selectedProfileId: { type: [string, 'null'] }
+        selectedModelTier:
+          oneOf:
+            - $ref: '#/components/schemas/ModelTier'
+            - type: 'null'
+        qualityFloor: { type: number, minimum: 0, maximum: 1 }
+        expectedQuality: { type: number, minimum: 0, maximum: 1 }
+        expectedCost: { type: number, minimum: 0 }
+        expectedLatencyMilliseconds: { type: integer, minimum: 0 }
+        uncertainty: { type: number, minimum: 0, maximum: 1 }
+        score: { type: number }
+        plannerInvoked: { type: boolean }
+        planningCalls: { type: integer, minimum: 0, maximum: 1 }
+        escalated: { type: boolean }
+        escalationReason: { type: [string, 'null'] }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/RoutingCandidateEvaluation' }
+    RoutingCandidateEvaluation:
+      type: object
+      additionalProperties: false
+      required: [capability, profileId, modelTier, eligible, reason, expectedQuality, expectedCost, expectedLatencyMilliseconds, uncertainty, reliability, availability, score]
+      properties:
+        capability: { type: string }
+        profileId: { type: [string, 'null'] }
+        modelTier:
+          oneOf:
+            - $ref: '#/components/schemas/ModelTier'
+            - type: 'null'
+        eligible: { type: boolean }
+        reason: { type: string }
+        expectedQuality: { type: number, minimum: 0, maximum: 1 }
+        expectedCost: { type: number, minimum: 0 }
+        expectedLatencyMilliseconds: { type: integer, minimum: 0 }
+        uncertainty: { type: number, minimum: 0, maximum: 1 }
+        reliability: { type: number, minimum: 0, maximum: 1 }
+        availability: { type: number, minimum: 0, maximum: 1 }
+        score: { type: number }
+    RoutingPath:
+      type: string
+      enum: [Direct, Workflow]
+    ModelTier:
+      type: string
+      enum: [Small, Strong, Verifier]
+    ModelProfile:
+      type: object
+      additionalProperties: false
+      required: [profileId, capability, tier, supportedTaskTypes, expectedQuality, estimatedCost, expectedLatencyMilliseconds, uncertainty, reliability, availability, maxInputTokens, maxOutputTokens, healthy, measurementSource]
+      properties:
+        profileId: { type: string }
+        capability: { type: string }
+        tier: { $ref: '#/components/schemas/ModelTier' }
+        supportedTaskTypes:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+        expectedQuality: { type: number, minimum: 0, maximum: 1 }
+        estimatedCost: { type: number, minimum: 0 }
+        expectedLatencyMilliseconds: { type: integer, minimum: 0 }
+        uncertainty: { type: number, minimum: 0, maximum: 1 }
+        reliability: { type: number, minimum: 0, maximum: 1 }
+        availability: { type: number, minimum: 0, maximum: 1 }
+        maxInputTokens: { type: integer, minimum: 1 }
+        maxOutputTokens: { type: integer, minimum: 1 }
+        healthy: { type: boolean }
+        measurementSource: { type: string }
     TaskEvent:
       type: object
       additionalProperties: false
@@ -639,6 +718,8 @@ components:
         - execution.created
         - execution.status_changed
         - resolution.considered
+        - routing.decided
+        - routing.escalated
         - plan.validated
         - policy.evaluated
         - capability.denied
@@ -676,6 +757,8 @@ components:
         - execution_already_terminal
         - unknown_task_type
         - invalid_execution_plan
+        - routing_no_eligible_capability
+        - routing_budget_exceeded
         - workflow_step_failed
         - workflow_step_timed_out
         - validation_failed

@@ -36,6 +36,7 @@ public sealed class BoundedDependencySchedulerTests
             executionId,
             CreateRequest(),
             plan,
+            Routing(plan),
             async (step, dependencies, cancellationToken) =>
             {
                 var current = Interlocked.Increment(ref concurrent);
@@ -80,6 +81,7 @@ public sealed class BoundedDependencySchedulerTests
             executionId,
             CreateRequest(),
             plan,
+            Routing(plan),
             async (step, _, cancellationToken) =>
             {
                 if (step.Id == "downstream")
@@ -123,6 +125,7 @@ public sealed class BoundedDependencySchedulerTests
                 executionId,
                 CreateRequest(),
                 plan,
+                Routing(plan),
                 async (step, _, cancellationToken) =>
                 {
                     if (step.Id == "downstream")
@@ -183,6 +186,7 @@ public sealed class BoundedDependencySchedulerTests
                 executionId,
                 request,
                 plan,
+                Routing(plan),
                 now,
                 TestContext.Current.CancellationToken);
             await beforeCrash.StartStepAsync(
@@ -232,6 +236,8 @@ public sealed class BoundedDependencySchedulerTests
                 await new EfWorkflowCheckpointStore(factory).GetAsync(
                     executionId,
                     TestContext.Current.CancellationToken));
+            Assert.Equal("test.v1", afterRestart.Routing.PolicyVersion);
+            Assert.Equal(RoutingPath.Workflow, afterRestart.Routing.Path);
             Assert.All(afterRestart.Steps, step => Assert.Equal(WorkflowStepStatus.Succeeded, step.Status));
         }
         finally
@@ -287,6 +293,25 @@ public sealed class BoundedDependencySchedulerTests
             dependencies,
             SideEffectClass.None,
             5_000);
+
+    private static RoutingDecision Routing(ExecutionPlan plan) => new(
+        "test.v1",
+        RoutingPath.Workflow,
+        "Test workflow route.",
+        plan.Steps[^1].Capability,
+        null,
+        null,
+        1m,
+        1m,
+        0m,
+        1,
+        0m,
+        1m,
+        true,
+        1,
+        false,
+        null,
+        []);
 
     private static void UpdateMaximum(ref int target, int candidate)
     {

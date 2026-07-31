@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddSingleton<ITaskDefinitionRegistry, BuiltInTaskDefinitionRegistry>();
+        services.AddSingleton<IModelProfileRegistry, BuiltInModelProfileRegistry>();
         services.AddSingleton<IExternalActionExecutor, DevelopmentExternalActionExecutor>();
         services.AddSingleton<DeterministicModelGateway>();
         services.AddHttpClient<GenericHttpModelGateway>((provider, client) =>

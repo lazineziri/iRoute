@@ -11,7 +11,7 @@ public sealed class ExecutionOrchestrator(
     ProjectMemoryMaterializer projectMemory,
     IEnumerable<INoModelResolver> resolvers,
     ITaskDefinitionRegistry taskDefinitions,
-    IExecutionPlanFactory planFactory,
+    ITaskRouter taskRouter,
     IExecutionPlanValidator planValidator,
     ITaskPolicyEngine policyEngine,
     IWorkflowCheckpointStore checkpoints,
@@ -184,9 +184,11 @@ public sealed class ExecutionOrchestrator(
             }
 
             snapshot = await TransitionAsync(snapshot, ExecutionStatus.Planning, executionToken);
-            var plan = planFactory.Create(request, definition);
+            var routing = await taskRouter.RouteAsync(request, definition, executionToken);
+            var plan = routing.Plan;
             EnsureModelBudgetAllows(request, plan);
             planValidator.EnsureValid(plan);
+            await AppendRoutingEventsAsync(snapshot.ExecutionId, routing.Decision, executionToken);
             await AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.PlanValidated,
@@ -205,6 +207,7 @@ public sealed class ExecutionOrchestrator(
                 snapshot.ExecutionId,
                 request,
                 plan,
+                routing.Decision,
                 clock.UtcNow,
                 executionToken);
             if (initialization.Created)
@@ -226,7 +229,7 @@ public sealed class ExecutionOrchestrator(
                     policy.Reason ?? "The task policy denied execution.");
             }
 
-            EnsureDirectPlanMatchesDefinition(plan, definition);
+            EnsurePlanMatchesDefinition(plan, definition);
             if (policy.Decision == PolicyDecisionKind.ApprovalRequired)
             {
                 var approval = await CreateApprovalAsync(
@@ -254,7 +257,13 @@ public sealed class ExecutionOrchestrator(
                 return snapshot;
             }
 
-            return await RunPlanAsync(snapshot, request, definition, plan, executionToken);
+            return await RunPlanAsync(
+                snapshot,
+                request,
+                definition,
+                plan,
+                routing.Decision,
+                executionToken);
         }
         catch (OperationCanceledException)
         {
@@ -268,6 +277,14 @@ public sealed class ExecutionOrchestrator(
                 CancellationToken.None);
         }
         catch (ContextCompilationException exception)
+        {
+            return await TerminalAsync(
+                snapshot,
+                ExecutionStatus.Failed,
+                new Problem(exception.Code, exception.Title, exception.Message),
+                CancellationToken.None);
+        }
+        catch (RoutingException exception)
         {
             return await TerminalAsync(
                 snapshot,
@@ -538,6 +555,7 @@ public sealed class ExecutionOrchestrator(
                 checkpoint.Request,
                 definition,
                 checkpoint.Plan,
+                checkpoint.Routing,
                 executionSource.Token);
         }
         catch (Exception exception)
@@ -560,6 +578,7 @@ public sealed class ExecutionOrchestrator(
         TaskRequest request,
         TaskDefinition definition,
         ExecutionPlan plan,
+        RoutingDecision routing,
         CancellationToken cancellationToken)
     {
         snapshot = await TransitionAsync(snapshot, ExecutionStatus.Running, cancellationToken);
@@ -585,6 +604,7 @@ public sealed class ExecutionOrchestrator(
             snapshot.ExecutionId,
             request,
             plan,
+            routing,
             async (step, _, stepCancellationToken) =>
             {
                 var result = step.Kind switch
@@ -629,7 +649,8 @@ public sealed class ExecutionOrchestrator(
                 ExecutionEventTypes.GatewayCompleted,
                 new
                 {
-                    definition.Capability,
+                    capability = routing.SelectedCapability,
+                    profileId = routing.SelectedProfileId,
                     usage.InputTokens,
                     usage.OutputTokens,
                     usage.Cost,
@@ -736,13 +757,14 @@ public sealed class ExecutionOrchestrator(
 
         var outcome = new TaskOutcome(
             capabilityResult.Output,
-            usage.ToolCalls > 0 ? ResolutionLevel.DeterministicCapability : ResolutionLevel.StrongModel,
+            ResolutionLevelFor(routing),
             validation.Quality,
             combinedEvidence,
             usage,
             [artifact.ToReference()],
             validation.ToContract(),
-            context.Manifest);
+            context.Manifest,
+            routing);
         return await FinishMaterializedAsync(snapshot, outcome, cancellationToken);
     }
 
@@ -761,7 +783,8 @@ public sealed class ExecutionOrchestrator(
                 context.ProjectedInput,
                 context.Content,
                 request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
-                executionId.ToString()),
+                executionId.ToString(),
+                step.ProfileId),
             cancellationToken);
         stopwatch.Stop();
         return result with
@@ -1028,6 +1051,9 @@ public sealed class ExecutionOrchestrator(
             ContextCompilationException context => (
                 ExecutionStatus.Failed,
                 new Problem(context.Code, context.Title, context.Message)),
+            RoutingException routing => (
+                ExecutionStatus.Failed,
+                new Problem(routing.Code, routing.Title, routing.Message)),
             ExternalActionExecutionException action => (
                 ExecutionStatus.Failed,
                 new Problem(action.Code, action.Title, action.Message, action.Retryable)),
@@ -1240,6 +1266,46 @@ public sealed class ExecutionOrchestrator(
             },
             cancellationToken);
 
+    private async Task AppendRoutingEventsAsync(
+        Guid executionId,
+        RoutingDecision decision,
+        CancellationToken cancellationToken)
+    {
+        var data = new
+        {
+            policyVersion = decision.PolicyVersion,
+            path = decision.Path,
+            decision.Reason,
+            selectedCapability = decision.SelectedCapability,
+            selectedProfileId = decision.SelectedProfileId,
+            selectedModelTier = decision.SelectedModelTier,
+            qualityFloor = decision.QualityFloor,
+            expectedQuality = decision.ExpectedQuality,
+            expectedCost = decision.ExpectedCost,
+            expectedLatencyMilliseconds = decision.ExpectedLatencyMilliseconds,
+            uncertainty = decision.Uncertainty,
+            score = decision.Score,
+            plannerInvoked = decision.PlannerInvoked,
+            planningCalls = decision.PlanningCalls,
+            escalated = decision.Escalated,
+            escalationReason = decision.EscalationReason,
+            candidates = decision.Candidates
+        };
+        await AppendEventAsync(
+            executionId,
+            ExecutionEventTypes.RoutingDecided,
+            data,
+            cancellationToken);
+        if (decision.Escalated)
+        {
+            await AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.RoutingEscalated,
+                data,
+                cancellationToken);
+        }
+    }
+
     private static CompiledContext EmptyCompiledContext()
     {
         var content = JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
@@ -1297,7 +1363,7 @@ public sealed class ExecutionOrchestrator(
         }
     }
 
-    private static void EnsureDirectPlanMatchesDefinition(ExecutionPlan plan, TaskDefinition definition)
+    private static void EnsurePlanMatchesDefinition(ExecutionPlan plan, TaskDefinition definition)
     {
         var issues = new List<ExecutionPlanValidationIssue>();
         if (!string.Equals(plan.TaskType, definition.TaskType, StringComparison.Ordinal) ||
@@ -1309,26 +1375,35 @@ public sealed class ExecutionOrchestrator(
                 "The plan task identity does not match the resolved task definition."));
         }
 
-        if (plan.Steps.Count != 1)
+        var required = definition.EffectiveRequiredCapabilities;
+        if (plan.Steps.Count != required.Count)
         {
             issues.Add(new(
                 "unsupported_plan_shape",
                 "steps",
-                "The current direct executor accepts exactly one model step."));
+                "The plan step count must match the trusted task definition's required capabilities."));
         }
         else
         {
-            var step = plan.Steps[0];
-            var expectedKind = definition.SideEffectClass == SideEffectClass.None
-                ? ExecutionStepKind.Model
-                : ExecutionStepKind.Tool;
-            if (step.Kind != expectedKind ||
-                !string.Equals(step.Capability, definition.Capability, StringComparison.Ordinal))
+            for (var index = 0; index < plan.Steps.Count; index++)
             {
-                issues.Add(new(
-                    "capability_mismatch",
-                    "steps[0].capability",
-                    "The direct plan step does not match the resolved model capability."));
+                var step = plan.Steps[index];
+                if (!string.Equals(step.Capability, required[index], StringComparison.Ordinal) ||
+                    !definition.EffectiveAllowedCapabilities.Contains(step.Capability, StringComparer.Ordinal))
+                {
+                    issues.Add(new(
+                        "capability_mismatch",
+                        $"steps[{index}].capability",
+                        "The plan step does not match the trusted required-capability sequence."));
+                }
+
+                if (step.SideEffectClass > definition.SideEffectClass)
+                {
+                    issues.Add(new(
+                        "side_effect_mismatch",
+                        $"steps[{index}].sideEffectClass",
+                        "A plan step cannot exceed the trusted task side-effect class."));
+                }
             }
         }
 
@@ -1337,6 +1412,15 @@ public sealed class ExecutionOrchestrator(
             throw new InvalidExecutionPlanException(issues);
         }
     }
+
+    private static ResolutionLevel ResolutionLevelFor(RoutingDecision routing) =>
+        routing.SelectedModelTier switch
+        {
+            ModelTier.Small => ResolutionLevel.SmallModel,
+            ModelTier.Verifier => ResolutionLevel.VerifiedOrHuman,
+            null => ResolutionLevel.DeterministicCapability,
+            _ => ResolutionLevel.StrongModel
+        };
 
     private static bool IsTerminal(ExecutionStatus status) => status is
         ExecutionStatus.Succeeded or

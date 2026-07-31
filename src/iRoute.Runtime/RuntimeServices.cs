@@ -7,47 +7,6 @@ using iRoute.Core;
 
 namespace iRoute.Runtime;
 
-public sealed class DirectExecutionPlanFactory : IExecutionPlanFactory
-{
-    public ExecutionPlan Create(TaskRequest request, TaskDefinition definition)
-    {
-        var deadline = Math.Min(
-            request.Constraints?.DeadlineMilliseconds ?? definition.DefaultDeadlineMilliseconds,
-            definition.DefaultDeadlineMilliseconds);
-        var stepKind = definition.SideEffectClass == SideEffectClass.None
-            ? ExecutionStepKind.Model
-            : ExecutionStepKind.Tool;
-        var maxModelCalls = request.Constraints?.MaxModelCalls ?? definition.DefaultMaxModelCalls;
-        var maxToolCalls = request.Constraints?.MaxToolCalls ?? (stepKind == ExecutionStepKind.Tool ? 1 : 0);
-
-        return new ExecutionPlan(
-            $"{definition.TaskType}@{definition.Version}:direct",
-            1,
-            definition.TaskType,
-            definition.Version,
-            [
-                new ExecutionPlanStep(
-                    "execute",
-                    stepKind,
-                    definition.Capability,
-                    [],
-                    definition.SideEffectClass,
-                    deadline,
-                    1)
-            ],
-            new ExecutionPlanBudget(
-                1,
-                maxModelCalls,
-                maxToolCalls,
-                request.Constraints?.MaxParallelCalls ?? 1,
-                request.Constraints?.MaxTaskDepth ?? 1,
-                deadline,
-                request.Constraints?.MaxInputTokens ?? definition.DefaultMaxInputTokens,
-                request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
-                request.Constraints?.MaxCost));
-    }
-}
-
 public sealed class Sha256InputFingerprint : IInputFingerprint
 {
     public string Create(TaskRequest request, int taskDefinitionVersion)
@@ -92,7 +51,9 @@ public sealed class EmailDraftOutcomeValidator : ITaskOutcomeValidator
             RequireNonEmptyString(result.Output, "body", checks, failures);
         }
 
-        var qualityFloor = request.Constraints?.MinimumQuality ?? definition.MinimumQuality;
+        var qualityFloor = Math.Max(
+            request.Constraints?.MinimumQuality ?? definition.MinimumQuality,
+            definition.MinimumQuality);
         if (result.Confidence >= qualityFloor)
         {
             checks.Add("The measured confidence meets the task quality floor.");
@@ -217,7 +178,9 @@ public sealed class DefaultTaskOutcomeValidator : ITaskOutcomeValidator
         cancellationToken.ThrowIfCancellationRequested();
         var failures = new List<string>();
         var checks = new List<string>();
-        var qualityFloor = request.Constraints?.MinimumQuality ?? definition.MinimumQuality;
+        var qualityFloor = Math.Max(
+            request.Constraints?.MinimumQuality ?? definition.MinimumQuality,
+            definition.MinimumQuality);
 
         if (result.Output.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {

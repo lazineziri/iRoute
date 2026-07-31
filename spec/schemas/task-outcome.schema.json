@@ -55,6 +55,12 @@
         { "$ref": "context-manifest.schema.json" },
         { "type": "null" }
       ]
+    },
+    "routing": {
+      "anyOf": [
+        { "$ref": "routing-decision.schema.json" },
+        { "type": "null" }
+      ]
     }
   }
 }

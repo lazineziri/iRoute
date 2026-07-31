@@ -221,7 +221,7 @@ public sealed class PolicyApprovalTests
                     30_000)
             ],
             new ExecutionPlanBudget(1, 0, 1, 1, 1, 30_000));
-        using var fixture = CreateFixture(planFactory: new FixedPlanFactory(plan));
+        using var fixture = CreateFixture(taskRouter: new FixedTaskRouter(plan));
 
         var result = await fixture.Orchestrator.ExecuteAsync(
             CreateSendRequest(["email:send"]),
@@ -299,7 +299,7 @@ public sealed class PolicyApprovalTests
         }
     }
 
-    private static Fixture CreateFixture(IExecutionPlanFactory? planFactory = null)
+    private static Fixture CreateFixture(ITaskRouter? taskRouter = null)
     {
         var executions = new InMemoryExecutionStore();
         var artifacts = new InMemoryArtifactStore();
@@ -317,7 +317,7 @@ public sealed class PolicyApprovalTests
                 actions,
                 cancellations,
                 executor,
-                planFactory),
+                taskRouter),
             executions,
             approvals,
             executor,
@@ -345,7 +345,7 @@ public sealed class PolicyApprovalTests
         IExternalActionStore actions,
         ExecutionCancellationRegistry cancellations,
         IExternalActionExecutor executor,
-        IExecutionPlanFactory? planFactory = null)
+        ITaskRouter? taskRouter = null)
     {
         var definitions = new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
@@ -362,7 +362,7 @@ public sealed class PolicyApprovalTests
                 new DeterministicHandlerResolver([], clock)
             ],
             definitions,
-            planFactory ?? new DirectExecutionPlanFactory(),
+            taskRouter ?? CreateTaskRouter(),
             new ExecutionPlanValidator(),
             new TaskPolicyEngine(),
             checkpoints,
@@ -451,10 +451,43 @@ public sealed class PolicyApprovalTests
         }
     }
 
-    private sealed class FixedPlanFactory(ExecutionPlan plan) : IExecutionPlanFactory
+    private static TaskRouter CreateTaskRouter()
     {
-        public ExecutionPlan Create(TaskRequest request, TaskDefinition definition) => plan;
+        var matcher = new MeasuredCapabilityMatcher(new BuiltInModelProfileRegistry());
+        var escalation = new MeasuredEscalationPolicy();
+        var validator = new ExecutionPlanValidator();
+        return new TaskRouter(
+            new DirectPathSelector(matcher, escalation),
+            new BoundedTaskPlanner(matcher, escalation, validator));
     }
+
+    private sealed class FixedTaskRouter(ExecutionPlan plan) : ITaskRouter
+    {
+        public Task<RoutingResult> RouteAsync(
+            TaskRequest request,
+            TaskDefinition definition,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new RoutingResult(plan, RoutingFor(plan)));
+    }
+
+    private static RoutingDecision RoutingFor(ExecutionPlan plan) => new(
+        "test.v1",
+        plan.Steps.Count == 1 ? RoutingPath.Direct : RoutingPath.Workflow,
+        "Fixed test route.",
+        plan.Steps[^1].Capability,
+        plan.Steps[^1].ProfileId,
+        plan.Steps[^1].Kind == ExecutionStepKind.Model ? ModelTier.Strong : null,
+        0.8m,
+        0.9m,
+        0.01m,
+        100,
+        0.01m,
+        0.8m,
+        plan.Steps.Count > 1,
+        plan.Steps.Count > 1 ? 1 : 0,
+        false,
+        null,
+        []);
 
     private sealed class SqliteContextFactory(string databasePath) : IDbContextFactory<IRouteDbContext>
     {

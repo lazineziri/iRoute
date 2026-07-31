@@ -1,0 +1,48 @@
+{
+  "policyVersion": "routing.w08.v1",
+  "path": "Direct",
+  "reason": "The task requires one capability, so the direct path avoids the planning tax.",
+  "selectedCapability": "text.generation",
+  "selectedProfileId": "text.generation.small.eval-v1",
+  "selectedModelTier": "Small",
+  "qualityFloor": 0.8,
+  "expectedQuality": 0.84,
+  "expectedCost": 0.004,
+  "expectedLatencyMilliseconds": 900,
+  "uncertainty": 0.06,
+  "score": 0.749,
+  "plannerInvoked": false,
+  "planningCalls": 0,
+  "escalated": false,
+  "escalationReason": null,
+  "candidates": [
+    {
+      "capability": "text.generation",
+      "profileId": "text.generation.small.eval-v1",
+      "modelTier": "Small",
+      "eligible": true,
+      "reason": "eligible measured model profile",
+      "expectedQuality": 0.84,
+      "expectedCost": 0.004,
+      "expectedLatencyMilliseconds": 900,
+      "uncertainty": 0.06,
+      "reliability": 0.98,
+      "availability": 0.99,
+      "score": 0.749
+    },
+    {
+      "capability": "text.generation",
+      "profileId": "text.generation.strong.eval-v1",
+      "modelTier": "Strong",
+      "eligible": true,
+      "reason": "eligible measured model profile",
+      "expectedQuality": 0.94,
+      "expectedCost": 0.02,
+      "expectedLatencyMilliseconds": 2200,
+      "uncertainty": 0.03,
+      "reliability": 0.99,
+      "availability": 0.995,
+      "score": 0.735
+    }
+  ]
+}

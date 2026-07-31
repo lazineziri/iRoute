@@ -43,7 +43,8 @@ public sealed class ModelGatewayConformanceTests
             JsonSerializer.SerializeToElement(new { objective = "Test" }),
             JsonSerializer.SerializeToElement(new { context = "Known" }),
             400,
-            "execution-123");
+            "execution-123",
+            "text.generation.small.eval-v1");
 
         var result = await gateway.ExecuteAsync(gatewayRequest, TestContext.Current.CancellationToken);
 
@@ -55,6 +56,7 @@ public sealed class ModelGatewayConformanceTests
         Assert.Equal(gatewayRequest.Context.GetRawText(), captured.Context.GetRawText());
         Assert.Equal(gatewayRequest.MaxOutputTokens, captured.MaxOutputTokens);
         Assert.Equal(gatewayRequest.CorrelationId, captured.CorrelationId);
+        Assert.Equal(gatewayRequest.ProfileId, captured.ProfileId);
         Assert.Equal(expected.Output.GetRawText(), result.Output.GetRawText());
         Assert.Equal(expected.Usage, result.Usage);
         Assert.Equal(expected.Confidence, result.Confidence);

@@ -24,6 +24,8 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `execution.created` | The durable execution record exists. |
 | `execution.status_changed` | The state machine accepted a transition. |
 | `resolution.considered` | A no-model resolver was accepted or rejected with a safe reason and permission/freshness results. |
+| `routing.decided` | The versioned routing policy selected a direct or workflow path from measured candidates. |
+| `routing.escalated` | A lower-cost route was bypassed because it failed a mandatory eligibility constraint. |
 | `plan.validated` | A typed plan passed graph and budget validation. |
 | `policy.evaluated` | The versioned capability, side-effect, scope, and approval policy produced a decision. |
 | `capability.denied` | Policy denied a capability before its executor could run. |
@@ -61,3 +63,7 @@ Every `resolution.considered` event contains `resolver`, `accepted`, `code`, `re
 ## Context compilation data
 
 Every `context.compiled` event contains `estimatedTokens`, `budgetTokens`, `projectedInputTokens`, `contextTokens`, `truncated`, `fullHistoryIncluded`, `entries`, `included`, and `provenance`. These are counts and policy results only; source values and artifact content remain in the bounded model request and never enter the event stream. The outcome's `ContextManifest` contains the detailed inclusion/exclusion decisions and provenance map.
+
+## Routing decision data
+
+Every `routing.decided` event contains the routing policy version, direct/workflow path, selected capability and model profile, quality floor, expected quality/cost/latency, uncertainty, score, planner invocation count, escalation result, and all measured candidates with eligibility reasons. `routing.escalated` repeats that payload only when a cheaper candidate was rejected. These events contain policy measurements and identifiers, never prompts or outputs. The outcome's `RoutingDecision` is the durable public explanation.

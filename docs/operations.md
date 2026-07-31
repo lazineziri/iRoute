@@ -10,7 +10,7 @@
 
 The local API defaults to SQLite at `Data Source=iroute.db`. The Compose profile uses PostgreSQL. `Storage:AutoInitialize=true` applies checked-in migrations at startup. Disable automatic initialization where migrations are run as a separate deployment job. Every future migration requires upgrade, rollback, and mixed-version tests.
 
-Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs and active project state remain authoritative inputs for downstream steps.
+Workflow plans, their routing decisions, and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs, the selected route/profile, and active project state remain authoritative inputs for downstream steps.
 
 ## Artifact and memory lifecycle
 
@@ -33,6 +33,12 @@ Raw `projectHistory` is removed from the model task input and never passed throu
 ## Scheduler bounds
 
 `Workflow:QueueCapacity` bounds ready steps waiting inside one scheduling round. `Workflow:MaxParallelSteps` is the runtime-wide ceiling applied in addition to the lower per-plan parallel-call budget. Queue writers wait when capacity is full, so load produces backpressure rather than unbounded in-memory growth.
+
+## Routing audit
+
+The current routing policy is `routing.w08.v1`. For single-capability tasks the direct selector must report `plannerInvoked=false` and `planningCalls=0`. Multi-capability definitions invoke the deterministic bounded planner once; it must fail with `routing_budget_exceeded` before checkpointing if required depth or calls exceed the lower request/task-definition ceiling.
+
+Model profiles are evaluation-derived measurements, not provider marketing names. A candidate is eligible only when its task coverage, health, quality, deadline, token capacity, cost, model-call budget, and capability allow list all pass. Operators should compare `routing.decided` candidate measurements with actual `gateway.completed` usage. An unexplained profile change, a missing candidate reason, or routing below the quality floor is an incident. Profile edits require the evaluation and contract suites; do not raise request limits or quality estimates dynamically in production.
 
 ## Identity
 

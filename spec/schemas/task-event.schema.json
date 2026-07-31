@@ -13,6 +13,8 @@
         "execution.created",
         "execution.status_changed",
         "resolution.considered",
+        "routing.decided",
+        "routing.escalated",
         "plan.validated",
         "policy.evaluated",
         "capability.denied",

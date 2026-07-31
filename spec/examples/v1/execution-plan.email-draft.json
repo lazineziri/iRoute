@@ -11,7 +11,8 @@
       "dependsOn": [],
       "sideEffectClass": "None",
       "timeoutMilliseconds": 30000,
-      "maxAttempts": 1
+      "maxAttempts": 1,
+      "profileId": "text.generation.small.eval-v1"
     }
   ],
   "budget": {

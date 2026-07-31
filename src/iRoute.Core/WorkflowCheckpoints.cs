@@ -27,6 +27,7 @@ public sealed record WorkflowCheckpoint(
     Guid ExecutionId,
     TaskRequest Request,
     ExecutionPlan Plan,
+    RoutingDecision Routing,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     IReadOnlyList<WorkflowStepCheckpoint> Steps);
@@ -41,6 +42,7 @@ public interface IWorkflowCheckpointStore
         Guid executionId,
         TaskRequest request,
         ExecutionPlan plan,
+        RoutingDecision routing,
         DateTimeOffset createdAt,
         CancellationToken cancellationToken);
 

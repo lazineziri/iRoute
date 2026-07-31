@@ -209,6 +209,7 @@ public sealed class WorkflowPlanEntity
     public Guid ExecutionId { get; set; }
     public string RequestJson { get; set; } = null!;
     public string PlanJson { get; set; } = null!;
+    public string RoutingJson { get; set; } = null!;
     public long CreatedAtUnixMilliseconds { get; set; }
     public long UpdatedAtUnixMilliseconds { get; set; }
 }
@@ -348,6 +349,7 @@ public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext>
         Guid executionId,
         TaskRequest request,
         ExecutionPlan plan,
+        RoutingDecision routing,
         DateTimeOffset createdAt,
         CancellationToken cancellationToken)
     {
@@ -359,6 +361,7 @@ public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext>
             item => item.ExecutionId == executionId,
             cancellationToken);
         var planJson = JsonSerializer.Serialize(plan, JsonOptions);
+        var routingJson = JsonSerializer.Serialize(routing, JsonOptions);
         var created = existing is null;
         if (existing is null)
         {
@@ -367,6 +370,7 @@ public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext>
                 ExecutionId = executionId,
                 RequestJson = JsonSerializer.Serialize(request, JsonOptions),
                 PlanJson = planJson,
+                RoutingJson = routingJson,
                 CreatedAtUnixMilliseconds = createdAt.ToUnixTimeMilliseconds(),
                 UpdatedAtUnixMilliseconds = createdAt.ToUnixTimeMilliseconds()
             });
@@ -378,9 +382,10 @@ public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext>
             }));
             await context.SaveChangesAsync(cancellationToken);
         }
-        else if (!string.Equals(existing.PlanJson, planJson, StringComparison.Ordinal))
+        else if (!string.Equals(existing.PlanJson, planJson, StringComparison.Ordinal) ||
+                 !string.Equals(existing.RoutingJson, routingJson, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("A different execution plan is already checkpointed.");
+            throw new InvalidOperationException("A different execution plan or routing decision is already checkpointed.");
         }
 
         var checkpoint = await LoadAsync(context, executionId, cancellationToken);
@@ -559,6 +564,8 @@ public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext>
                 ?? throw new InvalidOperationException("The workflow request checkpoint is invalid."),
             JsonSerializer.Deserialize<ExecutionPlan>(plan.PlanJson, JsonOptions)
                 ?? throw new InvalidOperationException("The workflow plan checkpoint is invalid."),
+            JsonSerializer.Deserialize<RoutingDecision>(plan.RoutingJson, JsonOptions)
+                ?? throw new InvalidOperationException("The workflow routing checkpoint is invalid."),
             DateTimeOffset.FromUnixTimeMilliseconds(plan.CreatedAtUnixMilliseconds),
             DateTimeOffset.FromUnixTimeMilliseconds(plan.UpdatedAtUnixMilliseconds),
             steps.Select(ToCheckpoint).ToArray());

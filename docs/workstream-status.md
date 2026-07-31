@@ -1,6 +1,6 @@
 # Engineering workstream status
 
-Status date: 31 July 2026
+Status date: 1 August 2026
 
 ## M0 — Specification: complete
 
@@ -26,7 +26,7 @@ Acceptance evidence:
 - Every published contract example and every evaluation fixture is validated with a full JSON Schema 2020-12 validator.
 - Backward-compatibility tests protect v1 operations, fields, required sets, statuses, resolution levels, event types, error codes, and schema identifiers in CI.
 
-## M1 — Deterministic kernel: in progress
+## M1 — Deterministic kernel: complete
 
 ### W03 — Execution state machine: complete
 
@@ -119,4 +119,26 @@ Acceptance evidence:
 - The SQLite restart test proves active project memory remains available to the compiler after runtime reconstruction.
 - The PostgreSQL evaluation verifies bounded history, deduplication, artifact slicing, provenance completeness, token bounds, and the `context.compiled` event.
 
-## Next: W08 — Routing and planning
+## M2 — Measured routing: in progress
+
+### W08 — Routing and planning: complete
+
+Deliverables:
+
+- Direct-path selector that bypasses the planner for every single-capability task.
+- Deterministic bounded planner that compiles multi-capability task definitions into typed DAGs and fails closed before checkpointing when depth, step, model-call, or tool-call limits cannot fit.
+- Capability matcher that enforces task coverage, allow lists, health, mandatory quality, latency, token capacity, cost, and call budgets.
+- Versioned model-profile registry populated from evaluation measurements for small and strong generation/summarization routes.
+- Measured escalation policy that bypasses a lower-cost route only when it is ineligible and records the precise rejection reason.
+- Durable `RoutingDecision` checkpoint, `routing.decided` and `routing.escalated` audit events, selected `profileId` on the generic gateway request, and routing metadata on generated outcomes.
+- Versioned routing/model-profile schemas, OpenAPI and Node SDK contracts, examples, error/event taxonomy updates, operational guidance, and PostgreSQL evaluation coverage.
+
+Acceptance evidence:
+
+- Unit tests prove a simple task returns a direct route with zero planner invocations and zero planning calls.
+- Routing tests prove the default quality floor chooses the cheaper small profile, while a higher mandatory floor rejects it and escalates to the strong profile using measured quality, cost, latency, availability, reliability, uncertainty, and score inputs.
+- Planner tests prove a two-capability workflow produces a typed depth-two DAG inside model/tool budgets and fails with `routing_budget_exceeded` when the permitted depth is one.
+- Orchestrator tests prove the selected profile reaches the provider-neutral model gateway and the durable outcome/events explain the route and escalation without exposing payloads.
+- The SQLite restart suite preserves the routing decision beside the plan; PostgreSQL evaluation checks direct planner avoidance, strong-profile escalation, measured candidates, and both routing audit events.
+
+## Next: W09 — Generic model-gateway integration

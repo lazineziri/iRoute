@@ -37,7 +37,7 @@
     },
     "TaskOutcome": {
       "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
-      "properties": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts", "validation", "context"]
+      "properties": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts", "validation", "context", "routing"]
     },
     "EvidenceReference": {
       "required": ["kind", "reference"],
@@ -75,6 +75,18 @@
       "required": ["kind", "reference", "included", "reason", "estimatedTokens", "rank", "outputPath"],
       "properties": ["kind", "reference", "included", "reason", "estimatedTokens", "contentHash", "rank", "outputPath"]
     },
+    "RoutingDecision": {
+      "required": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"],
+      "properties": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"]
+    },
+    "RoutingCandidateEvaluation": {
+      "required": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"],
+      "properties": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"]
+    },
+    "ModelProfile": {
+      "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
+      "properties": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"]
+    },
     "TaskEvent": {
       "required": ["sequence", "executionId", "type", "occurredAt", "data"],
       "properties": ["sequence", "executionId", "type", "occurredAt", "data"]
@@ -100,9 +112,11 @@
     "ArtifactLifecycleStatus": ["Active", "Superseded", "Invalidated"],
     "MemoryKind": ["Fact", "Decision"],
     "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
+    "RoutingPath": ["Direct", "Workflow"],
+    "ModelTier": ["Small", "Strong", "Verifier"],
     "ResolutionDecisionCode": ["exact_cache_hit", "exact_cache_miss", "permission_denied", "unsupported_task", "project_scope_required", "state_key_required", "state_hit", "state_unavailable", "artifact_reference_required", "artifact_hit", "artifact_unavailable", "handler_unavailable", "handler_declined", "handler_stale", "handler_accepted", "external_write_blocked", "validation_failed"],
-    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
-    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
+    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "routing.decided", "routing.escalated", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
+    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "routing_no_eligible_capability", "routing_budget_exceeded", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
   },
   "jsonSchemas": {
     "https://schemas.iroute.dev/v1/approval-decision.schema.json": {
@@ -151,7 +165,11 @@
     },
     "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
       "required": ["capability", "input", "context", "maxOutputTokens"],
-      "properties": ["capability", "context", "correlationId", "input", "maxOutputTokens"]
+      "properties": ["capability", "context", "correlationId", "input", "maxOutputTokens", "profileId"]
+    },
+    "https://schemas.iroute.dev/v1/model-profile.schema.json": {
+      "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
+      "properties": ["availability", "capability", "estimatedCost", "expectedLatencyMilliseconds", "expectedQuality", "healthy", "maxInputTokens", "maxOutputTokens", "measurementSource", "profileId", "reliability", "supportedTaskTypes", "tier", "uncertainty"]
     },
     "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
       "required": ["output", "usage", "confidence", "evidence"],
@@ -169,6 +187,10 @@
       "required": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks"],
       "properties": ["accepted", "checks", "code", "freshnessChecked", "level", "permissionChecked", "reason", "resolver"]
     },
+    "https://schemas.iroute.dev/v1/routing-decision.schema.json": {
+      "required": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"],
+      "properties": ["candidates", "escalated", "escalationReason", "expectedCost", "expectedLatencyMilliseconds", "expectedQuality", "path", "plannerInvoked", "planningCalls", "policyVersion", "qualityFloor", "reason", "score", "selectedCapability", "selectedModelTier", "selectedProfileId", "uncertainty"]
+    },
     "https://schemas.iroute.dev/v1/task-definition.schema.json": {
       "required": ["taskType", "version", "description", "category", "inputSchema", "outputSchema", "requiredCapabilities", "allowedCapabilities", "contextSourcePolicy", "sideEffectClass", "permissionScopes", "approvalRequired", "qualityFloor", "budget", "validationStrategy", "escalationPolicy", "cachePolicy", "memoryPolicy", "retentionPolicy"],
       "properties": ["allowedCapabilities", "approvalRequired", "budget", "cachePolicy", "category", "contextSourcePolicy", "description", "escalationPolicy", "inputSchema", "memoryPolicy", "outputSchema", "permissionScopes", "qualityFloor", "requiredCapabilities", "retentionPolicy", "sideEffectClass", "taskType", "validationStrategy", "version"]
@@ -179,7 +201,7 @@
     },
     "https://schemas.iroute.dev/v1/task-outcome.schema.json": {
       "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
-      "properties": ["artifacts", "confidence", "context", "evidence", "output", "resolutionLevel", "usage", "validation"]
+      "properties": ["artifacts", "confidence", "context", "evidence", "output", "resolutionLevel", "routing", "usage", "validation"]
     },
     "https://schemas.iroute.dev/v1/task-request.schema.json": {
       "required": ["taskType", "input"],

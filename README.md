@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0 is complete and W07 is complete**. See [the workstream status](docs/workstream-status.md). M1 continues with W08.
+Formal backlog status: **M0 and M1 are complete; W08 is complete**. See [the workstream status](docs/workstream-status.md). M2 continues with W09.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -22,6 +22,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - deterministic artifact/memory supersession with tenant-scoped, dependency-aware invalidation
 - explainable no-model resolution from exact results, project facts/decisions, explicit artifacts, and registered deterministic handlers
 - ranked context compilation with explicit artifact sections, full-history exclusion, serialized token bounds, and fact-level provenance
+- measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
@@ -48,7 +49,7 @@ curl --request POST http://localhost:8080/v1/executions \
   --data @examples/email-draft.json
 ```
 
-The first request returns a validated `StrongModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
+The first request returns a validated `SmallModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
 
 Useful endpoints:
 

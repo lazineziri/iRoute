@@ -57,6 +57,7 @@ public sealed class BoundedDependencyScheduler(
             executionId,
             checkpoint.Request,
             checkpoint.Plan,
+            checkpoint.Routing,
             handler,
             cancellationToken);
     }
@@ -65,6 +66,7 @@ public sealed class BoundedDependencyScheduler(
         Guid executionId,
         TaskRequest request,
         ExecutionPlan plan,
+        RoutingDecision routing,
         WorkflowStepHandler handler,
         CancellationToken cancellationToken)
     {
@@ -74,6 +76,7 @@ public sealed class BoundedDependencyScheduler(
             executionId,
             request,
             plan,
+            routing,
             clock.UtcNow,
             cancellationToken);
         var hadPriorExecution = initialization.Checkpoint.Steps.Any(step =>

@@ -98,6 +98,26 @@ flowchart LR
 
 Current request state outranks stored memory for the same logical key. Active decisions outrank artifacts, preferences, summaries, and raw history. Stored candidates must match tenant/project scope and be active and unexpired; artifacts are retrieved only from explicit `contextArtifacts` references and projected to requested top-level sections. Context-source fields are removed from the model's task input and reintroduced only through the bounded package. Every included JSON path maps to an `EvidenceReference`, while excluded candidates retain a safe reason in the manifest. The compiler estimates projected task input plus the complete serialized context after each proposed insertion, so raw history and object/array framing cannot push the model request above its task budget.
 
+W08 routes unresolved work from measured policy inputs:
+
+```mermaid
+flowchart LR
+    A["Required capabilities"] --> B{"One capability?"}
+    B -->|"yes"| C["Direct-path selector"]
+    B -->|"no"| D["Bounded task planner"]
+    C --> E["Capability matcher"]
+    D --> E
+    F["Measured model profiles"] --> E
+    E --> G["Quality and safety eligibility"]
+    G --> H["Cost, latency, and uncertainty score"]
+    H --> I["Cheapest eligible route"]
+    H -->|"lower-cost route ineligible"| J["Bounded escalation"]
+    I --> K["Routing decision and typed plan"]
+    J --> K
+```
+
+The direct selector never invokes the planner for a one-capability task. The deterministic planner compiles multiple required capabilities into a typed DAG once and cannot raise task-definition or request limits. Capability matching rejects candidates that miss the allow list, measured task coverage, health, mandatory quality floor, deadline, context/output capacity, cost ceiling, or call budget. The versioned routing decision preserves every candidate's measurements, score, eligibility, and reason; it is emitted as an event, persisted beside the workflow plan, passed to the model gateway through the selected profile ID, and returned with generated outcomes.
+
 ## Code dependency topology
 
 ```mermaid
@@ -155,7 +175,7 @@ Every transition is persisted and emits an ordered event. Terminal states are im
 
 ## Persistence profiles
 
-`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans, per-step attempts and outputs, events, artifacts, memory records, dependency edges, approvals, and external-action reservations through the same ports. Restart tests cover workflow recovery, approval-gated action resumption, and project-state lifecycle parity.
+`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, approvals, and external-action reservations through the same ports. Restart tests cover workflow recovery, approval-gated action resumption, routing-decision preservation, and project-state lifecycle parity.
 
 `Storage:AutoInitialize` applies checked-in EF migrations. The initial migration contains provider-specific SQL so SQLite uses its native storage representation while PostgreSQL uses native UUID and boolean columns. Future changes must follow expand-and-contract migration rules.
 

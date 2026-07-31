@@ -14,6 +14,8 @@
         "execution_already_terminal",
         "unknown_task_type",
         "invalid_execution_plan",
+        "routing_no_eligible_capability",
+        "routing_budget_exceeded",
         "workflow_step_failed",
         "workflow_step_timed_out",
         "validation_failed",

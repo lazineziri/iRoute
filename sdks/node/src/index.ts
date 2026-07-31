@@ -109,6 +109,61 @@ export interface ContextManifest {
   provenance: Readonly<Record<string, EvidenceReference>>;
 }
 
+export type RoutingPath = 'Direct' | 'Workflow';
+export type ModelTier = 'Small' | 'Strong' | 'Verifier';
+
+export interface RoutingCandidateEvaluation {
+  capability: string;
+  profileId: string | null;
+  modelTier: ModelTier | null;
+  eligible: boolean;
+  reason: string;
+  expectedQuality: number;
+  expectedCost: number;
+  expectedLatencyMilliseconds: number;
+  uncertainty: number;
+  reliability: number;
+  availability: number;
+  score: number;
+}
+
+export interface RoutingDecision {
+  policyVersion: string;
+  path: RoutingPath;
+  reason: string;
+  selectedCapability: string;
+  selectedProfileId: string | null;
+  selectedModelTier: ModelTier | null;
+  qualityFloor: number;
+  expectedQuality: number;
+  expectedCost: number;
+  expectedLatencyMilliseconds: number;
+  uncertainty: number;
+  score: number;
+  plannerInvoked: boolean;
+  planningCalls: number;
+  escalated: boolean;
+  escalationReason: string | null;
+  candidates: readonly RoutingCandidateEvaluation[];
+}
+
+export interface ModelProfile {
+  profileId: string;
+  capability: string;
+  tier: ModelTier;
+  supportedTaskTypes: readonly string[];
+  expectedQuality: number;
+  estimatedCost: number;
+  expectedLatencyMilliseconds: number;
+  uncertainty: number;
+  reliability: number;
+  availability: number;
+  maxInputTokens: number;
+  maxOutputTokens: number;
+  healthy: boolean;
+  measurementSource: string;
+}
+
 export interface TaskOutcome {
   output: unknown;
   resolutionLevel: ResolutionLevel;
@@ -118,6 +173,7 @@ export interface TaskOutcome {
   artifacts: readonly ArtifactReference[];
   validation?: ValidationSummary | null;
   context?: ContextManifest | null;
+  routing?: RoutingDecision | null;
 }
 
 export interface Problem {

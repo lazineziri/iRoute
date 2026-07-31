@@ -42,6 +42,21 @@ for (const fixture of cases) {
     }
 
     if (first.status === 'Succeeded') {
+      if (first.outcome?.usage?.modelCalls > 0) {
+        const routing = first.outcome?.routing;
+        if (!routing) throw new Error('generated outcome omitted routing decision');
+        assertEqual(routing.policyVersion, 'routing.w08.v1', 'routing policy version');
+        assertEqual(routing.path, 'Direct', 'routing path');
+        assertEqual(routing.plannerInvoked, false, 'direct planner invocation');
+        assertEqual(routing.planningCalls, 0, 'direct planning calls');
+        if (!routing.selectedProfileId) throw new Error('routing omitted selected model profile');
+        if (!routing.candidates?.every(candidate =>
+          typeof candidate.expectedQuality === 'number' &&
+          typeof candidate.expectedCost === 'number' &&
+          typeof candidate.expectedLatencyMilliseconds === 'number' &&
+          typeof candidate.score === 'number'
+        )) throw new Error('routing candidates omitted measured policy inputs');
+      }
       const artifactId = first.outcome?.artifacts?.[0]?.artifactId;
       if (!artifactId) throw new Error('successful execution did not reference an artifact');
       const artifactResponse = await fetch(
@@ -62,6 +77,9 @@ for (const fixture of cases) {
       if (!events.includes('event: artifact.materialized')) throw new Error('event replay omitted artifact.materialized');
       if (!events.includes('event: workflow.checkpointed')) throw new Error('event replay omitted workflow.checkpointed');
       if (!events.includes('event: step.completed')) throw new Error('event replay omitted step.completed');
+      if (first.outcome?.usage?.modelCalls > 0 && !events.includes('event: routing.decided')) {
+        throw new Error('event replay omitted routing.decided');
+      }
     }
 
     if (fixture.repeat === 2) {
@@ -74,6 +92,69 @@ for (const fixture of cases) {
     failed++;
     console.error(`FAIL ${fixture.caseId}: ${error.message}`);
   }
+}
+
+try {
+  const response = await fetch(new URL('/v1/executions', baseUrl), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-tenant-id': 'evaluation',
+      'x-actor-id': 'evaluation-runner',
+      'idempotency-key': `w08-routing-${evaluationRunId}`
+    },
+    body: JSON.stringify({
+      taskType: 'email.draft',
+      projectId: `evaluation-w08-${evaluationRunId}`,
+      input: {
+        recipient: { name: 'Ada' },
+        projectName: 'iRoute',
+        objective: 'Validate measured routing and escalation.',
+        activeDecisions: ['Select the cheapest route that clears mandatory quality.']
+      },
+      constraints: {
+        minimumQuality: 0.9,
+        maxModelCalls: 1,
+        maxTaskDepth: 1
+      }
+    })
+  });
+  if (!response.ok) throw new Error(`execution returned HTTP ${response.status}: ${await response.text()}`);
+  const execution = await response.json();
+  assertEqual(execution.status, 'Succeeded', 'W08 execution status');
+  assertEqual(execution.outcome?.resolutionLevel, 'StrongModel', 'W08 resolution level');
+  const routing = execution.outcome?.routing;
+  if (!routing) throw new Error('W08 outcome omitted routing decision');
+  assertEqual(routing.path, 'Direct', 'W08 routing path');
+  assertEqual(routing.plannerInvoked, false, 'W08 planner invocation');
+  assertEqual(routing.planningCalls, 0, 'W08 planning calls');
+  assertEqual(routing.selectedProfileId, 'text.generation.strong.eval-v1', 'W08 selected profile');
+  assertEqual(routing.selectedModelTier, 'Strong', 'W08 selected tier');
+  assertEqual(routing.escalated, true, 'W08 escalation');
+  const small = routing.candidates?.find(candidate => candidate.modelTier === 'Small');
+  if (!small) throw new Error('W08 decision omitted the cheaper small candidate');
+  assertEqual(small.eligible, false, 'W08 small eligibility');
+  assertEqual(small.expectedQuality, 0.84, 'W08 small expected quality');
+  assertEqual(small.expectedCost, 0.004, 'W08 small expected cost');
+  assertEqual(small.expectedLatencyMilliseconds, 900, 'W08 small expected latency');
+  if (!small.reason.includes('below floor')) throw new Error('W08 small rejection was not explained');
+
+  const eventResponse = await fetch(
+    new URL(`/v1/executions/${execution.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!eventResponse.ok) throw new Error(`W08 event replay returned HTTP ${eventResponse.status}`);
+  const events = parseSseEvents(await eventResponse.text());
+  const decision = events.find(item => item.type === 'routing.decided');
+  const escalation = events.find(item => item.type === 'routing.escalated');
+  if (!decision || !escalation) throw new Error('W08 routing audit events were incomplete');
+  assertEqual(decision.data?.policyVersion, 'routing.w08.v1', 'W08 event policy version');
+  assertEqual(decision.data?.selectedProfileId, routing.selectedProfileId, 'W08 event profile');
+  assertEqual(escalation.data?.escalated, true, 'W08 event escalation');
+  console.log('PASS w08-routing-and-escalation');
+} catch (error) {
+  failed++;
+  console.error(`FAIL w08-routing-and-escalation: ${error.message}`);
 }
 
 try {
