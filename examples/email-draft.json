@@ -1,0 +1,24 @@
+{
+  "taskType": "email.draft",
+  "projectId": "iroute-project",
+  "input": {
+    "recipient": {
+      "name": "Ada"
+    },
+    "projectName": "iRoute",
+    "objective": "Share the first working end-to-end runtime milestone.",
+    "tone": "professional",
+    "activeDecisions": [
+      "Use the Markdown product specification as the source of truth."
+    ],
+    "projectHistory": [
+      "The first milestone requires durable execution, validation, evidence, and artifact reuse."
+    ]
+  },
+  "constraints": {
+    "minimumQuality": 0.8,
+    "requireEvidence": true,
+    "maxModelCalls": 1,
+    "deadlineMilliseconds": 30000
+  }
+}

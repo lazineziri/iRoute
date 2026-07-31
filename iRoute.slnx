@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/iRoute.Contracts/iRoute.Contracts.csproj" />
+    <Project Path="src/iRoute.Core/iRoute.Core.csproj" />
+    <Project Path="src/iRoute.Runtime/iRoute.Runtime.csproj" />
+    <Project Path="src/iRoute.Infrastructure/iRoute.Infrastructure.csproj" />
+    <Project Path="src/iRoute.Api/iRoute.Api.csproj" />
+    <Project Path="src/iRoute.Worker/iRoute.Worker.csproj" />
+    <Project Path="src/iRoute.Sdk.DotNet/iRoute.Sdk.DotNet.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/iRoute.UnitTests/iRoute.UnitTests.csproj" />
+    <Project Path="tests/iRoute.ArchitectureTests/iRoute.ArchitectureTests.csproj" />
+  </Folder>
+</Solution>

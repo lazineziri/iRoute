@@ -1,0 +1,34 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+      - run: dotnet restore iRoute.slnx
+      - run: dotnet build iRoute.slnx -c Release --no-restore
+      - run: dotnet run --project tests/iRoute.UnitTests -c Release --no-build -- -reporter quiet
+      - run: dotnet run --project tests/iRoute.ArchitectureTests -c Release --no-build -- -reporter quiet
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+          cache: npm
+      - run: npm ci
+      - run: npx --yes @redocly/cli@latest lint spec/openapi/iroute.v1.yaml
+      - run: npm run test:contracts
+      - run: npm ci --prefix sdks/node
+      - run: npm run check --prefix sdks/node
