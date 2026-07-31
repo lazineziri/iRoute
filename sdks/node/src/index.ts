@@ -185,6 +185,36 @@ export interface ExecutionEvent {
   data: unknown;
 }
 
+export interface ResolutionConsideration {
+  resolver: string;
+  accepted: boolean;
+  code: ResolutionDecisionCode;
+  reason: string;
+  permissionChecked: boolean;
+  freshnessChecked: boolean;
+  checks: number;
+  level?: ResolutionLevel | null;
+}
+
+export type ResolutionDecisionCode =
+  | 'exact_cache_hit'
+  | 'exact_cache_miss'
+  | 'permission_denied'
+  | 'unsupported_task'
+  | 'project_scope_required'
+  | 'state_key_required'
+  | 'state_hit'
+  | 'state_unavailable'
+  | 'artifact_reference_required'
+  | 'artifact_hit'
+  | 'artifact_unavailable'
+  | 'handler_unavailable'
+  | 'handler_declined'
+  | 'handler_stale'
+  | 'handler_accepted'
+  | 'external_write_blocked'
+  | 'validation_failed';
+
 export type ApprovalStatus = 'Pending' | 'Approved' | 'Denied';
 
 export interface ApprovalDecision {

@@ -632,6 +632,7 @@ public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFa
                 x.TaskType == query.TaskType &&
                 x.TaskDefinitionVersion == query.TaskDefinitionVersion &&
                 x.InputHash == query.InputHash &&
+                x.LogicalKey == query.LogicalKey &&
                 x.IsActive &&
                 x.LifecycleStatus == ArtifactLifecycleStatus.Active &&
                 (x.ExpiresAtUnixMilliseconds == null || x.ExpiresAtUnixMilliseconds > now))
@@ -651,6 +652,31 @@ public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFa
             .SingleOrDefaultAsync(
                 x => x.TenantId == tenantId && x.ArtifactId == artifactId,
                 cancellationToken);
+        return entity is null ? null : await ToRecordAsync(context, entity, cancellationToken);
+    }
+
+    public async Task<ArtifactRecord?> FindActiveAsync(
+        ArtifactLookupQuery query,
+        CancellationToken cancellationToken)
+    {
+        var projectId = query.ProjectId ?? string.Empty;
+        var now = query.At.ToUnixTimeMilliseconds();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Artifacts
+            .AsNoTracking()
+            .Where(item =>
+                item.TenantId == query.TenantId &&
+                item.ProjectId == projectId &&
+                item.TaskType == query.TaskType &&
+                item.TaskDefinitionVersion == query.TaskDefinitionVersion &&
+                item.ArtifactType == query.ArtifactType &&
+                item.LogicalKey == query.LogicalKey &&
+                item.IsActive &&
+                item.LifecycleStatus == ArtifactLifecycleStatus.Active &&
+                (item.ExpiresAtUnixMilliseconds == null || item.ExpiresAtUnixMilliseconds > now))
+            .OrderByDescending(item => item.Version)
+            .ThenByDescending(item => item.ArtifactId)
+            .FirstOrDefaultAsync(cancellationToken);
         return entity is null ? null : await ToRecordAsync(context, entity, cancellationToken);
     }
 

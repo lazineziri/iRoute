@@ -1,0 +1,10 @@
+{
+  "resolver": "fact-decision",
+  "accepted": true,
+  "code": "state_hit",
+  "reason": "An active project state record matched the typed lookup.",
+  "permissionChecked": true,
+  "freshnessChecked": true,
+  "checks": 4,
+  "level": "StructuredState"
+}

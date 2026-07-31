@@ -80,4 +80,23 @@ Acceptance evidence:
 - A SQLite restart test proves memory, artifacts, lifecycle metadata, and normalized dependency edges survive reconstruction; the same migration is exercised against PostgreSQL.
 - An end-to-end execution test changes an active project decision, observes memory supersession and artifact invalidation events, creates artifact version 2, then reuses that artifact with `ExactArtifact` and zero model calls.
 
-## Next: W06 — No-model resolver
+### W06 — No-model resolver: complete
+
+Deliverables:
+
+- Ordered no-model resolver chain for exact scoped results, typed project facts/decisions, explicit artifact references, and registered deterministic task handlers.
+- Typed `project.decision.get` and `project.fact.get` tasks backed by the W05 memory store and guarded by the authenticated `project:read` permission scope.
+- Exact-cache identity that includes tenant, project, task definition version, logical artifact key, and canonical input fingerprint.
+- Explicit artifact lookup by ID or logical key with tenant/project/task/version/type/lifecycle/freshness checks.
+- Extensible deterministic-handler port with capability allow-list, permission, freshness, evidence, and task-output validation gates.
+- Structured `resolution.considered` decisions that report resolver, acceptance, stable reason code, human-readable reason, permission/freshness checks, check count, and resolution level without exposing payloads.
+- Semantic result matching remains intentionally disabled until measured embedding quality and tenant-safe index isolation are implemented.
+
+Acceptance evidence:
+
+- An end-to-end test materializes a project decision, retrieves it through `project.decision.get` with `StructuredState`, and proves the model gateway call count does not increase.
+- Permission tests prove all resolvers reject before state lookup when `project:read` is missing and the execution fails with `permission_scope_denied` without generation.
+- Resolver tests cover stale state, wrong-tenant state, stale artifacts, wrong-project artifacts, exact-cache logical-key isolation, deterministic-handler permission/capability/freshness gates, and evidence propagation.
+- The PostgreSQL evaluation exercises accepted and rejected resolver decisions, zero-generation decision retrieval, and explicit artifact retrieval.
+
+## Next: W07 — Context compiler

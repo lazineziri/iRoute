@@ -350,11 +350,17 @@ public sealed class PolicyApprovalTests
         var definitions = new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
         var clock = new SystemClock();
+        var memories = new InMemoryMemoryStore();
         return new ExecutionOrchestrator(
             executions,
             artifacts,
-            new ProjectMemoryMaterializer(new InMemoryMemoryStore(), artifacts, clock),
-            [new ArtifactReuseResolver(artifacts, definitions, fingerprint, clock)],
+            new ProjectMemoryMaterializer(memories, artifacts, clock),
+            [
+                new ExactResultResolver(artifacts, fingerprint, clock),
+                new FactDecisionResolver(memories, clock),
+                new ArtifactLookupResolver(artifacts, clock),
+                new DeterministicHandlerResolver([], clock)
+            ],
             definitions,
             planFactory ?? new DirectExecutionPlanFactory(),
             new ExecutionPlanValidator(),

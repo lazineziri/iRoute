@@ -157,6 +157,149 @@ public sealed class ExecutionOrchestratorTests
     }
 
     [Fact]
+    public async Task KnownProjectDecisionResolvesFromStructuredStateWithoutGeneration()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var memories = new InMemoryMemoryStore();
+        var gateway = new CountingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            memories: memories);
+
+        var seed = await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "seed-decision"),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(ExecutionStatus.Succeeded, seed.Status);
+
+        var result = await orchestrator.ExecuteAsync(
+            CreateDecisionRequest("tenant-a", "read-decision", ["project:read"]),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
+        Assert.Equal(ResolutionLevel.StructuredState, outcome.ResolutionLevel);
+        Assert.Equal(0, outcome.Usage.ModelCalls);
+        Assert.Equal(1, gateway.InvocationCount);
+        Assert.Equal(
+            ActiveDecisions[0],
+            outcome.Output.GetProperty("value").GetString());
+        Assert.Equal("activeDecisions[0]", outcome.Output.GetProperty("key").GetString());
+        Assert.Equal(1, outcome.Output.GetProperty("version").GetInt32());
+        Assert.True(outcome.Output.TryGetProperty("contentHash", out _));
+        Assert.True(outcome.Output.TryGetProperty("createdAt", out _));
+        Assert.False(outcome.Output.TryGetProperty("Key", out _));
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        var exactMiss = Assert.Single(events, item =>
+            item.Type == ExecutionEventTypes.ResolutionConsidered &&
+            item.Data.GetProperty("resolver").GetString() == "exact-cache");
+        Assert.False(exactMiss.Data.GetProperty("accepted").GetBoolean());
+        Assert.Equal(
+            ResolutionDecisionCodes.ExactCacheMiss,
+            exactMiss.Data.GetProperty("code").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(exactMiss.Data.GetProperty("reason").GetString()));
+        var stateHit = Assert.Single(events, item =>
+            item.Type == ExecutionEventTypes.ResolutionConsidered &&
+            item.Data.GetProperty("resolver").GetString() == "fact-decision");
+        Assert.True(stateHit.Data.GetProperty("accepted").GetBoolean());
+        Assert.True(stateHit.Data.GetProperty("permissionChecked").GetBoolean());
+        Assert.True(stateHit.Data.GetProperty("freshnessChecked").GetBoolean());
+        Assert.Equal(
+            ResolutionDecisionCodes.StateHit,
+            stateHit.Data.GetProperty("code").GetString());
+        Assert.DoesNotContain(events, item => item.Type == ExecutionEventTypes.PlanValidated);
+    }
+
+    [Fact]
+    public async Task MissingPermissionRejectsProjectDecisionBeforeStateLookupOrGeneration()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var memories = new InMemoryMemoryStore();
+        var gateway = new CountingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            memories: memories);
+        await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "seed-protected-decision"),
+            TestContext.Current.CancellationToken);
+
+        var result = await orchestrator.ExecuteAsync(
+            CreateDecisionRequest("tenant-a", "read-without-scope", []),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Failed, result.Status);
+        Assert.Equal(ErrorCodes.PermissionScopeDenied, Assert.IsType<Problem>(result.Error).Code);
+        Assert.Equal(1, gateway.InvocationCount);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        var decisions = events
+            .Where(item => item.Type == ExecutionEventTypes.ResolutionConsidered)
+            .ToArray();
+        Assert.Equal(4, decisions.Length);
+        Assert.All(decisions, item =>
+        {
+            Assert.False(item.Data.GetProperty("accepted").GetBoolean());
+            Assert.True(item.Data.GetProperty("permissionChecked").GetBoolean());
+            Assert.Equal(
+                ResolutionDecisionCodes.PermissionDenied,
+                item.Data.GetProperty("code").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(item.Data.GetProperty("reason").GetString()));
+        });
+    }
+
+    [Fact]
+    public async Task ExplicitArtifactLookupReturnsValidatedContentWithoutGeneration()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var memories = new InMemoryMemoryStore();
+        var gateway = new CountingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            memories: memories);
+        var seed = await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "seed-artifact"),
+            TestContext.Current.CancellationToken);
+        var artifact = Assert.Single(Assert.IsType<TaskOutcome>(seed.Outcome).Artifacts);
+        var request = new TaskRequest(
+            "email.draft",
+            JsonSerializer.SerializeToElement(new { artifactId = artifact.ArtifactId }),
+            ProjectId: "project-1",
+            IdempotencyKey: "explicit-artifact",
+            TenantId: "tenant-a",
+            ActorId: "test-runner");
+
+        var result = await orchestrator.ExecuteAsync(request, TestContext.Current.CancellationToken);
+
+        var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        Assert.Equal(ResolutionLevel.ExactArtifact, outcome.ResolutionLevel);
+        Assert.Equal(artifact.ArtifactId, Assert.Single(outcome.Artifacts).ArtifactId);
+        Assert.Equal(0, outcome.Usage.ModelCalls);
+        Assert.Equal(1, gateway.InvocationCount);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        var lookup = Assert.Single(events, item =>
+            item.Type == ExecutionEventTypes.ResolutionConsidered &&
+            item.Data.GetProperty("resolver").GetString() == "artifact-lookup");
+        Assert.True(lookup.Data.GetProperty("accepted").GetBoolean());
+        Assert.Equal(
+            ResolutionDecisionCodes.ArtifactHit,
+            lookup.Data.GetProperty("code").GetString());
+    }
+
+    [Fact]
     public async Task ArtifactReuseIsIsolatedByTenant()
     {
         var store = new InMemoryExecutionStore();
@@ -353,9 +496,16 @@ public sealed class ExecutionOrchestratorTests
             var second = await restarted.ExecuteAsync(
                 CreateRequest("tenant-a", "persistent-second"),
                 TestContext.Current.CancellationToken);
+            var decision = await restarted.ExecuteAsync(
+                CreateDecisionRequest("tenant-a", "persistent-decision", ["project:read"]),
+                TestContext.Current.CancellationToken);
 
             Assert.Equal(ExecutionStatus.Succeeded, first.Status);
             Assert.Equal(ResolutionLevel.ExactArtifact, Assert.IsType<TaskOutcome>(second.Outcome).ResolutionLevel);
+            Assert.Equal(
+                ResolutionLevel.StructuredState,
+                Assert.IsType<TaskOutcome>(decision.Outcome).ResolutionLevel);
+            Assert.Equal(0, Assert.IsType<TaskOutcome>(decision.Outcome).Usage.ModelCalls);
             Assert.NotEmpty(await ReadEventsAsync(restartedStore, first.ExecutionId));
         }
         finally
@@ -374,7 +524,8 @@ public sealed class ExecutionOrchestratorTests
         IApprovalStore? approvals = null,
         IExternalActionStore? externalActions = null,
         IExternalActionExecutor? externalActionExecutor = null,
-        IMemoryStore? memories = null)
+        IMemoryStore? memories = null,
+        IEnumerable<IDeterministicTaskHandler>? deterministicHandlers = null)
     {
         var definitions = new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
@@ -392,7 +543,12 @@ public sealed class ExecutionOrchestratorTests
             store,
             artifacts,
             new ProjectMemoryMaterializer(memories, artifacts, clock),
-            [new ArtifactReuseResolver(artifacts, definitions, fingerprint, clock)],
+            [
+                new ExactResultResolver(artifacts, fingerprint, clock),
+                new FactDecisionResolver(memories, clock),
+                new ArtifactLookupResolver(artifacts, clock),
+                new DeterministicHandlerResolver(deterministicHandlers ?? [], clock)
+            ],
             definitions,
             planFactory ?? new DirectExecutionPlanFactory(),
             new ExecutionPlanValidator(),
@@ -424,6 +580,19 @@ public sealed class ExecutionOrchestratorTests
         IdempotencyKey: idempotencyKey,
         TenantId: tenantId,
         ActorId: "test-runner");
+
+    private static TaskRequest CreateDecisionRequest(
+        string tenantId,
+        string idempotencyKey,
+        IReadOnlyList<string> permissionScopes) => new(
+        "project.decision.get",
+        JsonSerializer.SerializeToElement(new { key = "activeDecisions[0]" }),
+        ProjectId: "project-1",
+        IdempotencyKey: idempotencyKey,
+        Constraints: new TaskConstraints(MaxModelCalls: 0),
+        TenantId: tenantId,
+        ActorId: "test-runner",
+        PermissionScopes: permissionScopes);
 
     private static async Task<IReadOnlyList<ExecutionEvent>> ReadEventsAsync(
         IExecutionStore store,

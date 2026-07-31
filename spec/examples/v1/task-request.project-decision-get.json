@@ -1,0 +1,10 @@
+{
+  "taskType": "project.decision.get",
+  "projectId": "iroute-project",
+  "input": {
+    "key": "activeDecisions[0]"
+  },
+  "constraints": {
+    "maxModelCalls": 0
+  }
+}

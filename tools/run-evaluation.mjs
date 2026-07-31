@@ -182,14 +182,15 @@ try {
     },
     constraints: { maxModelCalls: 1 }
   });
-  const execute = async (body, suffix) => {
+  const execute = async (body, suffix, permissionScopes) => {
     const response = await fetch(new URL('/v1/executions', baseUrl), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'x-tenant-id': 'evaluation',
         'x-actor-id': 'evaluation-runner',
-        'idempotency-key': `w05-${evaluationRunId}-${suffix}`
+        'idempotency-key': `w05-${evaluationRunId}-${suffix}`,
+        ...(permissionScopes ? { 'x-permission-scopes': permissionScopes } : {})
       },
       body: JSON.stringify(body)
     });
@@ -238,13 +239,89 @@ try {
     if (!events.includes(`event: ${eventType}`)) throw new Error(`W05 event replay omitted ${eventType}`);
   }
   console.log('PASS w05-artifact-memory-lifecycle');
+
+  const decision = await execute({
+    taskType: 'project.decision.get',
+    projectId,
+    input: { key: 'activeDecisions[0]' },
+    constraints: { maxModelCalls: 0 }
+  }, 'decision-read', 'project:read');
+  assertEqual(decision.status, 'Succeeded', 'decision lookup status');
+  assertEqual(decision.outcome?.resolutionLevel, 'StructuredState', 'decision resolution level');
+  assertEqual(decision.outcome?.usage?.modelCalls, 0, 'decision model calls');
+  assertEqual(
+    decision.outcome?.output?.value,
+    'Use PostgreSQL for durable deployments.',
+    'decision value'
+  );
+  const decisionEventResponse = await fetch(
+    new URL(`/v1/executions/${decision.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!decisionEventResponse.ok) throw new Error(`W06 decision event replay returned HTTP ${decisionEventResponse.status}`);
+  const decisionEvents = parseSseEvents(await decisionEventResponse.text());
+  assertResolutionDecision(decisionEvents, 'exact-cache', 'exact_cache_miss', false);
+  assertResolutionDecision(decisionEvents, 'fact-decision', 'state_hit', true);
+
+  const deniedDecision = await execute({
+    taskType: 'project.decision.get',
+    projectId,
+    input: { key: 'activeDecisions[0]' },
+    constraints: { maxModelCalls: 0 }
+  }, 'decision-denied');
+  assertEqual(deniedDecision.status, 'Failed', 'permission-denied decision status');
+  assertEqual(deniedDecision.error?.code, 'permission_scope_denied', 'permission-denied decision code');
+
+  const explicitArtifact = await execute({
+    taskType: 'email.draft',
+    projectId,
+    input: { artifactId: secondArtifact.artifactId }
+  }, 'artifact-lookup');
+  assertEqual(explicitArtifact.status, 'Succeeded', 'explicit artifact status');
+  assertEqual(explicitArtifact.outcome?.resolutionLevel, 'ExactArtifact', 'explicit artifact resolution');
+  assertEqual(explicitArtifact.outcome?.usage?.modelCalls, 0, 'explicit artifact model calls');
+  assertEqual(
+    explicitArtifact.outcome?.artifacts?.[0]?.artifactId,
+    secondArtifact.artifactId,
+    'explicit artifact id'
+  );
+  const artifactEventResponse = await fetch(
+    new URL(`/v1/executions/${explicitArtifact.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!artifactEventResponse.ok) throw new Error(`W06 artifact event replay returned HTTP ${artifactEventResponse.status}`);
+  assertResolutionDecision(
+    parseSseEvents(await artifactEventResponse.text()),
+    'artifact-lookup',
+    'artifact_hit',
+    true
+  );
+  console.log('PASS w06-no-model-resolution');
 } catch (error) {
   failed++;
-  console.error(`FAIL w05-artifact-memory-lifecycle: ${error.message}`);
+  console.error(`FAIL w05-w06-state-resolution: ${error.message}`);
 }
 
 if (failed > 0) process.exitCode = 1;
 
 function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`);
+}
+
+function parseSseEvents(value) {
+  return value
+    .split('\n')
+    .filter(line => line.startsWith('data:'))
+    .map(line => JSON.parse(line.slice(5).trimStart()));
+}
+
+function assertResolutionDecision(events, resolver, code, accepted) {
+  const event = events.find(item =>
+    item.type === 'resolution.considered' && item.data?.resolver === resolver
+  );
+  if (!event) throw new Error(`resolution event omitted ${resolver}`);
+  assertEqual(event.data.code, code, `${resolver} decision code`);
+  assertEqual(event.data.accepted, accepted, `${resolver} accepted`);
+  if (!event.data.reason) throw new Error(`${resolver} decision omitted its reason`);
+  assertEqual(event.data.permissionChecked, true, `${resolver} permission check`);
 }

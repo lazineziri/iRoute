@@ -586,6 +586,43 @@ components:
         data:
           type: object
           additionalProperties: true
+    ResolutionConsideration:
+      type: object
+      additionalProperties: false
+      required: [resolver, accepted, code, reason, permissionChecked, freshnessChecked, checks]
+      properties:
+        resolver: { type: string, minLength: 1, maxLength: 120 }
+        accepted: { type: boolean }
+        code: { $ref: '#/components/schemas/ResolutionDecisionCode' }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        permissionChecked: { type: boolean }
+        freshnessChecked: { type: boolean }
+        checks: { type: integer, minimum: 0 }
+        level:
+          oneOf:
+            - $ref: '#/components/schemas/ResolutionLevel'
+            - type: 'null'
+    ResolutionDecisionCode:
+      type: string
+      description: Stable no-model resolver decision code. Additive codes may be introduced in v1.
+      enum:
+        - exact_cache_hit
+        - exact_cache_miss
+        - permission_denied
+        - unsupported_task
+        - project_scope_required
+        - state_key_required
+        - state_hit
+        - state_unavailable
+        - artifact_reference_required
+        - artifact_hit
+        - artifact_unavailable
+        - handler_unavailable
+        - handler_declined
+        - handler_stale
+        - handler_accepted
+        - external_write_blocked
+        - validation_failed
     TaskEventType:
       type: string
       description: Additive event types may be introduced in v1; consumers must ignore unknown types.

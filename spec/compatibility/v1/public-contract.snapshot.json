@@ -79,6 +79,10 @@
       "required": ["sequence", "executionId", "type", "occurredAt", "data"],
       "properties": ["sequence", "executionId", "type", "occurredAt", "data"]
     },
+    "ResolutionConsideration": {
+      "required": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks"],
+      "properties": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks", "level"]
+    },
     "ExecutionProblem": {
       "required": ["code", "title", "detail", "retryable"],
       "properties": ["code", "title", "detail", "retryable", "metadata"]
@@ -96,6 +100,7 @@
     "ArtifactLifecycleStatus": ["Active", "Superseded", "Invalidated"],
     "MemoryKind": ["Fact", "Decision"],
     "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
+    "ResolutionDecisionCode": ["exact_cache_hit", "exact_cache_miss", "permission_denied", "unsupported_task", "project_scope_required", "state_key_required", "state_hit", "state_unavailable", "artifact_reference_required", "artifact_hit", "artifact_unavailable", "handler_unavailable", "handler_declined", "handler_stale", "handler_accepted", "external_write_blocked", "validation_failed"],
     "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
     "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
   },
@@ -155,6 +160,10 @@
     "https://schemas.iroute.dev/v1/problem.schema.json": {
       "required": ["code", "title", "detail", "retryable"],
       "properties": ["code", "detail", "metadata", "retryable", "title"]
+    },
+    "https://schemas.iroute.dev/v1/resolution-consideration.schema.json": {
+      "required": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks"],
+      "properties": ["accepted", "checks", "code", "freshnessChecked", "level", "permissionChecked", "reason", "resolver"]
     },
     "https://schemas.iroute.dev/v1/task-definition.schema.json": {
       "required": ["taskType", "version", "description", "category", "inputSchema", "outputSchema", "requiredCapabilities", "allowedCapabilities", "contextSourcePolicy", "sideEffectClass", "permissionScopes", "approvalRequired", "qualityFloor", "budget", "validationStrategy", "escalationPolicy", "cachePolicy", "memoryPolicy", "retentionPolicy"],

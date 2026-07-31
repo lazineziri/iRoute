@@ -23,6 +23,7 @@ public sealed class InMemoryArtifactStore : IArtifactStore
                     string.Equals(item.TaskType, query.TaskType, StringComparison.Ordinal) &&
                     item.TaskDefinitionVersion == query.TaskDefinitionVersion &&
                     string.Equals(item.InputHash, query.InputHash, StringComparison.Ordinal) &&
+                    string.Equals(item.EffectiveLogicalKey, query.LogicalKey, StringComparison.Ordinal) &&
                     item.IsActive &&
                     item.LifecycleStatus == ArtifactLifecycleStatus.Active &&
                     (item.ExpiresAt is null || item.ExpiresAt > query.At))
@@ -46,6 +47,31 @@ public sealed class InMemoryArtifactStore : IArtifactStore
                 artifact is not null && string.Equals(artifact.TenantId, tenantId, StringComparison.Ordinal)
                     ? artifact
                     : null);
+        }
+    }
+
+    public Task<ArtifactRecord?> FindActiveAsync(
+        ArtifactLookupQuery query,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            var artifact = _artifacts.Values
+                .Where(item =>
+                    string.Equals(item.TenantId, query.TenantId, StringComparison.Ordinal) &&
+                    string.Equals(item.ProjectId ?? string.Empty, query.ProjectId ?? string.Empty, StringComparison.Ordinal) &&
+                    string.Equals(item.TaskType, query.TaskType, StringComparison.Ordinal) &&
+                    item.TaskDefinitionVersion == query.TaskDefinitionVersion &&
+                    string.Equals(item.ArtifactType, query.ArtifactType, StringComparison.Ordinal) &&
+                    string.Equals(item.EffectiveLogicalKey, query.LogicalKey, StringComparison.Ordinal) &&
+                    item.IsActive &&
+                    item.LifecycleStatus == ArtifactLifecycleStatus.Active &&
+                    (item.ExpiresAt is null || item.ExpiresAt > query.At))
+                .OrderByDescending(item => item.Version)
+                .ThenByDescending(item => item.ArtifactId)
+                .FirstOrDefault();
+            return Task.FromResult<ArtifactRecord?>(artifact);
         }
     }
 

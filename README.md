@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0 is complete and W05 is complete**. See [the workstream status](docs/workstream-status.md). M1 continues with W06.
+Formal backlog status: **M0 is complete and W06 is complete**. See [the workstream status](docs/workstream-status.md). M1 continues with W07.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -20,6 +20,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - capability allow lists and authenticated permission-scope enforcement
 - durable external-action approvals, restart-safe resumption, and idempotent action results
 - deterministic artifact/memory supersession with tenant-scoped, dependency-aware invalidation
+- explainable no-model resolution from exact results, project facts/decisions, explicit artifacts, and registered deterministic handlers
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 

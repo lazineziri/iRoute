@@ -85,49 +85,89 @@ public sealed class ExecutionOrchestrator(
             snapshot = await TransitionAsync(snapshot, ExecutionStatus.Resolving, executionToken);
             if (definition.SideEffectClass >= SideEffectClass.ReversibleWrite)
             {
-                await AppendEventAsync(
-                    snapshot.ExecutionId,
-                    ExecutionEventTypes.ResolutionConsidered,
-                    new
-                    {
-                        resolver = "ArtifactReuseResolver",
-                        accepted = false,
-                        reason = "External-write outcomes cannot bypass current permission and approval policy."
-                    },
-                    executionToken);
+                foreach (var resolver in resolvers.OrderBy(item => item.Order))
+                {
+                    await AppendResolutionDecisionAsync(
+                        snapshot.ExecutionId,
+                        resolver.Name,
+                        new ResolutionDecision(
+                            false,
+                            ResolutionDecisionCodes.ExternalWriteBlocked,
+                            "External-write outcomes cannot bypass current permission and approval policy.",
+                            false,
+                            false,
+                            ["The task side-effect class was checked before state lookup."]),
+                        executionToken);
+                }
             }
             else
             {
                 foreach (var resolver in resolvers.OrderBy(x => x.Order))
                 {
-                    var candidate = await resolver.TryResolveAsync(request, executionToken);
-                    await AppendEventAsync(
-                        snapshot.ExecutionId,
-                        ExecutionEventTypes.ResolutionConsidered,
-                        new
+                    var decision = await resolver.ResolveAsync(request, definition, executionToken);
+                    var candidate = decision.Candidate;
+                    OutcomeValidationResult? validation = null;
+                    if (decision.Accepted && candidate is not null)
+                    {
+                        var validator = validators.First(item => item.Supports(request.TaskType));
+                        validation = await validator.ValidateAsync(
+                            request,
+                            definition,
+                            new ModelGatewayResult(
+                                candidate.Output,
+                                candidate.Usage ?? new UsageSummary(),
+                                candidate.Confidence,
+                                candidate.Evidence),
+                            EmptyCompiledContext(),
+                            executionToken);
+                        if (!validation.Passed)
                         {
-                            resolver = resolver.GetType().Name,
-                            accepted = candidate is { IsFresh: true },
-                            level = candidate?.Level.ToString()
-                        },
+                            decision = decision with
+                            {
+                                Accepted = false,
+                                Code = ResolutionDecisionCodes.ValidationFailed,
+                                Reason = $"The reusable result failed task validation: {string.Join(" ", validation.Failures)}",
+                                Checks = decision.Checks.Concat(validation.Checks).ToArray(),
+                                Candidate = null
+                            };
+                            candidate = null;
+                        }
+                    }
+
+                    await AppendResolutionDecisionAsync(
+                        snapshot.ExecutionId,
+                        resolver.Name,
+                        decision,
                         executionToken);
-                    if (candidate is not { IsFresh: true })
+                    if (!decision.Accepted || candidate is null || validation is null)
                     {
                         continue;
                     }
 
                     snapshot = await TransitionAsync(snapshot, ExecutionStatus.Validating, executionToken);
+                    await AppendEventAsync(
+                        snapshot.ExecutionId,
+                        ExecutionEventTypes.ValidationCompleted,
+                        new
+                        {
+                            validation.Passed,
+                            validation.Quality,
+                            checks = validation.Checks.Count,
+                            failures = validation.Failures.Count,
+                            source = resolver.Name
+                        },
+                        executionToken);
                     var reusedValidation = new ValidationSummary(
                         true,
-                        candidate.Confidence,
-                        ["The reusable artifact passed scope, version, freshness and input-fingerprint checks."],
+                        validation.Quality,
+                        decision.Checks.Concat(validation.Checks).Distinct(StringComparer.Ordinal).ToArray(),
                         []);
                     var reusedOutcome = new TaskOutcome(
                         candidate.Output,
                         candidate.Level,
-                        candidate.Confidence,
+                        validation.Quality,
                         candidate.Evidence,
-                        new UsageSummary(),
+                        candidate.Usage ?? new UsageSummary(),
                         candidate.Artifact is null ? [] : [candidate.Artifact],
                         reusedValidation,
                         new ContextManifest(0, 0, false, []));
@@ -1154,6 +1194,33 @@ public sealed class ExecutionOrchestrator(
             clock.UtcNow,
             JsonSerializer.SerializeToElement(data),
             cancellationToken);
+
+    private Task<ExecutionEvent> AppendResolutionDecisionAsync(
+        Guid executionId,
+        string resolver,
+        ResolutionDecision decision,
+        CancellationToken cancellationToken) =>
+        AppendEventAsync(
+            executionId,
+            ExecutionEventTypes.ResolutionConsidered,
+            new
+            {
+                resolver,
+                accepted = decision.Accepted,
+                code = decision.Code,
+                reason = decision.Reason,
+                permissionChecked = decision.PermissionChecked,
+                freshnessChecked = decision.FreshnessChecked,
+                checks = decision.Checks.Count,
+                level = decision.Candidate?.Level.ToString()
+            },
+            cancellationToken);
+
+    private static CompiledContext EmptyCompiledContext()
+    {
+        var content = JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+        return new CompiledContext(content, new ContextManifest(0, 0, false, []), []);
+    }
 
     private static void EnsureModelBudgetAllows(TaskRequest request, ExecutionPlan plan)
     {

@@ -23,7 +23,7 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 |---|---|
 | `execution.created` | The durable execution record exists. |
 | `execution.status_changed` | The state machine accepted a transition. |
-| `resolution.considered` | A no-model resolver candidate was accepted or rejected. |
+| `resolution.considered` | A no-model resolver was accepted or rejected with a safe reason and permission/freshness results. |
 | `plan.validated` | A typed plan passed graph and budget validation. |
 | `policy.evaluated` | The versioned capability, side-effect, scope, and approval policy produced a decision. |
 | `capability.denied` | Policy denied a capability before its executor could run. |
@@ -53,3 +53,7 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `execution.failed` | The execution failed, was cancelled, or timed out. |
 
 The JSON Schema and OpenAPI component are authoritative when this prose and a machine-readable contract differ.
+
+## Resolution consideration data
+
+Every `resolution.considered` event contains `resolver`, `accepted`, `code`, `reason`, `permissionChecked`, `freshnessChecked`, `checks`, and nullable `level`. The exact-cache, fact/decision, artifact, and deterministic-handler resolvers emit one decision each until a candidate is accepted. Reasons describe checks and misses without including state or output payloads. The standalone `resolution-consideration.schema.json` contract is authoritative for this event data shape.

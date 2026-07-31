@@ -61,6 +61,24 @@ flowchart LR
 
 Each artifact lineage is identified by tenant, project, artifact type, and logical key. Only one version is active. An unchanged input/content pair deduplicates; a changed result creates the next version and records its predecessor. Facts and decisions use the same versioned lifecycle. Dependency edges hold references and hashes rather than copied payloads, allowing deterministic freshness checks and recursive invalidation.
 
+W06 resolves work through an ordered, fail-closed no-model chain:
+
+```mermaid
+flowchart LR
+    A["Typed task"] --> B["Exact scoped result"]
+    B -->|"miss + reason"| C["Fact or decision"]
+    C -->|"miss + reason"| D["Explicit artifact"]
+    D -->|"miss + reason"| E["Deterministic handler"]
+    E -->|"unresolved"| F["Plan generation or capability work"]
+    B -->|"accepted"| G["Task validator"]
+    C -->|"accepted"| G
+    D -->|"accepted"| G
+    E -->|"accepted"| G
+    G --> H["Zero-generation outcome"]
+```
+
+Every resolver checks authenticated task permissions before reading state. Stored results additionally require matching tenant/project scope, current task version, active lifecycle, and freshness. Accepted candidates still pass the task-specific output validator. Each attempt emits a payload-free decision reason, making misses and reuse observable without disclosing artifact or memory content.
+
 ## Code dependency topology
 
 ```mermaid

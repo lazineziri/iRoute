@@ -67,52 +67,6 @@ public sealed class Sha256InputFingerprint : IInputFingerprint
     }
 }
 
-public sealed class ArtifactReuseResolver(
-    IArtifactStore artifacts,
-    ITaskDefinitionRegistry taskDefinitions,
-    IInputFingerprint fingerprint,
-    IClock clock) : INoModelResolver
-{
-    public int Order => 0;
-
-    public async Task<ResolutionCandidate?> TryResolveAsync(
-        TaskRequest request,
-        CancellationToken cancellationToken)
-    {
-        var definition = await taskDefinitions.FindAsync(request.TaskType, cancellationToken);
-        if (definition is null)
-        {
-            return null;
-        }
-
-        var artifact = await artifacts.FindReusableAsync(
-            new ArtifactReuseQuery(
-                RequestScope.Tenant(request),
-                request.ProjectId,
-                request.TaskType,
-                definition.Version,
-                fingerprint.Create(request, definition.Version),
-                clock.UtcNow),
-            cancellationToken);
-
-        if (artifact is null)
-        {
-            return null;
-        }
-
-        var evidence = artifact.Evidence
-            .Append(new EvidenceReference("artifact", artifact.ArtifactId.ToString(), artifact.ContentHash, artifact.CreatedAt))
-            .ToArray();
-        return new ResolutionCandidate(
-            ResolutionLevel.ExactArtifact,
-            artifact.Content,
-            1m,
-            evidence,
-            true,
-            artifact.ToReference());
-    }
-}
-
 public sealed class BoundedContextCompiler : IContextCompiler
 {
     private static readonly string[] ContextProperties =
@@ -344,6 +298,16 @@ public sealed class DefaultTaskOutcomeValidator : ITaskOutcomeValidator
         else
         {
             failures.Add($"Measured confidence {result.Confidence:0.###} is below the quality floor {qualityFloor:0.###}.");
+        }
+
+        var evidenceRequired = request.Constraints?.RequireEvidence is true || definition.RequiresEvidence;
+        if (!evidenceRequired || result.Evidence.Count > 0 || context.Evidence.Count > 0)
+        {
+            checks.Add("The evidence requirement is satisfied.");
+        }
+        else
+        {
+            failures.Add("The task requires evidence, but no evidence was returned or compiled.");
         }
 
         return Task.FromResult<OutcomeValidationResult>(new(

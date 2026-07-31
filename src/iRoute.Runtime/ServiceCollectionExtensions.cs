@@ -18,7 +18,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITaskPolicyEngine, TaskPolicyEngine>();
         services.AddSingleton<IInputFingerprint, Sha256InputFingerprint>();
         services.AddSingleton<IContextCompiler, BoundedContextCompiler>();
-        services.AddSingleton<INoModelResolver, ArtifactReuseResolver>();
+        services.AddSingleton<INoModelResolver, ExactResultResolver>();
+        services.AddSingleton<INoModelResolver, FactDecisionResolver>();
+        services.AddSingleton<INoModelResolver, ArtifactLookupResolver>();
+        services.AddSingleton<INoModelResolver, DeterministicHandlerResolver>();
         services.AddSingleton<ITaskOutcomeValidator, EmailDraftOutcomeValidator>();
         services.AddSingleton<ITaskOutcomeValidator, EmailSendOutcomeValidator>();
         services.AddSingleton<ITaskOutcomeValidator, DefaultTaskOutcomeValidator>();

@@ -49,7 +49,21 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
                 DefaultMaxInputTokens: 8000,
                 DefaultDeadlineMilliseconds: 45000,
                 DefaultMaxModelCalls: 1,
-                AllowedCapabilities: ["text.summarization"])
+                AllowedCapabilities: ["text.summarization"]),
+            ["project.decision.get"] = new(
+                "project.decision.get", 1, "project.memory.read", 400, 1m, true, SideEffectClass.ReadOnly, "project.decision",
+                DefaultMaxInputTokens: 1000,
+                DefaultDeadlineMilliseconds: 5000,
+                DefaultMaxModelCalls: 0,
+                AllowedCapabilities: ["project.memory.read"],
+                PermissionScopes: ["project:read"]),
+            ["project.fact.get"] = new(
+                "project.fact.get", 1, "project.memory.read", 400, 1m, true, SideEffectClass.ReadOnly, "project.fact",
+                DefaultMaxInputTokens: 1000,
+                DefaultDeadlineMilliseconds: 5000,
+                DefaultMaxModelCalls: 0,
+                AllowedCapabilities: ["project.memory.read"],
+                PermissionScopes: ["project:read"])
         };
 
     public Task<TaskDefinition?> FindAsync(string taskType, CancellationToken cancellationToken)

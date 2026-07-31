@@ -30,6 +30,9 @@ public interface IArtifactStore
         string tenantId,
         Guid artifactId,
         CancellationToken cancellationToken);
+    Task<ArtifactRecord?> FindActiveAsync(
+        ArtifactLookupQuery query,
+        CancellationToken cancellationToken);
     Task<ArtifactRecord> SaveAsync(ArtifactRecord artifact, CancellationToken cancellationToken);
     Task<ArtifactInvalidationResult> InvalidateByDependencyAsync(
         DependencyChange change,
@@ -38,8 +41,23 @@ public interface IArtifactStore
 
 public interface INoModelResolver
 {
+    string Name { get; }
     int Order { get; }
-    Task<ResolutionCandidate?> TryResolveAsync(TaskRequest request, CancellationToken cancellationToken);
+    Task<ResolutionDecision> ResolveAsync(
+        TaskRequest request,
+        TaskDefinition definition,
+        CancellationToken cancellationToken);
+}
+
+public interface IDeterministicTaskHandler
+{
+    string Name { get; }
+    string Capability { get; }
+    bool Supports(TaskDefinition definition);
+    Task<DeterministicHandlerResult?> TryResolveAsync(
+        TaskRequest request,
+        TaskDefinition definition,
+        CancellationToken cancellationToken);
 }
 
 public interface IModelGateway
@@ -116,8 +134,24 @@ public sealed record ResolutionCandidate(
     JsonElement Output,
     decimal Confidence,
     IReadOnlyList<EvidenceReference> Evidence,
-    bool IsFresh,
-    ArtifactReference? Artifact = null);
+    ArtifactReference? Artifact = null,
+    UsageSummary? Usage = null);
+
+public sealed record ResolutionDecision(
+    bool Accepted,
+    string Code,
+    string Reason,
+    bool PermissionChecked,
+    bool FreshnessChecked,
+    IReadOnlyList<string> Checks,
+    ResolutionCandidate? Candidate = null);
+
+public sealed record DeterministicHandlerResult(
+    JsonElement Output,
+    decimal Confidence,
+    IReadOnlyList<EvidenceReference> Evidence,
+    DateTimeOffset? ExpiresAt = null,
+    IReadOnlyList<string>? Checks = null);
 
 public sealed record ModelGatewayRequest(
     string Capability,
@@ -152,6 +186,16 @@ public sealed record ArtifactReuseQuery(
     string TaskType,
     int TaskDefinitionVersion,
     string InputHash,
+    string LogicalKey,
+    DateTimeOffset At);
+
+public sealed record ArtifactLookupQuery(
+    string TenantId,
+    string? ProjectId,
+    string TaskType,
+    int TaskDefinitionVersion,
+    string ArtifactType,
+    string LogicalKey,
     DateTimeOffset At);
 
 public sealed record ArtifactRecord(

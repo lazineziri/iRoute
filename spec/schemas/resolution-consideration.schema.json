@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/resolution-consideration.schema.json",
+  "title": "ResolutionConsideration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks"],
+  "properties": {
+    "resolver": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "accepted": { "type": "boolean" },
+    "code": {
+      "enum": [
+        "exact_cache_hit",
+        "exact_cache_miss",
+        "permission_denied",
+        "unsupported_task",
+        "project_scope_required",
+        "state_key_required",
+        "state_hit",
+        "state_unavailable",
+        "artifact_reference_required",
+        "artifact_hit",
+        "artifact_unavailable",
+        "handler_unavailable",
+        "handler_declined",
+        "handler_stale",
+        "handler_accepted",
+        "external_write_blocked",
+        "validation_failed"
+      ]
+    },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "permissionChecked": { "type": "boolean" },
+    "freshnessChecked": { "type": "boolean" },
+    "checks": { "type": "integer", "minimum": 0 },
+    "level": {
+      "type": ["string", "null"],
+      "enum": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman", null]
+    }
+  }
+}

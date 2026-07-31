@@ -9,6 +9,8 @@ namespace iRoute.Api;
 
 public static class ExecutionEndpoints
 {
+    private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web);
+
     public static IEndpointRouteBuilder MapIRouteEndpoints(
         this IEndpointRouteBuilder endpoints,
         bool requireAuthorization)
@@ -274,7 +276,7 @@ public static class ExecutionEndpoints
                     cancellationToken);
                 await response.WriteAsync($"event: {executionEvent.Type}\n", cancellationToken);
                 await response.WriteAsync(
-                    $"data: {JsonSerializer.Serialize(executionEvent)}\n\n",
+                    $"data: {JsonSerializer.Serialize(executionEvent, EventJsonOptions)}\n\n",
                     cancellationToken);
                 await response.Body.FlushAsync(cancellationToken);
             }

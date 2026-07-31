@@ -7,6 +7,8 @@
     { "file": "capability-definition.text-generation.json", "schema": "https://schemas.iroute.dev/v1/capability-definition.schema.json" },
     { "file": "execution-plan.email-draft.json", "schema": "https://schemas.iroute.dev/v1/execution-plan.schema.json" },
     { "file": "task-event.created.json", "schema": "https://schemas.iroute.dev/v1/task-event.schema.json" },
+    { "file": "resolution-consideration.state-hit.json", "schema": "https://schemas.iroute.dev/v1/resolution-consideration.schema.json" },
+    { "file": "task-request.project-decision-get.json", "schema": "https://schemas.iroute.dev/v1/task-request.schema.json" },
     { "file": "task-outcome.email-draft.json", "schema": "https://schemas.iroute.dev/v1/task-outcome.schema.json" },
     { "file": "artifact.email-draft.json", "schema": "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json" },
     { "file": "memory.decision.json", "schema": "https://schemas.iroute.dev/v1/memory-snapshot.schema.json" },

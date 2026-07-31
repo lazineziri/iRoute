@@ -18,6 +18,12 @@ Artifact and memory lineages have exactly one active version. Materializing iden
 
 All direct reads and invalidation queries require a tenant scope at the persistence boundary. Never implement an administrative cleanup or repair job with an unscoped artifact, memory, or dependency query. PostgreSQL serializable transactions protect version allocation; retry serialization conflicts at the job boundary rather than inventing a version.
 
+## No-model resolution audit
+
+The runtime checks resolvers in this order: `exact-cache`, `fact-decision`, `artifact-lookup`, then `deterministic-handler`. A resolver must return a structured acceptance or rejection; silent misses are not allowed. `resolution.considered` records the stable decision code, safe reason, permission/freshness flags, check count, and candidate level. It must never contain memory values, artifact bodies, prompts, or handler outputs.
+
+Fact and decision tasks require `project:read`. Explicit artifacts must match the authenticated tenant and requested project as well as the current task definition and artifact type. Deterministic handlers are eligible only when their capability is allow-listed by the task definition. Semantic matching is disabled by default; operators must not introduce a shared embedding index without tenant isolation, freshness propagation, and evaluation-backed thresholds.
+
 ## Scheduler bounds
 
 `Workflow:QueueCapacity` bounds ready steps waiting inside one scheduling round. `Workflow:MaxParallelSteps` is the runtime-wide ceiling applied in addition to the lower per-plan parallel-call budget. Queue writers wait when capacity is full, so load produces backpressure rather than unbounded in-memory growth.
