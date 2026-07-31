@@ -1,0 +1,118 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
+
+namespace iRoute.Api;
+
+public sealed record IRouteIdentityOptions
+{
+    public const string SectionName = "Identity";
+    public const string DevelopmentHeadersMode = "DevelopmentHeaders";
+    public const string JwtMode = "Jwt";
+
+    public string Mode { get; init; } = DevelopmentHeadersMode;
+    public string? Authority { get; init; }
+    public string? Audience { get; init; }
+    public bool RequireHttpsMetadata { get; init; } = true;
+    public string TenantClaim { get; init; } = "tenant_id";
+    public string ActorClaim { get; init; } = "sub";
+
+    public bool UsesJwt => string.Equals(Mode, JwtMode, StringComparison.OrdinalIgnoreCase);
+}
+
+internal sealed record RequestIdentityScope(string TenantId, string ActorId, bool Authenticated);
+
+internal static class IdentityConfiguration
+{
+    public const string RuntimePolicy = "iroute-runtime";
+
+    public static IRouteIdentityOptions AddIRouteIdentity(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var options = configuration
+            .GetSection(IRouteIdentityOptions.SectionName)
+            .Get<IRouteIdentityOptions>() ?? new();
+        if (!string.Equals(options.Mode, IRouteIdentityOptions.DevelopmentHeadersMode, StringComparison.OrdinalIgnoreCase) &&
+            !options.UsesJwt)
+        {
+            throw new InvalidOperationException(
+                $"Unsupported Identity:Mode '{options.Mode}'. Use DevelopmentHeaders or Jwt.");
+        }
+
+        if (options.UsesJwt &&
+            (string.IsNullOrWhiteSpace(options.Authority) || string.IsNullOrWhiteSpace(options.Audience)))
+        {
+            throw new InvalidOperationException(
+                "Identity:Authority and Identity:Audience are required when Identity:Mode is Jwt.");
+        }
+
+        services.Configure<IRouteIdentityOptions>(configuration.GetSection(IRouteIdentityOptions.SectionName));
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(jwt =>
+            {
+                jwt.Authority = options.Authority;
+                jwt.Audience = options.Audience;
+                jwt.RequireHttpsMetadata = options.RequireHttpsMetadata;
+                jwt.MapInboundClaims = false;
+            });
+        services.AddAuthorizationBuilder()
+            .AddPolicy(RuntimePolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                    HasNonEmptyClaim(context.User, options.TenantClaim) &&
+                    HasNonEmptyClaim(context.User, options.ActorClaim)));
+        return options;
+    }
+
+    private static bool HasNonEmptyClaim(ClaimsPrincipal principal, string claimType) =>
+        principal.Claims.Any(claim =>
+            claim.Type == claimType && !string.IsNullOrWhiteSpace(claim.Value));
+}
+
+internal static class RequestIdentity
+{
+    public static RequestIdentityScope Resolve(
+        HttpRequest request,
+        IRouteIdentityOptions options,
+        string? requestTenantId = null,
+        string? requestActorId = null)
+    {
+        if (options.UsesJwt)
+        {
+            var tenantId = ReadClaim(request.HttpContext.User, options.TenantClaim)
+                ?? throw new InvalidOperationException("The authenticated identity has no tenant claim.");
+            var actorId = ReadClaim(request.HttpContext.User, options.ActorClaim)
+                ?? throw new InvalidOperationException("The authenticated identity has no actor claim.");
+            return new RequestIdentityScope(tenantId, actorId, true);
+        }
+
+        return new RequestIdentityScope(
+            ReadHeader(request, "X-Tenant-Id") ?? Normalize(requestTenantId) ?? "local",
+            ReadHeader(request, "X-Actor-Id") ?? Normalize(requestActorId) ?? "local",
+            false);
+    }
+
+    public static bool ConflictsWithRequest(
+        RequestIdentityScope scope,
+        string? tenantId,
+        string? actorId) =>
+        scope.Authenticated &&
+        (HasDifferentValue(tenantId, scope.TenantId) || HasDifferentValue(actorId, scope.ActorId));
+
+    private static string? ReadClaim(ClaimsPrincipal principal, string claimType) =>
+        Normalize(principal.Claims.FirstOrDefault(x => x.Type == claimType)?.Value);
+
+    private static string? ReadHeader(HttpRequest request, string name) =>
+        Normalize(request.Headers[name].ToString());
+
+    private static bool HasDifferentValue(string? requested, string actual) =>
+        Normalize(requested) is { } normalized &&
+        !string.Equals(normalized, actual, StringComparison.Ordinal);
+
+    private static string? Normalize(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+}

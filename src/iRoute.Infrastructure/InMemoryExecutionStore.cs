@@ -1,0 +1,95 @@
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using iRoute.Contracts;
+using iRoute.Core;
+
+namespace iRoute.Infrastructure;
+
+public sealed class InMemoryExecutionStore : IExecutionStore
+{
+    private readonly ConcurrentDictionary<Guid, ExecutionSnapshot> _executions = new();
+    private readonly ConcurrentDictionary<string, Guid> _idempotencyKeys = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<Guid, ConcurrentQueue<ExecutionEvent>> _events = new();
+    private readonly ConcurrentDictionary<Guid, long> _eventSequences = new();
+
+    public Task<ExecutionSnapshot?> FindByIdempotencyKeyAsync(
+        string tenantId,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var scopedKey = CreateIdempotencyKey(tenantId, key);
+        return Task.FromResult(_idempotencyKeys.TryGetValue(scopedKey, out var id) && _executions.TryGetValue(id, out var value)
+            ? value
+            : null);
+    }
+
+    public Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(_executions.GetValueOrDefault(executionId));
+    }
+
+    public Task CreateAsync(ExecutionSnapshot execution, string? idempotencyKey, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_executions.TryAdd(execution.ExecutionId, execution))
+        {
+            throw new InvalidOperationException("Execution already exists.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            var scopedKey = CreateIdempotencyKey(execution.TenantId, idempotencyKey);
+            if (!_idempotencyKeys.TryAdd(scopedKey, execution.ExecutionId))
+            {
+                _executions.TryRemove(execution.ExecutionId, out _);
+                throw new InvalidOperationException("The idempotency key already exists for this tenant.");
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _executions[execution.ExecutionId] = execution;
+        return Task.CompletedTask;
+    }
+
+    public async IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(
+        Guid executionId,
+        long afterSequence,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (!_events.TryGetValue(executionId, out var queue))
+        {
+            yield break;
+        }
+
+        foreach (var executionEvent in queue.Where(x => x.Sequence > afterSequence))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return executionEvent;
+            await Task.Yield();
+        }
+    }
+
+    public Task<ExecutionEvent> AppendEventAsync(
+        Guid executionId,
+        string eventType,
+        DateTimeOffset occurredAt,
+        System.Text.Json.JsonElement data,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var sequence = _eventSequences.AddOrUpdate(executionId, 1, static (_, current) => checked(current + 1));
+        var executionEvent = new ExecutionEvent(sequence, executionId, eventType, occurredAt, data.Clone());
+        _events.GetOrAdd(executionId, static _ => new ConcurrentQueue<ExecutionEvent>())
+            .Enqueue(executionEvent);
+        return Task.FromResult(executionEvent);
+    }
+
+    private static string CreateIdempotencyKey(string tenantId, string key) => $"{tenantId}\u001f{key}";
+}

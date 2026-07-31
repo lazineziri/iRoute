@@ -1,0 +1,728 @@
+using System.Data;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using iRoute.Contracts;
+using iRoute.Core;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+
+namespace iRoute.Infrastructure;
+
+public sealed record StorageOptions
+{
+    public string Provider { get; init; } = "Sqlite";
+    public bool AutoInitialize { get; init; } = true;
+}
+
+public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) : DbContext(options)
+{
+    public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
+    public DbSet<ExecutionEventEntity> ExecutionEvents => Set<ExecutionEventEntity>();
+    public DbSet<WorkflowPlanEntity> WorkflowPlans => Set<WorkflowPlanEntity>();
+    public DbSet<WorkflowStepEntity> WorkflowSteps => Set<WorkflowStepEntity>();
+    public DbSet<ArtifactEntity> Artifacts => Set<ArtifactEntity>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        var execution = modelBuilder.Entity<ExecutionEntity>();
+        execution.ToTable("Executions");
+        execution.HasKey(x => x.ExecutionId);
+        execution.Property(x => x.TaskType).HasMaxLength(120);
+        execution.Property(x => x.TenantId).HasMaxLength(200);
+        execution.Property(x => x.ActorId).HasMaxLength(200);
+        execution.Property(x => x.ProjectId).HasMaxLength(200);
+        execution.Property(x => x.IdempotencyKey).HasMaxLength(200);
+        execution.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+        execution.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
+
+        var executionEvent = modelBuilder.Entity<ExecutionEventEntity>();
+        executionEvent.ToTable("ExecutionEvents");
+        executionEvent.HasKey(x => new { x.ExecutionId, x.Sequence });
+        executionEvent.Property(x => x.EventType).HasMaxLength(120);
+        executionEvent.HasIndex(x => new { x.ExecutionId, x.OccurredAtUnixMilliseconds });
+
+        var workflowPlan = modelBuilder.Entity<WorkflowPlanEntity>();
+        workflowPlan.ToTable("WorkflowPlans");
+        workflowPlan.HasKey(x => x.ExecutionId);
+
+        var workflowStep = modelBuilder.Entity<WorkflowStepEntity>();
+        workflowStep.ToTable("WorkflowSteps");
+        workflowStep.HasKey(x => new { x.ExecutionId, x.StepId });
+        workflowStep.Property(x => x.StepId).HasMaxLength(64);
+        workflowStep.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+        workflowStep.HasIndex(x => new { x.ExecutionId, x.Status });
+
+        var artifact = modelBuilder.Entity<ArtifactEntity>();
+        artifact.ToTable("Artifacts");
+        artifact.HasKey(x => x.ArtifactId);
+        artifact.Property(x => x.TenantId).HasMaxLength(200);
+        artifact.Property(x => x.ProjectId).HasMaxLength(200);
+        artifact.Property(x => x.TaskType).HasMaxLength(120);
+        artifact.Property(x => x.ArtifactType).HasMaxLength(120);
+        artifact.Property(x => x.InputHash).HasMaxLength(64);
+        artifact.Property(x => x.ContentHash).HasMaxLength(64);
+        artifact.HasIndex(x => new
+        {
+            x.TenantId,
+            x.ProjectId,
+            x.TaskType,
+            x.TaskDefinitionVersion,
+            x.InputHash,
+            x.IsActive
+        });
+    }
+}
+
+public sealed class ExecutionEntity
+{
+    public Guid ExecutionId { get; set; }
+    public string TenantId { get; set; } = null!;
+    public string ActorId { get; set; } = null!;
+    public string? ProjectId { get; set; }
+    public string TaskType { get; set; } = null!;
+    public int? TaskDefinitionVersion { get; set; }
+    public ExecutionStatus Status { get; set; }
+    public long CreatedAtUnixMilliseconds { get; set; }
+    public long UpdatedAtUnixMilliseconds { get; set; }
+    public long? CancellationRequestedAtUnixMilliseconds { get; set; }
+    public string? IdempotencyKey { get; set; }
+    public string? OutcomeJson { get; set; }
+    public string? ErrorJson { get; set; }
+}
+
+public sealed class ExecutionEventEntity
+{
+    public Guid ExecutionId { get; set; }
+    public long Sequence { get; set; }
+    public string EventType { get; set; } = null!;
+    public long OccurredAtUnixMilliseconds { get; set; }
+    public string DataJson { get; set; } = null!;
+}
+
+public sealed class WorkflowPlanEntity
+{
+    public Guid ExecutionId { get; set; }
+    public string RequestJson { get; set; } = null!;
+    public string PlanJson { get; set; } = null!;
+    public long CreatedAtUnixMilliseconds { get; set; }
+    public long UpdatedAtUnixMilliseconds { get; set; }
+}
+
+public sealed class WorkflowStepEntity
+{
+    public Guid ExecutionId { get; set; }
+    public string StepId { get; set; } = null!;
+    public WorkflowStepStatus Status { get; set; }
+    public int Attempt { get; set; }
+    public long? StartedAtUnixMilliseconds { get; set; }
+    public long? CompletedAtUnixMilliseconds { get; set; }
+    public string? OutputJson { get; set; }
+    public string? ErrorJson { get; set; }
+}
+
+public sealed class ArtifactEntity
+{
+    public Guid ArtifactId { get; set; }
+    public string TenantId { get; set; } = null!;
+    public string ProjectId { get; set; } = string.Empty;
+    public string TaskType { get; set; } = null!;
+    public int TaskDefinitionVersion { get; set; }
+    public string ArtifactType { get; set; } = null!;
+    public int Version { get; set; }
+    public string InputHash { get; set; } = null!;
+    public string ContentHash { get; set; } = null!;
+    public string ContentJson { get; set; } = null!;
+    public string EvidenceJson { get; set; } = null!;
+    public long CreatedAtUnixMilliseconds { get; set; }
+    public long? ExpiresAtUnixMilliseconds { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextFactory) : IExecutionStore
+{
+    public async Task<ExecutionSnapshot?> FindByIdempotencyKeyAsync(
+        string tenantId,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Executions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                x => x.TenantId == tenantId && x.IdempotencyKey == key,
+                cancellationToken);
+        return entity is null ? null : PersistenceMapping.ToContract(entity);
+    }
+
+    public async Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Executions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.ExecutionId == executionId, cancellationToken);
+        return entity is null ? null : PersistenceMapping.ToContract(entity);
+    }
+
+    public async Task CreateAsync(
+        ExecutionSnapshot execution,
+        string? idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.Executions.Add(PersistenceMapping.ToEntity(execution, idempotencyKey));
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Executions.SingleAsync(
+            x => x.ExecutionId == execution.ExecutionId,
+            cancellationToken);
+        PersistenceMapping.Apply(execution, entity);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(
+        Guid executionId,
+        long afterSequence,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.ExecutionEvents
+            .AsNoTracking()
+            .Where(x => x.ExecutionId == executionId && x.Sequence > afterSequence)
+            .OrderBy(x => x.Sequence)
+            .ToListAsync(cancellationToken);
+        foreach (var entity in entities)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return PersistenceMapping.ToContract(entity);
+        }
+    }
+
+    public async Task<ExecutionEvent> AppendEventAsync(
+        Guid executionId,
+        string eventType,
+        DateTimeOffset occurredAt,
+        JsonElement data,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var previousSequence = await context.ExecutionEvents
+            .Where(x => x.ExecutionId == executionId)
+            .MaxAsync(x => (long?)x.Sequence, cancellationToken) ?? 0;
+        var executionEvent = new ExecutionEvent(
+            checked(previousSequence + 1),
+            executionId,
+            eventType,
+            occurredAt,
+            data.Clone());
+        context.ExecutionEvents.Add(PersistenceMapping.ToEntity(executionEvent));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return executionEvent;
+    }
+}
+
+public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext> contextFactory)
+    : IWorkflowCheckpointStore
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public async Task<WorkflowCheckpointInitialization> InitializeAsync(
+        Guid executionId,
+        TaskRequest request,
+        ExecutionPlan plan,
+        DateTimeOffset createdAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var existing = await context.WorkflowPlans.SingleOrDefaultAsync(
+            item => item.ExecutionId == executionId,
+            cancellationToken);
+        var planJson = JsonSerializer.Serialize(plan, JsonOptions);
+        var created = existing is null;
+        if (existing is null)
+        {
+            context.WorkflowPlans.Add(new WorkflowPlanEntity
+            {
+                ExecutionId = executionId,
+                RequestJson = JsonSerializer.Serialize(request, JsonOptions),
+                PlanJson = planJson,
+                CreatedAtUnixMilliseconds = createdAt.ToUnixTimeMilliseconds(),
+                UpdatedAtUnixMilliseconds = createdAt.ToUnixTimeMilliseconds()
+            });
+            context.WorkflowSteps.AddRange(plan.Steps.Select(step => new WorkflowStepEntity
+            {
+                ExecutionId = executionId,
+                StepId = step.Id,
+                Status = WorkflowStepStatus.Pending
+            }));
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        else if (!string.Equals(existing.PlanJson, planJson, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A different execution plan is already checkpointed.");
+        }
+
+        var checkpoint = await LoadAsync(context, executionId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(checkpoint, created);
+    }
+
+    public async Task<WorkflowCheckpoint?> GetAsync(
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var exists = await context.WorkflowPlans
+            .AsNoTracking()
+            .AnyAsync(item => item.ExecutionId == executionId, cancellationToken);
+        return exists ? await LoadAsync(context, executionId, cancellationToken) : null;
+    }
+
+    public async Task<int> RecoverInterruptedStepsAsync(
+        Guid executionId,
+        DateTimeOffset recoveredAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var steps = await context.WorkflowSteps
+            .Where(step => step.ExecutionId == executionId && step.Status == WorkflowStepStatus.Running)
+            .ToListAsync(cancellationToken);
+        foreach (var step in steps)
+        {
+            step.Status = WorkflowStepStatus.Pending;
+            step.StartedAtUnixMilliseconds = null;
+            step.CompletedAtUnixMilliseconds = null;
+            step.ErrorJson = null;
+        }
+
+        if (steps.Count > 0)
+        {
+            await TouchPlanAsync(context, executionId, recoveredAt, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        return steps.Count;
+    }
+
+    public async Task<WorkflowStepCheckpoint> StartStepAsync(
+        Guid executionId,
+        string stepId,
+        DateTimeOffset startedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var step = await GetStepAsync(context, executionId, stepId, cancellationToken);
+        if (step.Status != WorkflowStepStatus.Pending)
+        {
+            throw new InvalidOperationException($"Step '{stepId}' cannot start from {step.Status}.");
+        }
+
+        step.Status = WorkflowStepStatus.Running;
+        step.Attempt = checked(step.Attempt + 1);
+        step.StartedAtUnixMilliseconds = startedAt.ToUnixTimeMilliseconds();
+        step.CompletedAtUnixMilliseconds = null;
+        step.ErrorJson = null;
+        await TouchPlanAsync(context, executionId, startedAt, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        return ToCheckpoint(step);
+    }
+
+    public async Task CompleteStepAsync(
+        Guid executionId,
+        string stepId,
+        JsonElement output,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var step = await GetRunningStepAsync(context, executionId, stepId, cancellationToken);
+        step.Status = WorkflowStepStatus.Succeeded;
+        step.OutputJson = output.GetRawText();
+        step.CompletedAtUnixMilliseconds = completedAt.ToUnixTimeMilliseconds();
+        step.ErrorJson = null;
+        await TouchPlanAsync(context, executionId, completedAt, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ResetStepForRetryAsync(
+        Guid executionId,
+        string stepId,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var step = await GetRunningStepAsync(context, executionId, stepId, cancellationToken);
+        step.Status = WorkflowStepStatus.Pending;
+        step.StartedAtUnixMilliseconds = null;
+        step.CompletedAtUnixMilliseconds = null;
+        step.ErrorJson = null;
+        await TouchPlanAsync(context, executionId, updatedAt, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task FailStepAsync(
+        Guid executionId,
+        string stepId,
+        WorkflowStepStatus status,
+        Problem problem,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken)
+    {
+        if (status is not (WorkflowStepStatus.Failed or WorkflowStepStatus.Cancelled or WorkflowStepStatus.TimedOut))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status), status, "A failed step requires a terminal failure status.");
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var step = await GetStepAsync(context, executionId, stepId, cancellationToken);
+        if (step.Status == WorkflowStepStatus.Succeeded)
+        {
+            return;
+        }
+
+        if (step.Status != WorkflowStepStatus.Running && status != WorkflowStepStatus.Cancelled)
+        {
+            throw new InvalidOperationException($"Step '{stepId}' cannot fail from {step.Status}.");
+        }
+
+        step.Status = status;
+        step.CompletedAtUnixMilliseconds = completedAt.ToUnixTimeMilliseconds();
+        step.ErrorJson = JsonSerializer.Serialize(problem, JsonOptions);
+        await TouchPlanAsync(context, executionId, completedAt, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task CancelIncompleteStepsAsync(
+        Guid executionId,
+        Problem problem,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var steps = await context.WorkflowSteps
+            .Where(step =>
+                step.ExecutionId == executionId &&
+                (step.Status == WorkflowStepStatus.Pending || step.Status == WorkflowStepStatus.Running))
+            .ToListAsync(cancellationToken);
+        var errorJson = JsonSerializer.Serialize(problem, JsonOptions);
+        foreach (var step in steps)
+        {
+            step.Status = WorkflowStepStatus.Cancelled;
+            step.CompletedAtUnixMilliseconds = completedAt.ToUnixTimeMilliseconds();
+            step.ErrorJson = errorJson;
+        }
+
+        if (steps.Count > 0)
+        {
+            await TouchPlanAsync(context, executionId, completedAt, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static async Task<WorkflowCheckpoint> LoadAsync(
+        IRouteDbContext context,
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        var plan = await context.WorkflowPlans
+            .AsNoTracking()
+            .SingleAsync(item => item.ExecutionId == executionId, cancellationToken);
+        var steps = await context.WorkflowSteps
+            .AsNoTracking()
+            .Where(step => step.ExecutionId == executionId)
+            .OrderBy(step => step.StepId)
+            .ToListAsync(cancellationToken);
+        return new WorkflowCheckpoint(
+            executionId,
+            JsonSerializer.Deserialize<TaskRequest>(plan.RequestJson, JsonOptions)
+                ?? throw new InvalidOperationException("The workflow request checkpoint is invalid."),
+            JsonSerializer.Deserialize<ExecutionPlan>(plan.PlanJson, JsonOptions)
+                ?? throw new InvalidOperationException("The workflow plan checkpoint is invalid."),
+            DateTimeOffset.FromUnixTimeMilliseconds(plan.CreatedAtUnixMilliseconds),
+            DateTimeOffset.FromUnixTimeMilliseconds(plan.UpdatedAtUnixMilliseconds),
+            steps.Select(ToCheckpoint).ToArray());
+    }
+
+    private static WorkflowStepCheckpoint ToCheckpoint(WorkflowStepEntity step) => new(
+        step.ExecutionId,
+        step.StepId,
+        step.Status,
+        step.Attempt,
+        step.StartedAtUnixMilliseconds is { } startedAt
+            ? DateTimeOffset.FromUnixTimeMilliseconds(startedAt)
+            : null,
+        step.CompletedAtUnixMilliseconds is { } completedAt
+            ? DateTimeOffset.FromUnixTimeMilliseconds(completedAt)
+            : null,
+        step.OutputJson is null ? null : JsonSerializer.Deserialize<JsonElement>(step.OutputJson, JsonOptions),
+        step.ErrorJson is null ? null : JsonSerializer.Deserialize<Problem>(step.ErrorJson, JsonOptions));
+
+    private static Task<WorkflowStepEntity> GetStepAsync(
+        IRouteDbContext context,
+        Guid executionId,
+        string stepId,
+        CancellationToken cancellationToken) =>
+        context.WorkflowSteps.SingleAsync(
+            step => step.ExecutionId == executionId && step.StepId == stepId,
+            cancellationToken);
+
+    private static async Task<WorkflowStepEntity> GetRunningStepAsync(
+        IRouteDbContext context,
+        Guid executionId,
+        string stepId,
+        CancellationToken cancellationToken)
+    {
+        var step = await GetStepAsync(context, executionId, stepId, cancellationToken);
+        if (step.Status != WorkflowStepStatus.Running)
+        {
+            throw new InvalidOperationException($"Step '{stepId}' is not running.");
+        }
+
+        return step;
+    }
+
+    private static async Task TouchPlanAsync(
+        IRouteDbContext context,
+        Guid executionId,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        var plan = await context.WorkflowPlans.SingleAsync(
+            item => item.ExecutionId == executionId,
+            cancellationToken);
+        plan.UpdatedAtUnixMilliseconds = updatedAt.ToUnixTimeMilliseconds();
+    }
+}
+
+public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFactory) : IArtifactStore
+{
+    public async Task<ArtifactRecord?> FindReusableAsync(
+        ArtifactReuseQuery query,
+        CancellationToken cancellationToken)
+    {
+        var projectId = query.ProjectId ?? string.Empty;
+        var now = query.At.ToUnixTimeMilliseconds();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Artifacts
+            .AsNoTracking()
+            .Where(x =>
+                x.TenantId == query.TenantId &&
+                x.ProjectId == projectId &&
+                x.TaskType == query.TaskType &&
+                x.TaskDefinitionVersion == query.TaskDefinitionVersion &&
+                x.InputHash == query.InputHash &&
+                x.IsActive &&
+                (x.ExpiresAtUnixMilliseconds == null || x.ExpiresAtUnixMilliseconds > now))
+            .OrderByDescending(x => x.Version)
+            .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : PersistenceMapping.ToContract(entity);
+    }
+
+    public async Task<ArtifactRecord?> GetAsync(Guid artifactId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Artifacts
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.ArtifactId == artifactId, cancellationToken);
+        return entity is null ? null : PersistenceMapping.ToContract(entity);
+    }
+
+    public async Task<ArtifactRecord> SaveAsync(
+        ArtifactRecord artifact,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var projectId = artifact.ProjectId ?? string.Empty;
+        var existing = await context.Artifacts
+            .Where(x =>
+                x.TenantId == artifact.TenantId &&
+                x.ProjectId == projectId &&
+                x.TaskType == artifact.TaskType &&
+                x.TaskDefinitionVersion == artifact.TaskDefinitionVersion &&
+                x.InputHash == artifact.InputHash &&
+                x.IsActive)
+            .OrderByDescending(x => x.Version)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (existing is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return PersistenceMapping.ToContract(existing);
+        }
+
+        var latestVersion = await context.Artifacts
+            .Where(x =>
+                x.TenantId == artifact.TenantId &&
+                x.ProjectId == projectId &&
+                x.ArtifactType == artifact.ArtifactType)
+            .MaxAsync(x => (int?)x.Version, cancellationToken) ?? 0;
+        var versioned = artifact with { Version = checked(latestVersion + 1) };
+        context.Artifacts.Add(PersistenceMapping.ToEntity(versioned));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return versioned;
+    }
+}
+
+public sealed class PersistenceInitializer(
+    IDbContextFactory<IRouteDbContext> contextFactory,
+    IOptions<StorageOptions> storageOptions) : IHostedService
+{
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (!storageOptions.Value.AutoInitialize)
+        {
+            return;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await context.Database.MigrateAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+public sealed class DurableStorageHealthCheck(
+    IDbContextFactory<IRouteDbContext> contextFactory) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var database = await contextFactory.CreateDbContextAsync(cancellationToken);
+            return await database.Database.CanConnectAsync(cancellationToken)
+                ? HealthCheckResult.Healthy("The durable store is reachable.")
+                : HealthCheckResult.Unhealthy("The durable store is not reachable.");
+        }
+        catch (Exception exception)
+        {
+            return HealthCheckResult.Unhealthy("The durable store health check failed.", exception);
+        }
+    }
+}
+
+internal static class PersistenceMapping
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public static ExecutionEntity ToEntity(ExecutionSnapshot snapshot, string? idempotencyKey) => new()
+    {
+        ExecutionId = snapshot.ExecutionId,
+        TenantId = snapshot.TenantId,
+        ActorId = snapshot.ActorId,
+        ProjectId = snapshot.ProjectId,
+        TaskType = snapshot.TaskType,
+        TaskDefinitionVersion = snapshot.TaskDefinitionVersion,
+        Status = snapshot.Status,
+        CreatedAtUnixMilliseconds = snapshot.CreatedAt.ToUnixTimeMilliseconds(),
+        UpdatedAtUnixMilliseconds = snapshot.UpdatedAt.ToUnixTimeMilliseconds(),
+        CancellationRequestedAtUnixMilliseconds = snapshot.CancellationRequestedAt?.ToUnixTimeMilliseconds(),
+        IdempotencyKey = idempotencyKey,
+        OutcomeJson = Serialize(snapshot.Outcome),
+        ErrorJson = Serialize(snapshot.Error)
+    };
+
+    public static void Apply(ExecutionSnapshot snapshot, ExecutionEntity entity)
+    {
+        entity.TenantId = snapshot.TenantId;
+        entity.ActorId = snapshot.ActorId;
+        entity.ProjectId = snapshot.ProjectId;
+        entity.TaskType = snapshot.TaskType;
+        entity.TaskDefinitionVersion = snapshot.TaskDefinitionVersion;
+        entity.Status = snapshot.Status;
+        entity.UpdatedAtUnixMilliseconds = snapshot.UpdatedAt.ToUnixTimeMilliseconds();
+        entity.CancellationRequestedAtUnixMilliseconds = snapshot.CancellationRequestedAt?.ToUnixTimeMilliseconds();
+        entity.OutcomeJson = Serialize(snapshot.Outcome);
+        entity.ErrorJson = Serialize(snapshot.Error);
+    }
+
+    public static ExecutionSnapshot ToContract(ExecutionEntity entity) => new(
+        entity.ExecutionId,
+        entity.TaskType,
+        entity.Status,
+        DateTimeOffset.FromUnixTimeMilliseconds(entity.CreatedAtUnixMilliseconds),
+        DateTimeOffset.FromUnixTimeMilliseconds(entity.UpdatedAtUnixMilliseconds),
+        Deserialize<TaskOutcome>(entity.OutcomeJson),
+        Deserialize<Problem>(entity.ErrorJson),
+        entity.TenantId,
+        entity.ActorId,
+        entity.ProjectId,
+        entity.TaskDefinitionVersion,
+        entity.CancellationRequestedAtUnixMilliseconds is { } cancellationRequestedAt
+            ? DateTimeOffset.FromUnixTimeMilliseconds(cancellationRequestedAt)
+            : null);
+
+    public static ExecutionEventEntity ToEntity(ExecutionEvent executionEvent) => new()
+    {
+        ExecutionId = executionEvent.ExecutionId,
+        Sequence = executionEvent.Sequence,
+        EventType = executionEvent.Type,
+        OccurredAtUnixMilliseconds = executionEvent.OccurredAt.ToUnixTimeMilliseconds(),
+        DataJson = executionEvent.Data.GetRawText()
+    };
+
+    public static ExecutionEvent ToContract(ExecutionEventEntity entity) => new(
+        entity.Sequence,
+        entity.ExecutionId,
+        entity.EventType,
+        DateTimeOffset.FromUnixTimeMilliseconds(entity.OccurredAtUnixMilliseconds),
+        JsonSerializer.Deserialize<JsonElement>(entity.DataJson, JsonOptions));
+
+    public static ArtifactEntity ToEntity(ArtifactRecord artifact) => new()
+    {
+        ArtifactId = artifact.ArtifactId,
+        TenantId = artifact.TenantId,
+        ProjectId = artifact.ProjectId ?? string.Empty,
+        TaskType = artifact.TaskType,
+        TaskDefinitionVersion = artifact.TaskDefinitionVersion,
+        ArtifactType = artifact.ArtifactType,
+        Version = artifact.Version,
+        InputHash = artifact.InputHash,
+        ContentHash = artifact.ContentHash,
+        ContentJson = artifact.Content.GetRawText(),
+        EvidenceJson = JsonSerializer.Serialize(artifact.Evidence, JsonOptions),
+        CreatedAtUnixMilliseconds = artifact.CreatedAt.ToUnixTimeMilliseconds(),
+        ExpiresAtUnixMilliseconds = artifact.ExpiresAt?.ToUnixTimeMilliseconds(),
+        IsActive = artifact.IsActive
+    };
+
+    public static ArtifactRecord ToContract(ArtifactEntity entity) => new(
+        entity.ArtifactId,
+        entity.TenantId,
+        string.IsNullOrEmpty(entity.ProjectId) ? null : entity.ProjectId,
+        entity.TaskType,
+        entity.TaskDefinitionVersion,
+        entity.ArtifactType,
+        entity.Version,
+        entity.InputHash,
+        entity.ContentHash,
+        JsonSerializer.Deserialize<JsonElement>(entity.ContentJson, JsonOptions),
+        JsonSerializer.Deserialize<EvidenceReference[]>(entity.EvidenceJson, JsonOptions) ?? [],
+        DateTimeOffset.FromUnixTimeMilliseconds(entity.CreatedAtUnixMilliseconds),
+        entity.ExpiresAtUnixMilliseconds is { } expiresAt
+            ? DateTimeOffset.FromUnixTimeMilliseconds(expiresAt)
+            : null,
+        entity.IsActive);
+
+    private static string? Serialize<T>(T? value) where T : class =>
+        value is null ? null : JsonSerializer.Serialize(value, JsonOptions);
+
+    private static T? Deserialize<T>(string? value) where T : class =>
+        value is null ? null : JsonSerializer.Deserialize<T>(value, JsonOptions);
+}
