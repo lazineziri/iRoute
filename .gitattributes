@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Preserve Windows scripts when they are introduced.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Office documents are binary reference artifacts.
+*.docx binary

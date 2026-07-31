@@ -1,0 +1,84 @@
+# Operating-system and editor metadata
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*~
+
+# .NET build, test, package, and profiling output
+**/[Bb]in/
+**/[Oo]bj/
+artifacts/
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+*.trx
+*.nupkg
+*.snupkg
+*.pdb
+*.binlog
+BenchmarkDotNet.Artifacts/
+
+# Local runtime databases and journals
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+
+# Local configuration, credentials, and signing material
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Node.js and generated SDK output
+node_modules/
+dist/
+*.tsbuildinfo
+.npm/
+.pnpm-store/
+.yarn/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+build/
+*.egg-info/
+
+# Java, Rust, and PHP
+.gradle/
+target/
+vendor/
+
+# Logs, temporary files, and local tooling output
+*.log
+*.tmp
+*.temp
+.cache/
+.codex-review/
+
+# Local source brief (the canonical specification is maintained in Markdown)
+/Task-Aware-LLM-Router-Project-Definition.docx
+/docs/reference/Task-Aware-LLM-Router-Project-Definition.docx
