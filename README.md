@@ -1,0 +1,102 @@
+# iRoute
+
+iRoute is an open-source, task-aware AI execution runtime. It resolves work from trusted state first, sends only unresolved work to capabilities or models, validates the result, and materializes reusable project artifacts with evidence and cost metadata.
+
+## Current milestone
+
+Formal backlog status: **M0 is complete and W03 is complete**. See [the workstream status](docs/workstream-status.md). M1 continues with W04; some later vertical-slice components already exist, but they do not change the formal dependency sequence.
+
+The first end-to-end P0 slice is operational for `email.draft`:
+
+- synchronous task execution through ASP.NET Core
+- tenant-scoped idempotency and artifact reuse
+- bounded context compilation with a context manifest
+- deterministic development gateway or configurable HTTP model gateway
+- fail-closed output and quality validation
+- durable SQLite and PostgreSQL stores for executions, ordered events, and artifacts
+- cancellation requests, deadlines, health checks, and SSE event replay
+- bounded dependency scheduling with durable per-step checkpoints and restart-safe resume
+- optional JWT authentication with claim-derived tenant and actor identity
+- versioned schema migration shared by SQLite and PostgreSQL
+- working .NET and Node.js clients
+
+This is a development milestone, not a production release. Durable worker leasing, approval resumption, granular authorization, and real connector execution are still ahead.
+
+## Quick start
+
+Prerequisite: .NET SDK `10.0.100` or newer on the .NET 10 line. The repository is currently verified with SDK `10.0.102`.
+
+```bash
+dotnet restore iRoute.slnx
+dotnet build iRoute.slnx --no-restore
+dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
+```
+
+The default developer profile creates `iroute.db` and uses the deterministic gateway, so it needs no provider credential. In another terminal:
+
+```bash
+curl --request POST http://localhost:8080/v1/executions \
+  --header 'Content-Type: application/json' \
+  --header 'X-Tenant-Id: demo' \
+  --header 'X-Actor-Id: founder' \
+  --header 'Idempotency-Key: email-draft-001' \
+  --data @examples/email-draft.json
+```
+
+The first request returns a validated `StrongModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
+
+Useful endpoints:
+
+- `GET /v1/executions/{executionId}`
+- `GET /v1/executions/{executionId}/events?after=0`
+- `POST /v1/executions/{executionId}/cancel`
+- `GET /v1/artifacts/{artifactId}`
+- `GET /health/live`, `GET /health/ready`, and `GET /openapi/v1.json`
+
+## Verification
+
+```bash
+dotnet run --project tests/iRoute.UnitTests --no-build -- -reporter quiet
+dotnet run --project tests/iRoute.ArchitectureTests --no-build -- -reporter quiet
+npm run test:contracts
+npm --prefix sdks/node run check
+```
+
+With the API running, execute the initial behavioral evaluation fixture:
+
+```bash
+node tools/run-evaluation.mjs
+```
+
+To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. The gateway request/result schemas are under `spec/schemas`.
+
+## Configuration
+
+Use environment variables or standard ASP.NET Core configuration.
+
+| Setting | Purpose | Default |
+|---|---|---|
+| `Storage__Provider` | `Memory`, `Sqlite`, or `Postgres` | `Sqlite` |
+| `Storage__AutoInitialize` | Create the prototype schema at startup | `true` |
+| `ConnectionStrings__iRoute` | Durable database connection | `Data Source=iroute.db` |
+| `ModelGateway__Mode` | `Deterministic` or `Http` | `Deterministic` |
+| `ModelGateway__BaseUrl` | Generic HTTP gateway base URL | unset |
+| `ModelGateway__ApiKey` | Generic HTTP gateway bearer credential | unset |
+| `Workflow__QueueCapacity` | Maximum queued ready steps per scheduling round | `16` |
+| `Workflow__MaxParallelSteps` | Runtime ceiling on parallel steps per execution | `4` |
+| `Identity__Mode` | `DevelopmentHeaders` or `Jwt` | `DevelopmentHeaders` |
+| `Identity__Authority` | OpenID Connect/JWT issuer | required in JWT mode |
+| `Identity__Audience` | Expected JWT audience | required in JWT mode |
+| `Identity__TenantClaim` | Claim containing tenant identity | `tenant_id` |
+| `Identity__ActorClaim` | Claim containing actor identity | `sub` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Opt-in telemetry export | unset |
+
+Use the deterministic gateway only for local development and repeatable tests. The HTTP mode expects `POST {BaseUrl}/v1/execute` using the provider-neutral gateway contract.
+
+`DevelopmentHeaders` trusts `X-Tenant-Id` and `X-Actor-Id` and must not be exposed as an internet-facing production configuration. JWT mode requires an authenticated token with the configured tenant claim; request headers cannot override it.
+
+## Architecture and source of truth
+
+The dependency rule is `Contracts <- Core <- Runtime <- Infrastructure <- Hosts`; SDKs depend only on the public protocol. See [the architecture guide](docs/architecture.md), [operations guide](docs/operations.md), [contract versioning rules](docs/contract-versioning.md), [SSE event contract](spec/events/sse-v1.md), [error taxonomy](spec/errors/error-taxonomy.v1.md), and [canonical product/engineering specification](docs/iRoute-Product-Engineering-Specification.md).
+
+Public language-neutral contracts live in [OpenAPI](spec/openapi/iroute.v1.yaml) and [JSON Schema](spec/schemas). The [documentation map](docs/README.md) links the canonical Markdown sources. iRoute Core, contracts, official SDKs, and self-hosting remain Apache 2.0.

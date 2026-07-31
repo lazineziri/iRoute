@@ -1,0 +1,37 @@
+# Operations baseline
+
+## Health
+
+- `/health/live` reports process liveness without probing dependencies.
+- `/health/ready` probes the configured durable database when SQLite or PostgreSQL is active.
+- The model gateway is intentionally not a readiness dependency; an unavailable optional capability should fail its execution, not remove the API from service.
+
+## Storage profiles
+
+The local API defaults to SQLite at `Data Source=iroute.db`. The Compose profile uses PostgreSQL. `Storage:AutoInitialize=true` applies checked-in migrations at startup. Disable automatic initialization where migrations are run as a separate deployment job. Every future migration requires upgrade, rollback, and mixed-version tests.
+
+Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. A restart resets only interrupted `Running` steps to `Pending`; completed step outputs remain authoritative inputs for downstream steps.
+
+## Scheduler bounds
+
+`Workflow:QueueCapacity` bounds ready steps waiting inside one scheduling round. `Workflow:MaxParallelSteps` is the runtime-wide ceiling applied in addition to the lower per-plan parallel-call budget. Queue writers wait when capacity is full, so load produces backpressure rather than unbounded in-memory growth.
+
+## Identity
+
+`Identity:Mode=DevelopmentHeaders` is intended only for local development. Internet-facing deployments must use `Jwt`, configure an HTTPS authority and audience, and issue tokens containing the configured tenant and actor claims. Tenant claims are enforced before execution or artifact access; finer-grained task/capability authorization remains a subsequent milestone.
+
+## Scaling
+
+The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. Cross-replica leasing, renewal, automatic recovery scans, and distributed cancellation remain required before horizontal execution scaling.
+
+## Telemetry
+
+ASP.NET Core, HTTP client, and runtime metrics/traces are instrumented. Export is disabled unless `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Request and artifact payloads are not intentionally added to telemetry.
+
+## Backup and recovery
+
+Production requires PostgreSQL point-in-time recovery, object-store versioning when object storage is introduced, restoration drills, and documented recovery objectives. A backup is not accepted until a restore has been tested.
+
+## Upgrade and privacy
+
+Schema changes must use expand-and-contract migrations. API and worker versions must overlap during rolling upgrades. Retention, deletion, and export must remain tenant-scoped and eventually cover indexes, artifacts, memory, and evaluation samples.
