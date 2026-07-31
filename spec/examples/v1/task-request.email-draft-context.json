@@ -1,0 +1,21 @@
+{
+  "taskType": "email.draft",
+  "projectId": "iroute-project",
+  "input": {
+    "recipient": { "name": "Ada" },
+    "objective": "Draft an evidence-backed project update.",
+    "activeDecisions": [
+      { "key": "architecture", "value": "Use PostgreSQL for durable deployments." }
+    ],
+    "contextArtifacts": [
+      {
+        "artifactId": "0198f6b4-6f3c-7de1-86e8-5d223ab25451",
+        "sections": ["subject"]
+      }
+    ]
+  },
+  "constraints": {
+    "maxInputTokens": 4000,
+    "requireEvidence": true
+  }
+}

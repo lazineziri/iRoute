@@ -27,6 +27,7 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `external_action_in_progress` | execution | yes | A prior action reservation is indeterminate and requires reconciliation. |
 | `external_action_failed` | execution | no | The external capability failed after its durable reservation was acquired. |
 | `model_budget_exhausted` | execution | no | Generation is required but the model-call budget is zero. |
+| `context_budget_exceeded` | execution | no | The projected task input cannot fit inside the task input-token budget. |
 | `cost_budget_exceeded` | execution | no | Reported cost exceeded the request ceiling. |
 | `model_call_budget_exceeded` | execution | no | Reported model calls exceeded the request ceiling. |
 | `model_gateway_unavailable` | execution | yes | The configured gateway could not be reached. |

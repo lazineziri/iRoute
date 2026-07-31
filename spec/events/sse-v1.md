@@ -57,3 +57,7 @@ The JSON Schema and OpenAPI component are authoritative when this prose and a ma
 ## Resolution consideration data
 
 Every `resolution.considered` event contains `resolver`, `accepted`, `code`, `reason`, `permissionChecked`, `freshnessChecked`, `checks`, and nullable `level`. The exact-cache, fact/decision, artifact, and deterministic-handler resolvers emit one decision each until a candidate is accepted. Reasons describe checks and misses without including state or output payloads. The standalone `resolution-consideration.schema.json` contract is authoritative for this event data shape.
+
+## Context compilation data
+
+Every `context.compiled` event contains `estimatedTokens`, `budgetTokens`, `projectedInputTokens`, `contextTokens`, `truncated`, `fullHistoryIncluded`, `entries`, `included`, and `provenance`. These are counts and policy results only; source values and artifact content remain in the bounded model request and never enter the event stream. The outcome's `ContextManifest` contains the detailed inclusion/exclusion decisions and provenance map.

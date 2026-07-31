@@ -94,13 +94,19 @@ export interface ContextManifestEntry {
   reason: string;
   estimatedTokens: number;
   contentHash?: string | null;
+  rank: number;
+  outputPath: string | null;
 }
 
 export interface ContextManifest {
   estimatedTokens: number;
   budgetTokens: number;
+  projectedInputTokens: number;
+  contextTokens: number;
   truncated: boolean;
+  fullHistoryIncluded: boolean;
   entries: readonly ContextManifestEntry[];
+  provenance: Readonly<Record<string, EvidenceReference>>;
 }
 
 export interface TaskOutcome {

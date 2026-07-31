@@ -67,69 +67,6 @@ public sealed class Sha256InputFingerprint : IInputFingerprint
     }
 }
 
-public sealed class BoundedContextCompiler : IContextCompiler
-{
-    private static readonly string[] ContextProperties =
-        ["activeDecisions", "projectHistory", "authoritativeSources", "preferences", "context"];
-
-    public Task<CompiledContext> CompileAsync(
-        TaskRequest request,
-        TaskDefinition definition,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var budget = request.Constraints?.MaxInputTokens ?? definition.DefaultMaxInputTokens;
-        var entries = new List<ContextManifestEntry>();
-        var evidence = new List<EvidenceReference>();
-        var selected = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        var usedTokens = 0;
-        var truncated = false;
-
-        if (request.Input.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var propertyName in ContextProperties)
-            {
-                if (!request.Input.TryGetProperty(propertyName, out var value))
-                {
-                    continue;
-                }
-
-                var estimatedTokens = TokenEstimator.Estimate(value);
-                var reference = $"input.{propertyName}";
-                var contentHash = CanonicalJson.Hash(value);
-                if (usedTokens + estimatedTokens <= budget)
-                {
-                    selected[propertyName] = value.Clone();
-                    usedTokens += estimatedTokens;
-                    entries.Add(new ContextManifestEntry(
-                        "request",
-                        reference,
-                        true,
-                        "Selected by the task context policy.",
-                        estimatedTokens,
-                        contentHash));
-                    evidence.Add(new EvidenceReference("request", reference, contentHash));
-                }
-                else
-                {
-                    truncated = true;
-                    entries.Add(new ContextManifestEntry(
-                        "request",
-                        reference,
-                        false,
-                        "Excluded because the context budget was reached.",
-                        estimatedTokens,
-                        contentHash));
-                }
-            }
-        }
-
-        var content = JsonSerializer.SerializeToElement(selected);
-        var manifest = new ContextManifest(usedTokens, budget, truncated, entries);
-        return Task.FromResult(new CompiledContext(content, manifest, evidence));
-    }
-}
-
 public sealed class EmailDraftOutcomeValidator : ITaskOutcomeValidator
 {
     public bool Supports(string taskType) => string.Equals(taskType, "email.draft", StringComparison.OrdinalIgnoreCase);

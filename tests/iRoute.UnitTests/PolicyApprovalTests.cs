@@ -375,7 +375,7 @@ public sealed class PolicyApprovalTests
                 new WorkflowSchedulerOptions()),
             new DeterministicModelGateway(),
             executor,
-            new BoundedContextCompiler(),
+            new BoundedContextCompiler(memories, artifacts, clock),
             [
                 new EmailDraftOutcomeValidator(),
                 new EmailSendOutcomeValidator(),

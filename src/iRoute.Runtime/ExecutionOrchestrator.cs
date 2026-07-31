@@ -170,7 +170,15 @@ public sealed class ExecutionOrchestrator(
                         candidate.Usage ?? new UsageSummary(),
                         candidate.Artifact is null ? [] : [candidate.Artifact],
                         reusedValidation,
-                        new ContextManifest(0, 0, false, []));
+                        new ContextManifest(
+                            0,
+                            0,
+                            0,
+                            0,
+                            false,
+                            false,
+                            [],
+                            new Dictionary<string, EvidenceReference>(StringComparer.Ordinal)));
                     return await FinishAsync(snapshot, reusedOutcome, executionToken);
                 }
             }
@@ -257,6 +265,14 @@ public sealed class ExecutionOrchestrator(
                 timedOut
                     ? new Problem(ErrorCodes.ExecutionTimedOut, "Execution timed out", "The execution exceeded its deadline.", true)
                     : new Problem(ErrorCodes.ExecutionCancelled, "Execution cancelled", "The execution was cancelled."),
+                CancellationToken.None);
+        }
+        catch (ContextCompilationException exception)
+        {
+            return await TerminalAsync(
+                snapshot,
+                ExecutionStatus.Failed,
+                new Problem(exception.Code, exception.Title, exception.Message),
                 CancellationToken.None);
         }
         catch (TaskExecutionException exception)
@@ -553,10 +569,15 @@ public sealed class ExecutionOrchestrator(
             ExecutionEventTypes.ContextCompiled,
             new
             {
-                context.Manifest.EstimatedTokens,
-                context.Manifest.BudgetTokens,
-                context.Manifest.Truncated,
-                entries = context.Manifest.Entries.Count
+                estimatedTokens = context.Manifest.EstimatedTokens,
+                budgetTokens = context.Manifest.BudgetTokens,
+                projectedInputTokens = context.Manifest.ProjectedInputTokens,
+                contextTokens = context.Manifest.ContextTokens,
+                truncated = context.Manifest.Truncated,
+                fullHistoryIncluded = context.Manifest.FullHistoryIncluded,
+                entries = context.Manifest.Entries.Count,
+                included = context.Manifest.Entries.Count(entry => entry.Included),
+                provenance = context.Manifest.Provenance.Count
             },
             cancellationToken);
 
@@ -737,7 +758,7 @@ public sealed class ExecutionOrchestrator(
         var result = await modelGateway.ExecuteAsync(
             new ModelGatewayRequest(
                 step.Capability,
-                request.Input,
+                context.ProjectedInput,
                 context.Content,
                 request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
                 executionId.ToString()),
@@ -1004,6 +1025,9 @@ public sealed class ExecutionOrchestrator(
             TaskExecutionException task => (
                 ExecutionStatus.Failed,
                 new Problem(task.Code, task.Title, task.Message, task.Retryable)),
+            ContextCompilationException context => (
+                ExecutionStatus.Failed,
+                new Problem(context.Code, context.Title, context.Message)),
             ExternalActionExecutionException action => (
                 ExecutionStatus.Failed,
                 new Problem(action.Code, action.Title, action.Message, action.Retryable)),
@@ -1219,7 +1243,19 @@ public sealed class ExecutionOrchestrator(
     private static CompiledContext EmptyCompiledContext()
     {
         var content = JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
-        return new CompiledContext(content, new ContextManifest(0, 0, false, []), []);
+        return new CompiledContext(
+            content,
+            new ContextManifest(
+                0,
+                0,
+                0,
+                0,
+                false,
+                false,
+                [],
+                new Dictionary<string, EvidenceReference>(StringComparer.Ordinal)),
+            [],
+            content);
     }
 
     private static void EnsureModelBudgetAllows(TaskRequest request, ExecutionPlan plan)

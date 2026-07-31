@@ -99,4 +99,24 @@ Acceptance evidence:
 - Resolver tests cover stale state, wrong-tenant state, stale artifacts, wrong-project artifacts, exact-cache logical-key isolation, deterministic-handler permission/capability/freshness gates, and evidence propagation.
 - The PostgreSQL evaluation exercises accepted and rejected resolver decisions, zero-generation decision retrieval, and explicit artifact retrieval.
 
-## Next: W07 — Context compiler
+### W07 — Context compiler: complete
+
+Deliverables:
+
+- Deterministic source ranking across current decisions/facts, active project memory, authoritative request sources, explicit artifact sections, preferences, recent events, summaries, and bounded raw history.
+- Tenant/project-scoped active-memory retrieval for both in-memory and Entity Framework stores, with lifecycle and expiry filtering at the persistence boundary.
+- Explicit `contextArtifacts` retrieval by tenant-scoped artifact ID plus requested top-level section projection; unrelated artifact fields never enter model context.
+- Logical-key supersession filtering, canonical-content deduplication, relevance ordering, and a maximum of three eligible raw-history items.
+- Model-input projection that strips raw context-source fields, plus token admission based on projected task input and the complete serialized context after every insertion, guaranteeing `estimatedTokens <= budgetTokens`.
+- Context manifests with source rank, inclusion/exclusion reason, exact output JSON path, `fullHistoryIncluded`, and an output-path-to-`EvidenceReference` provenance map.
+- Versioned JSON Schema, OpenAPI, Node SDK, examples, event payload, operational guidance, and PostgreSQL evaluation coverage.
+
+Acceptance evidence:
+
+- Unit tests prove current request decisions supersede stored versions, exact duplicate content is removed, raw history is capped, and every included entry has a non-empty source reference.
+- Artifact tests prove only explicitly requested sections from fresh, same-project artifacts are included and cross-project artifacts are rejected.
+- Budget tests prove projected task input plus serialized context stays within a constrained task budget, reports every candidate exclusion, and fails closed before generation when essential task input cannot fit.
+- The SQLite restart test proves active project memory remains available to the compiler after runtime reconstruction.
+- The PostgreSQL evaluation verifies bounded history, deduplication, artifact slicing, provenance completeness, token bounds, and the `context.compiled` event.
+
+## Next: W08 — Routing and planning

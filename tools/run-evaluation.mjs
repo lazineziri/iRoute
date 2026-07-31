@@ -297,9 +297,83 @@ try {
     true
   );
   console.log('PASS w06-no-model-resolution');
+
+  const compiled = await execute({
+    taskType: 'email.draft',
+    projectId,
+    input: {
+      recipient: { name: 'Ada' },
+      projectName: 'iRoute',
+      objective: `Validate bounded W07 context ${evaluationRunId}.`,
+      activeDecisions: [
+        { key: 'architecture', value: 'Compile only evidence-backed project context.' },
+        { key: 'duplicate', value: 'The signed specification is authoritative.' }
+      ],
+      authoritativeSources: [
+        { reference: 'spec:w07', value: 'The signed specification is authoritative.' },
+        { reference: 'adr:context', value: 'Every included fact needs provenance.' }
+      ],
+      contextArtifacts: [
+        { artifactId: secondArtifact.artifactId, sections: ['subject'] }
+      ],
+      projectHistory: Array.from(
+        { length: 8 },
+        (_, index) => `Historical project event ${index} for W07 evaluation.`
+      )
+    },
+    constraints: {
+      maxInputTokens: 240,
+      minimumQuality: 0.8,
+      requireEvidence: true,
+      maxModelCalls: 1
+    }
+  }, 'context-compiler');
+  assertEqual(compiled.status, 'Succeeded', 'W07 execution status');
+  assertEqual(compiled.outcome?.usage?.modelCalls, 1, 'W07 model calls');
+  const manifest = compiled.outcome?.context;
+  if (!manifest) throw new Error('W07 outcome omitted the context manifest');
+  if (manifest.estimatedTokens > manifest.budgetTokens) {
+    throw new Error('W07 compiled context exceeded its token budget');
+  }
+  assertEqual(manifest.budgetTokens, 240, 'W07 context budget');
+  assertEqual(
+    manifest.estimatedTokens,
+    manifest.projectedInputTokens + manifest.contextTokens,
+    'W07 context token accounting'
+  );
+  assertEqual(manifest.fullHistoryIncluded, false, 'W07 full-history flag');
+  const includedEntries = manifest.entries.filter(entry => entry.included);
+  if (includedEntries.length === 0) throw new Error('W07 context included no evidence');
+  for (const entry of includedEntries) {
+    if (!entry.outputPath) throw new Error(`W07 included entry ${entry.reference} omitted outputPath`);
+    if (!manifest.provenance?.[entry.outputPath]?.reference) {
+      throw new Error(`W07 included entry ${entry.reference} omitted provenance`);
+    }
+  }
+  if (!manifest.entries.some(entry =>
+    !entry.included && entry.reason.includes('exact duplicate')
+  )) throw new Error('W07 context did not report duplicate removal');
+  if (!manifest.entries.some(entry =>
+    !entry.included && entry.reason.includes('full history')
+  )) throw new Error('W07 context did not report bounded history');
+  if (!manifest.entries.some(entry =>
+    entry.included && entry.reference === `artifact:${secondArtifact.artifactId}#/subject`
+  )) throw new Error('W07 context omitted the requested artifact section');
+
+  const contextEventResponse = await fetch(
+    new URL(`/v1/executions/${compiled.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!contextEventResponse.ok) throw new Error(`W07 event replay returned HTTP ${contextEventResponse.status}`);
+  const contextEvent = parseSseEvents(await contextEventResponse.text())
+    .find(item => item.type === 'context.compiled');
+  if (!contextEvent) throw new Error('W07 event replay omitted context.compiled');
+  assertEqual(contextEvent.data?.fullHistoryIncluded, false, 'W07 event full-history flag');
+  if ((contextEvent.data?.provenance ?? 0) < 1) throw new Error('W07 event omitted provenance count');
+  console.log('PASS w07-context-compiler');
 } catch (error) {
   failed++;
-  console.error(`FAIL w05-w06-state-resolution: ${error.message}`);
+  console.error(`FAIL w05-w07-state-context: ${error.message}`);
 }
 
 if (failed > 0) process.exitCode = 1;

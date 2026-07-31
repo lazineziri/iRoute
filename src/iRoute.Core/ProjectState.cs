@@ -21,6 +21,11 @@ public sealed record MemoryLookup(
     string Key,
     DateTimeOffset At);
 
+public sealed record ActiveMemoryQuery(
+    string TenantId,
+    string? ProjectId,
+    DateTimeOffset At);
+
 public sealed record MemoryRecord(
     Guid MemoryId,
     string TenantId,
@@ -75,6 +80,10 @@ public interface IMemoryStore
 
     Task<MemoryRecord?> GetActiveAsync(
         MemoryLookup query,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MemoryRecord>> ListActiveAsync(
+        ActiveMemoryQuery query,
         CancellationToken cancellationToken);
 
     Task<MemoryRecord?> GetAsync(

@@ -72,6 +72,7 @@ public sealed class PublicContractTaxonomyTests
             "external_action_in_progress",
             "external_action_failed",
             "model_budget_exhausted",
+            "context_budget_exceeded",
             "cost_budget_exceeded",
             "model_call_budget_exceeded",
             "model_gateway_unavailable",

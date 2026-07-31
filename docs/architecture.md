@@ -79,6 +79,25 @@ flowchart LR
 
 Every resolver checks authenticated task permissions before reading state. Stored results additionally require matching tenant/project scope, current task version, active lifecycle, and freshness. Accepted candidates still pass the task-specific output validator. Each attempt emits a payload-free decision reason, making misses and reuse observable without disclosing artifact or memory content.
 
+W07 compiles unresolved work from bounded, ranked evidence rather than accumulated history:
+
+```mermaid
+flowchart LR
+    A["Current decisions and facts"] --> R["Rank and validate"]
+    B["Active project memory"] --> R
+    C["Authoritative sources"] --> R
+    D["Explicit artifact sections"] --> R
+    E["Preferences and recent state"] --> R
+    F["Raw project history"] -->|"maximum 3 candidates"| R
+    R --> S["Supersession filter"]
+    S --> U["Exact deduplication"]
+    U --> T["Serialized token-budget gate"]
+    T --> P["Minimal context package"]
+    T --> M["Manifest and provenance map"]
+```
+
+Current request state outranks stored memory for the same logical key. Active decisions outrank artifacts, preferences, summaries, and raw history. Stored candidates must match tenant/project scope and be active and unexpired; artifacts are retrieved only from explicit `contextArtifacts` references and projected to requested top-level sections. Context-source fields are removed from the model's task input and reintroduced only through the bounded package. Every included JSON path maps to an `EvidenceReference`, while excluded candidates retain a safe reason in the manifest. The compiler estimates projected task input plus the complete serialized context after each proposed insertion, so raw history and object/array framing cannot push the model request above its task budget.
+
 ## Code dependency topology
 
 ```mermaid

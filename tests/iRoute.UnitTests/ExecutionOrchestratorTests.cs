@@ -34,7 +34,14 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(ResolutionLevel.StrongModel, outcome.ResolutionLevel);
         Assert.Equal(1, outcome.Usage.ModelCalls);
         Assert.True(Assert.IsType<ValidationSummary>(outcome.Validation).Passed);
-        Assert.False(Assert.IsType<ContextManifest>(outcome.Context).Truncated);
+        var context = Assert.IsType<ContextManifest>(outcome.Context);
+        Assert.False(context.Truncated);
+        Assert.False(context.FullHistoryIncluded);
+        Assert.NotEmpty(context.Provenance);
+        Assert.Equal(context.EstimatedTokens, outcome.Usage.InputTokens);
+        Assert.All(
+            context.Entries.Where(entry => entry.Included),
+            entry => Assert.True(context.Provenance.ContainsKey(entry.OutputPath!)));
         var artifactReference = Assert.Single(outcome.Artifacts);
         var artifact = await artifacts.GetAsync(
             "tenant-a",
@@ -52,6 +59,15 @@ public sealed class ExecutionOrchestratorTests
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.StepStarted);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.StepCompleted);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.ContextCompiled);
+        var contextEvent = Assert.Single(events, x => x.Type == ExecutionEventTypes.ContextCompiled);
+        Assert.Equal(context.EstimatedTokens, contextEvent.Data.GetProperty("estimatedTokens").GetInt32());
+        Assert.Equal(context.BudgetTokens, contextEvent.Data.GetProperty("budgetTokens").GetInt32());
+        Assert.Equal(
+            context.ProjectedInputTokens,
+            contextEvent.Data.GetProperty("projectedInputTokens").GetInt32());
+        Assert.Equal(context.ContextTokens, contextEvent.Data.GetProperty("contextTokens").GetInt32());
+        Assert.False(contextEvent.Data.GetProperty("fullHistoryIncluded").GetBoolean());
+        Assert.Equal(context.Provenance.Count, contextEvent.Data.GetProperty("provenance").GetInt32());
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.ValidationCompleted);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.MemoryMaterialized);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.ArtifactMaterialized);
@@ -75,6 +91,67 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(
             Assert.Single(firstOutcome.Artifacts).ArtifactId,
             Assert.Single(secondOutcome.Artifacts).ArtifactId);
+    }
+
+    [Fact]
+    public async Task RawHistoryIsProjectedOutBeforeTheModelGateway()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var gateway = new CapturingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(store, artifacts, cancellations, gateway);
+        var request = CreateRequest("tenant-a", "bounded-history") with
+        {
+            Input = JsonSerializer.SerializeToElement(new
+            {
+                recipient = new { name = "Ada" },
+                projectName = "iRoute",
+                objective = "Share a bounded project update.",
+                tone = "professional",
+                activeDecisions = ActiveDecisions,
+                projectHistory = Enumerable.Range(0, 10)
+                    .Select(index => $"Raw historical event {index}.")
+                    .ToArray()
+            })
+        };
+
+        var result = await orchestrator.ExecuteAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var gatewayRequest = Assert.IsType<ModelGatewayRequest>(gateway.LastRequest);
+        Assert.False(gatewayRequest.Input.TryGetProperty("activeDecisions", out _));
+        Assert.False(gatewayRequest.Input.TryGetProperty("projectHistory", out _));
+        Assert.Equal(3, gatewayRequest.Context.GetProperty("projectHistory").GetArrayLength());
+        var manifest = Assert.IsType<ContextManifest>(Assert.IsType<TaskOutcome>(result.Outcome).Context);
+        Assert.False(manifest.FullHistoryIncluded);
+        Assert.True(manifest.Truncated);
+    }
+
+    [Fact]
+    public async Task OversizedEssentialInputFailsBeforeTheModelGateway()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var gateway = new CountingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(store, artifacts, cancellations, gateway);
+        var request = CreateRequest("tenant-a", "oversized-context-input") with
+        {
+            Input = JsonSerializer.SerializeToElement(new
+            {
+                recipient = new { name = "Ada" },
+                objective = new string('x', 1000),
+                activeDecisions = ActiveDecisions
+            }),
+            Constraints = new TaskConstraints(MaxInputTokens: 20, MaxModelCalls: 1)
+        };
+
+        var result = await orchestrator.ExecuteAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Failed, result.Status);
+        Assert.Equal(ErrorCodes.ContextBudgetExceeded, Assert.IsType<Problem>(result.Error).Code);
+        Assert.Equal(0, gateway.InvocationCount);
     }
 
     [Fact]
@@ -499,6 +576,24 @@ public sealed class ExecutionOrchestratorTests
             var decision = await restarted.ExecuteAsync(
                 CreateDecisionRequest("tenant-a", "persistent-decision", ["project:read"]),
                 TestContext.Current.CancellationToken);
+            var persistedContext = await new BoundedContextCompiler(
+                    new EfMemoryStore(factory),
+                    new EfArtifactStore(factory),
+                    new SystemClock())
+                .CompileAsync(
+                    new TaskRequest(
+                        "email.draft",
+                        JsonSerializer.SerializeToElement(new
+                        {
+                            objective = "Compile persisted project state after restart."
+                        }),
+                        ProjectId: "project-1",
+                        TenantId: "tenant-a"),
+                    await new BuiltInTaskDefinitionRegistry().FindAsync(
+                        "email.draft",
+                        TestContext.Current.CancellationToken)
+                    ?? throw new InvalidOperationException("The email draft definition is missing."),
+                    TestContext.Current.CancellationToken);
 
             Assert.Equal(ExecutionStatus.Succeeded, first.Status);
             Assert.Equal(ResolutionLevel.ExactArtifact, Assert.IsType<TaskOutcome>(second.Outcome).ResolutionLevel);
@@ -506,6 +601,10 @@ public sealed class ExecutionOrchestratorTests
                 ResolutionLevel.StructuredState,
                 Assert.IsType<TaskOutcome>(decision.Outcome).ResolutionLevel);
             Assert.Equal(0, Assert.IsType<TaskOutcome>(decision.Outcome).Usage.ModelCalls);
+            Assert.Contains(
+                persistedContext.Content.GetProperty("activeDecisions").EnumerateArray(),
+                item => item.GetString() == ActiveDecisions[0]);
+            Assert.NotEmpty(persistedContext.Manifest.Provenance);
             Assert.NotEmpty(await ReadEventsAsync(restartedStore, first.ExecutionId));
         }
         finally
@@ -559,7 +658,7 @@ public sealed class ExecutionOrchestratorTests
             scheduler,
             modelGateway ?? new DeterministicModelGateway(),
             externalActionExecutor ?? new DevelopmentExternalActionExecutor(),
-            new BoundedContextCompiler(),
+            new BoundedContextCompiler(memories, artifacts, clock),
             [new EmailDraftOutcomeValidator(), new DefaultTaskOutcomeValidator()],
             fingerprint,
             cancellations,
@@ -661,6 +760,21 @@ public sealed class ExecutionOrchestratorTests
             CancellationToken cancellationToken)
         {
             InvocationCount++;
+            return _inner.ExecuteAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class CapturingModelGateway : IModelGateway
+    {
+        private readonly DeterministicModelGateway _inner = new();
+
+        public ModelGatewayRequest? LastRequest { get; private set; }
+
+        public Task<ModelGatewayResult> ExecuteAsync(
+            ModelGatewayRequest request,
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
             return _inner.ExecuteAsync(request, cancellationToken);
         }
     }

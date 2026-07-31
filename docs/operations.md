@@ -24,6 +24,12 @@ The runtime checks resolvers in this order: `exact-cache`, `fact-decision`, `art
 
 Fact and decision tasks require `project:read`. Explicit artifacts must match the authenticated tenant and requested project as well as the current task definition and artifact type. Deterministic handlers are eligible only when their capability is allow-listed by the task definition. Semantic matching is disabled by default; operators must not introduce a shared embedding index without tenant isolation, freshness propagation, and evaluation-backed thresholds.
 
+## Context compilation audit
+
+`context.compiled` reports the task budget, final serialized token estimate, truncation state, full-history flag, entry count, included count, and provenance count. The corresponding outcome manifest records every included and excluded candidate with rank and reason. Included entries must have an `outputPath`, and that path must exist in `provenance` with a non-empty source reference.
+
+Raw `projectHistory` is removed from the model task input and never passed through wholesale. The compiler admits at most three recent relevant history candidates and can exclude fewer when higher-ranked evidence or the token budget is sufficient. `estimatedTokens` equals `projectedInputTokens + contextTokens`; if the projected task input cannot fit by itself, execution fails with `context_budget_exceeded` before the model gateway runs. Project memory queries must remain tenant/project scoped and active/fresh. Artifact context must be explicitly requested through `contextArtifacts`; never replace that allow-list with an unbounded project-artifact scan.
+
 ## Scheduler bounds
 
 `Workflow:QueueCapacity` bounds ready steps waiting inside one scheduling round. `Workflow:MaxParallelSteps` is the runtime-wide ceiling applied in addition to the lower per-plan parallel-call budget. Queue writers wait when capacity is full, so load produces backpressure rather than unbounded in-memory growth.

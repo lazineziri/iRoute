@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/context-manifest.schema.json",
+  "title": "ContextManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"],
+  "properties": {
+    "estimatedTokens": { "type": "integer", "minimum": 0 },
+    "budgetTokens": { "type": "integer", "minimum": 0 },
+    "projectedInputTokens": { "type": "integer", "minimum": 0 },
+    "contextTokens": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "fullHistoryIncluded": { "type": "boolean" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "reference", "included", "reason", "estimatedTokens", "rank", "outputPath"],
+        "properties": {
+          "kind": { "type": "string", "minLength": 1 },
+          "reference": { "type": "string", "minLength": 1 },
+          "included": { "type": "boolean" },
+          "reason": { "type": "string", "minLength": 1 },
+          "estimatedTokens": { "type": "integer", "minimum": 0 },
+          "contentHash": { "type": ["string", "null"] },
+          "rank": { "type": "integer", "minimum": 0 },
+          "outputPath": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "propertyNames": { "pattern": "^/" },
+      "additionalProperties": { "$ref": "evidence-reference.schema.json" }
+    }
+  }
+}

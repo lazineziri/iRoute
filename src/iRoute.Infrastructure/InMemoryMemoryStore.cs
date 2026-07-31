@@ -89,6 +89,28 @@ public sealed class InMemoryMemoryStore : IMemoryStore
         }
     }
 
+    public Task<IReadOnlyList<MemoryRecord>> ListActiveAsync(
+        ActiveMemoryQuery query,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            IReadOnlyList<MemoryRecord> records = _records.Values
+                .Where(item =>
+                    string.Equals(item.TenantId, query.TenantId, StringComparison.Ordinal) &&
+                    string.Equals(item.ProjectId ?? string.Empty, query.ProjectId ?? string.Empty, StringComparison.Ordinal) &&
+                    item.LifecycleStatus == MemoryLifecycleStatus.Active &&
+                    (item.ExpiresAt is null || item.ExpiresAt > query.At))
+                .OrderBy(item => item.Kind)
+                .ThenBy(item => item.Key, StringComparer.Ordinal)
+                .ThenByDescending(item => item.Version)
+                .ThenBy(item => item.MemoryId)
+                .ToArray();
+            return Task.FromResult(records);
+        }
+    }
+
     public Task<MemoryRecord?> GetAsync(
         string tenantId,
         Guid memoryId,

@@ -169,7 +169,8 @@ public sealed record ModelGatewayResult(
 public sealed record CompiledContext(
     JsonElement Content,
     ContextManifest Manifest,
-    IReadOnlyList<EvidenceReference> Evidence);
+    IReadOnlyList<EvidenceReference> Evidence,
+    JsonElement ProjectedInput);
 
 public sealed record OutcomeValidationResult(
     bool Passed,

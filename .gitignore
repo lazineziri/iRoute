@@ -9,6 +9,7 @@ Thumbs.db
 *.userosscache
 *.sln.docstates
 *~
+~$*.docx
 
 # .NET build, test, package, and profiling output
 **/[Bb]in/

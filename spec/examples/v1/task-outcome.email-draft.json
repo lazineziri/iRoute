@@ -38,16 +38,29 @@
   "context": {
     "estimatedTokens": 18,
     "budgetTokens": 4000,
+    "projectedInputTokens": 10,
+    "contextTokens": 8,
     "truncated": false,
+    "fullHistoryIncluded": false,
     "entries": [
       {
         "kind": "request",
-        "reference": "input.activeDecisions",
+        "reference": "input.activeDecisions[0]",
         "included": true,
-        "reason": "Selected by the task context policy.",
+        "reason": "Included after ranking, scope, freshness, supersession, deduplication, and budget checks.",
         "estimatedTokens": 18,
-        "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f"
+        "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f",
+        "rank": 950,
+        "outputPath": "/activeDecisions/0"
       }
-    ]
+    ],
+    "provenance": {
+      "/activeDecisions/0": {
+        "kind": "request",
+        "reference": "input.activeDecisions[0]",
+        "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f",
+        "observedAt": null
+      }
+    }
   }
 }

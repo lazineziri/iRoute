@@ -118,6 +118,34 @@ public sealed class EfMemoryStore(IDbContextFactory<IRouteDbContext> contextFact
         return entity is null ? null : await ToRecordAsync(context, entity, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<MemoryRecord>> ListActiveAsync(
+        ActiveMemoryQuery query,
+        CancellationToken cancellationToken)
+    {
+        var projectId = query.ProjectId ?? string.Empty;
+        var at = query.At.ToUnixTimeMilliseconds();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.MemoryRecords
+            .AsNoTracking()
+            .Where(item =>
+                item.TenantId == query.TenantId &&
+                item.ProjectId == projectId &&
+                item.LifecycleStatus == MemoryLifecycleStatus.Active &&
+                (item.ExpiresAtUnixMilliseconds == null || item.ExpiresAtUnixMilliseconds > at))
+            .OrderBy(item => item.Kind)
+            .ThenBy(item => item.Key)
+            .ThenByDescending(item => item.Version)
+            .ThenBy(item => item.MemoryId)
+            .ToArrayAsync(cancellationToken);
+        var records = new List<MemoryRecord>(entities.Length);
+        foreach (var entity in entities)
+        {
+            records.Add(await ToRecordAsync(context, entity, cancellationToken));
+        }
+
+        return records;
+    }
+
     public async Task<MemoryRecord?> GetAsync(
         string tenantId,
         Guid memoryId,

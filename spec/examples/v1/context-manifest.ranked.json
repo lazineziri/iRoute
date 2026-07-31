@@ -1,0 +1,38 @@
+{
+  "estimatedTokens": 42,
+  "budgetTokens": 4000,
+  "projectedInputTokens": 18,
+  "contextTokens": 24,
+  "truncated": true,
+  "fullHistoryIncluded": false,
+  "entries": [
+    {
+      "kind": "decision",
+      "reference": "input.activeDecisions[0]",
+      "included": true,
+      "reason": "Included after ranking, scope, freshness, supersession, deduplication, and budget checks.",
+      "estimatedTokens": 12,
+      "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f",
+      "rank": 950,
+      "outputPath": "/activeDecisions/0"
+    },
+    {
+      "kind": "history",
+      "reference": "input.projectHistory[0]",
+      "included": false,
+      "reason": "Excluded because full history is disabled; at most 3 recent relevant items are eligible.",
+      "estimatedTokens": 18,
+      "contentHash": "aa4b3f1e61a336a30753b4f7f130b5e77989d64e3205689947fa9e05d8e9920d",
+      "rank": 300,
+      "outputPath": null
+    }
+  ],
+  "provenance": {
+    "/activeDecisions/0": {
+      "kind": "request",
+      "reference": "input.activeDecisions[0]",
+      "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f",
+      "observedAt": null
+    }
+  }
+}

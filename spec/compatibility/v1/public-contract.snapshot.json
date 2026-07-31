@@ -68,12 +68,12 @@
       "properties": ["passed", "quality", "checks", "failures"]
     },
     "ContextManifest": {
-      "required": ["estimatedTokens", "budgetTokens", "truncated", "entries"],
-      "properties": ["estimatedTokens", "budgetTokens", "truncated", "entries"]
+      "required": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"],
+      "properties": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"]
     },
     "ContextManifestEntry": {
-      "required": ["kind", "reference", "included", "reason", "estimatedTokens"],
-      "properties": ["kind", "reference", "included", "reason", "estimatedTokens", "contentHash"]
+      "required": ["kind", "reference", "included", "reason", "estimatedTokens", "rank", "outputPath"],
+      "properties": ["kind", "reference", "included", "reason", "estimatedTokens", "contentHash", "rank", "outputPath"]
     },
     "TaskEvent": {
       "required": ["sequence", "executionId", "type", "occurredAt", "data"],
@@ -102,7 +102,7 @@
     "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
     "ResolutionDecisionCode": ["exact_cache_hit", "exact_cache_miss", "permission_denied", "unsupported_task", "project_scope_required", "state_key_required", "state_hit", "state_unavailable", "artifact_reference_required", "artifact_hit", "artifact_unavailable", "handler_unavailable", "handler_declined", "handler_stale", "handler_accepted", "external_write_blocked", "validation_failed"],
     "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
-    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
+    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
   },
   "jsonSchemas": {
     "https://schemas.iroute.dev/v1/approval-decision.schema.json": {
@@ -124,6 +124,10 @@
     "https://schemas.iroute.dev/v1/capability-definition.schema.json": {
       "required": ["capability", "version", "kind", "description", "inputSchema", "outputSchema", "sideEffectClass", "authenticationScopes", "permissionScopes", "idempotency", "retry", "serviceProfile", "cacheability", "freshnessSeconds", "dataSensitivity", "trustLevel", "isolation"],
       "properties": ["authenticationScopes", "cacheability", "capability", "dataSensitivity", "description", "freshnessSeconds", "idempotency", "inputSchema", "isolation", "kind", "outputSchema", "permissionScopes", "retry", "serviceProfile", "sideEffectClass", "trustLevel", "version"]
+    },
+    "https://schemas.iroute.dev/v1/context-manifest.schema.json": {
+      "required": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"],
+      "properties": ["budgetTokens", "contextTokens", "entries", "estimatedTokens", "fullHistoryIncluded", "projectedInputTokens", "provenance", "truncated"]
     },
     "https://schemas.iroute.dev/v1/evaluation-fixture.schema.json": {
       "required": ["caseId", "request", "expected"],

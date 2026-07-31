@@ -51,30 +51,10 @@
       }
     },
     "context": {
-      "type": ["object", "null"],
-      "additionalProperties": false,
-      "required": ["estimatedTokens", "budgetTokens", "truncated", "entries"],
-      "properties": {
-        "estimatedTokens": { "type": "integer", "minimum": 0 },
-        "budgetTokens": { "type": "integer", "minimum": 0 },
-        "truncated": { "type": "boolean" },
-        "entries": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["kind", "reference", "included", "reason", "estimatedTokens"],
-            "properties": {
-              "kind": { "type": "string" },
-              "reference": { "type": "string" },
-              "included": { "type": "boolean" },
-              "reason": { "type": "string" },
-              "estimatedTokens": { "type": "integer", "minimum": 0 },
-              "contentHash": { "type": ["string", "null"] }
-            }
-          }
-        }
-      }
+      "anyOf": [
+        { "$ref": "context-manifest.schema.json" },
+        { "type": "null" }
+      ]
     }
   }
 }

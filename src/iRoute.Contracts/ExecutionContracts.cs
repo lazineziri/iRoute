@@ -158,8 +158,12 @@ public sealed record ValidationSummary(
 public sealed record ContextManifest(
     int EstimatedTokens,
     int BudgetTokens,
+    int ProjectedInputTokens,
+    int ContextTokens,
     bool Truncated,
-    IReadOnlyList<ContextManifestEntry> Entries);
+    bool FullHistoryIncluded,
+    IReadOnlyList<ContextManifestEntry> Entries,
+    IReadOnlyDictionary<string, EvidenceReference> Provenance);
 
 public sealed record ContextManifestEntry(
     string Kind,
@@ -167,7 +171,9 @@ public sealed record ContextManifestEntry(
     bool Included,
     string Reason,
     int EstimatedTokens,
-    string? ContentHash = null);
+    string? ContentHash = null,
+    int Rank = 0,
+    string? OutputPath = null);
 
 public sealed record ApprovalDecision(
     string ActionId,
@@ -430,6 +436,7 @@ public static class ErrorCodes
     public const string ExternalActionInProgress = "external_action_in_progress";
     public const string ExternalActionFailed = "external_action_failed";
     public const string ModelBudgetExhausted = "model_budget_exhausted";
+    public const string ContextBudgetExceeded = "context_budget_exceeded";
     public const string CostBudgetExceeded = "cost_budget_exceeded";
     public const string ModelCallBudgetExceeded = "model_call_budget_exceeded";
     public const string ModelGatewayUnavailable = "model_gateway_unavailable";
@@ -461,6 +468,7 @@ public static class ErrorCodes
         ExternalActionInProgress,
         ExternalActionFailed,
         ModelBudgetExhausted,
+        ContextBudgetExceeded,
         CostBudgetExceeded,
         ModelCallBudgetExceeded,
         ModelGatewayUnavailable,
