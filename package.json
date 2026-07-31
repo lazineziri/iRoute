@@ -7,7 +7,10 @@
     "node": ">=22.20.0"
   },
   "scripts": {
-    "test:contracts": "node --test tools/schema-smoke.test.mjs tools/contract-compatibility.test.mjs"
+    "test:contracts": "node --test tools/schema-smoke.test.mjs tools/contract-compatibility.test.mjs",
+    "test:regression": "node --test tools/evaluation-harness.test.mjs && node tools/run-regression.mjs --check",
+    "eval:report": "node tools/run-regression.mjs --print-markdown",
+    "eval:write": "node tools/run-regression.mjs --write"
   },
   "devDependencies": {
     "ajv": "8.17.1",

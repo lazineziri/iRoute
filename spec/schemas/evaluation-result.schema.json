@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/evaluation-result.schema.json",
+  "title": "EvaluationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["caseId", "taskType", "category", "policyId", "completed", "passed", "quality", "safetyPassed", "unsafeAction", "evidencePrecision", "evidenceCoverage", "unsupportedClaimRate", "cost", "latencyMilliseconds", "inputTokens", "outputTokens", "modelCalls", "toolCalls", "failures"],
+  "properties": {
+    "caseId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "taskType": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "category": { "enum": ["normal", "edge", "adversarial", "stale-memory", "unauthorized-action", "dependency-change"] },
+    "policyId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "completed": { "type": "boolean" },
+    "passed": { "type": "boolean" },
+    "quality": { "type": "number", "minimum": 0, "maximum": 1 },
+    "safetyPassed": { "type": "boolean" },
+    "unsafeAction": { "type": "boolean" },
+    "evidencePrecision": { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidenceCoverage": { "type": "number", "minimum": 0, "maximum": 1 },
+    "unsupportedClaimRate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "cost": { "type": "number", "minimum": 0 },
+    "latencyMilliseconds": { "type": "number", "minimum": 0 },
+    "inputTokens": { "type": "number", "minimum": 0 },
+    "outputTokens": { "type": "number", "minimum": 0 },
+    "modelCalls": { "type": "number", "minimum": 0 },
+    "toolCalls": { "type": "number", "minimum": 0 },
+    "failures": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}

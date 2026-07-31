@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0 and M1 are complete; W09 is complete**. See [the workstream status](docs/workstream-status.md). M2 continues with W10.
+Formal backlog status: **M0, M1, and M2 are complete through W10**. See [the workstream status](docs/workstream-status.md). M3 starts with W11.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -24,6 +24,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - ranked context compilation with explicit artifact sections, full-history exclusion, serialized token bounds, and fact-level provenance
 - measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
 - provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
+- versioned golden evaluation across every built-in task, task-specific quality/safety scoring, cost/latency benchmarks, and a source-bound routing regression gate
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
@@ -67,6 +68,7 @@ Useful endpoints:
 dotnet run --project tests/iRoute.UnitTests --no-build -- -reporter quiet
 dotnet run --project tests/iRoute.ArchitectureTests --no-build -- -reporter quiet
 npm run test:contracts
+npm run test:regression
 npm --prefix sdks/node run check
 ```
 
@@ -75,6 +77,8 @@ With the API running, execute the initial behavioral evaluation fixture:
 ```bash
 node tools/run-evaluation.mjs
 ```
+
+The offline W10 gate needs no API or provider. `npm run test:regression` validates 42 candidate cases across all built-in tasks, compares the task-aware policy with the full-history single-strong reference, and verifies the checked reports under `eval/reports`. See [the evaluation guide](eval/README.md).
 
 To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. Set `ModelGateway__Transport=Streaming` to use bounded NDJSON streaming. `node tools/check-gateway-contract.mjs` verifies an external endpoint directly; run it against separate buffered and streaming gateways to prove contract parity. Gateway request/result, stream, health, and failure schemas are under `spec/schemas`.
 

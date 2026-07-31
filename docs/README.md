@@ -8,6 +8,7 @@ The canonical, reviewable project documentation is maintained as Markdown.
 - [Contract versioning](contract-versioning.md)
 - [Version baseline](version-baseline.md)
 - [Workstream status](workstream-status.md)
+- [Evaluation and regression guide](../eval/README.md)
 - [Architecture decision records](adr/)
 
 Public protocol definitions live under [`spec/`](../spec/), including OpenAPI,

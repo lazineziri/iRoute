@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/routing-comparison-report.schema.json",
+  "title": "RoutingComparisonReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reportId", "datasetId", "datasetVersion", "datasetRecordedAt", "datasetFingerprint", "gate", "policies", "comparison"],
+  "$defs": {
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evaluatedCases", "completedTasks", "passingCases", "passRate", "averageQuality", "evidencePrecision", "evidenceCoverage", "unsupportedClaimRate", "safetyFailures", "unsafeActions", "meanCostPerCompletedTask", "meanLatencyMilliseconds", "p95LatencyMilliseconds", "meanInputTokens", "meanOutputTokens", "meanModelCalls", "meanToolCalls", "noModelResolutionRate"],
+      "properties": {
+        "evaluatedCases": { "type": "integer", "minimum": 0 },
+        "completedTasks": { "type": "integer", "minimum": 0 },
+        "passingCases": { "type": "integer", "minimum": 0 },
+        "passRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "averageQuality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidencePrecision": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidenceCoverage": { "type": "number", "minimum": 0, "maximum": 1 },
+        "unsupportedClaimRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "safetyFailures": { "type": "integer", "minimum": 0 },
+        "unsafeActions": { "type": "integer", "minimum": 0 },
+        "meanCostPerCompletedTask": { "type": "number", "minimum": 0 },
+        "meanLatencyMilliseconds": { "type": "number", "minimum": 0 },
+        "p95LatencyMilliseconds": { "type": "number", "minimum": 0 },
+        "meanInputTokens": { "type": "number", "minimum": 0 },
+        "meanOutputTokens": { "type": "number", "minimum": 0 },
+        "meanModelCalls": { "type": "number", "minimum": 0 },
+        "meanToolCalls": { "type": "number", "minimum": 0 },
+        "noModelResolutionRate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "taskMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskType", "qualityFloor", "benchmarkSampleSize", "metrics"],
+      "properties": {
+        "taskType": { "type": "string", "minLength": 1 },
+        "qualityFloor": { "type": "number", "minimum": 0, "maximum": 1 },
+        "benchmarkSampleSize": { "type": "integer", "minimum": 1 },
+        "metrics": { "$ref": "#/$defs/metrics" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "role", "sourceFingerprint", "aggregate", "tasks"],
+      "properties": {
+        "policyId": { "type": "string", "minLength": 1 },
+        "role": { "enum": ["baseline", "candidate"] },
+        "sourceFingerprint": { "type": "string", "minLength": 1 },
+        "aggregate": { "$ref": "#/$defs/metrics" },
+        "tasks": { "type": "array", "items": { "$ref": "#/$defs/taskMetrics" } }
+      }
+    },
+    "taskComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskType", "qualityDelta", "costDelta", "latencyDeltaMilliseconds", "safetyFailureDelta", "unsafeActionDelta"],
+      "properties": {
+        "taskType": { "type": "string", "minLength": 1 },
+        "qualityDelta": { "type": "number" },
+        "costDelta": { "type": "number" },
+        "latencyDeltaMilliseconds": { "type": "number" },
+        "safetyFailureDelta": { "type": "integer" },
+        "unsafeActionDelta": { "type": "integer" }
+      }
+    }
+  },
+  "properties": {
+    "reportId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "datasetId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "datasetVersion": { "type": "integer", "minimum": 1 },
+    "datasetRecordedAt": { "type": "string", "format": "date-time" },
+    "datasetFingerprint": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "requiredCategories", "coverageFailures", "qualityFailures", "safetyFailures", "regressionFailures", "provenanceFailures", "failures"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "requiredCategories": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "coverageFailures": { "type": "array", "items": { "type": "string" } },
+        "qualityFailures": { "type": "array", "items": { "type": "string" } },
+        "safetyFailures": { "type": "array", "items": { "type": "string" } },
+        "regressionFailures": { "type": "array", "items": { "type": "string" } },
+        "provenanceFailures": { "type": "array", "items": { "type": "string" } },
+        "failures": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "policies": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/policy" } },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baselinePolicyId", "candidatePolicyId", "justifiedQualityGain", "qualityDelta", "costDelta", "latencyDeltaMilliseconds", "safetyFailureDelta", "unsafeActionDelta", "tasks"],
+      "properties": {
+        "baselinePolicyId": { "type": "string", "minLength": 1 },
+        "candidatePolicyId": { "type": "string", "minLength": 1 },
+        "justifiedQualityGain": { "type": "number", "minimum": 0, "maximum": 1 },
+        "qualityDelta": { "type": "number" },
+        "costDelta": { "type": "number" },
+        "latencyDeltaMilliseconds": { "type": "number" },
+        "safetyFailureDelta": { "type": "integer" },
+        "unsafeActionDelta": { "type": "integer" },
+        "tasks": { "type": "array", "items": { "$ref": "#/$defs/taskComparison" } }
+      }
+    }
+  }
+}

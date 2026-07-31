@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import { buildRoutingComparison } from './evaluation-harness.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const schemas = [];
@@ -57,5 +58,29 @@ test('every evaluation fixture validates', async () => {
         `${file}:${index + 1} failed: ${ajv.errorsText(validate.errors)}`
       );
     }
+  }
+});
+
+test('golden datasets and generated regression results validate', async () => {
+  const validateDataset = ajv.getSchema('https://schemas.iroute.dev/v1/evaluation-dataset.schema.json');
+  const validateResult = ajv.getSchema('https://schemas.iroute.dev/v1/evaluation-result.schema.json');
+  const validateReport = ajv.getSchema('https://schemas.iroute.dev/v1/routing-comparison-report.schema.json');
+  assert.ok(validateDataset);
+  assert.ok(validateResult);
+  assert.ok(validateReport);
+
+  for await (const file of glob('eval/datasets/*.json', { cwd: repositoryRoot })) {
+    const dataset = JSON.parse(await readFile(resolve(repositoryRoot, file), 'utf8'));
+    assert.equal(
+      validateDataset(dataset),
+      true,
+      `${file} failed: ${ajv.errorsText(validateDataset.errors)}`
+    );
+  }
+
+  const { report, results } = await buildRoutingComparison(repositoryRoot);
+  assert.equal(validateReport(report), true, ajv.errorsText(validateReport.errors));
+  for (const result of results) {
+    assert.equal(validateResult(result), true, `${result.caseId}/${result.policyId}: ${ajv.errorsText(validateResult.errors)}`);
   }
 });

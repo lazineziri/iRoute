@@ -30,5 +30,6 @@ jobs:
       - run: npm ci
       - run: npx --yes @redocly/cli@latest lint spec/openapi/iroute.v1.yaml
       - run: npm run test:contracts
+      - run: npm run test:regression
       - run: npm ci --prefix sdks/node
       - run: npm run check --prefix sdks/node

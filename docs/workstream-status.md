@@ -119,7 +119,7 @@ Acceptance evidence:
 - The SQLite restart test proves active project memory remains available to the compiler after runtime reconstruction.
 - The PostgreSQL evaluation verifies bounded history, deduplication, artifact slicing, provenance completeness, token bounds, and the `context.compiled` event.
 
-## M2 — Measured routing: in progress
+## M2 — Measured routing: complete
 
 ### W08 — Routing and planning: complete
 
@@ -161,4 +161,23 @@ Acceptance evidence:
 - Failure tests prove HTTP statuses map consistently to retryability and normalized failure kinds; orchestration emits `gateway.failed` without provider bodies.
 - Orchestrator and PostgreSQL evaluation prove selected profile/deadline propagation, configured gateway identity, normalized usage and observed latency, health reporting, and buffered/streaming lifecycle events without provider-specific planning logic.
 
-## Next: W10 — Evaluation and regression harness
+### W10 — Evaluation and regression harness: complete
+
+Deliverables:
+
+- Versioned live-fixture, golden-dataset, per-case evaluation-result, and routing-comparison report contracts.
+- Golden replay dataset covering all seven built-in tasks across normal, edge, adversarial, stale-memory, unauthorized-action, and dependency-change scenarios.
+- Task-specific evaluator registry for output structure, golden assertions, evidence precision/coverage, unsupported claims, terminal status, authorization, and external side effects.
+- Versioned baseline/candidate cost, latency, token, and model/tool-call benchmark inputs, aggregated per completed task.
+- Deterministic JSON and Markdown comparison reports with aggregate and per-task quality, safety, cost, latency, and no-model resolution metrics.
+- CI regression gate bound to the routing/model-profile source fingerprint and checked report snapshots.
+
+Acceptance evidence:
+
+- The harness independently discovers built-in task types and proves all seven have a registered evaluator plus all six required fixture categories: 42 candidate cases and 84 policy observations.
+- Schema tests validate the golden dataset, every generated case result, and the comparison report with JSON Schema 2020-12; compatibility tests protect the new v1 schema identifiers and root fields.
+- The candidate policy passes every task quality floor with zero safety failures and zero unsafe actions; quality, evidence, unsupported-claim rate, tokens, calls, cost, and latency are reported per completed task.
+- The checked comparison reports show the task-aware policy against the full-history single-strong reference and reject any per-task cost or latency increase without the configured justified quality gain.
+- CI runs `npm run test:regression`; routing/model-profile changes invalidate the recorded source fingerprint, while dataset changes invalidate the report fingerprint and snapshot.
+
+## Next: M3 / W11 — Capability connectors

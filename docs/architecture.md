@@ -135,6 +135,23 @@ flowchart LR
 
 The request contains capability, profile, projected input, compiled context, maximum output tokens, correlation ID, and deadline—not a provider model name or provider payload. Both transports end in the same typed result. Streaming sequences and sizes are bounded before validation; generated deltas are counted but never persisted in audit data. Runtime-measured wall-clock latency replaces gateway-reported duration so buffered and streaming calls are comparable. Health is reported through a dedicated endpoint and is excluded from API readiness because model execution is an optional capability. Provider credentials, aliases, protocols, and failover remain gateway responsibilities in Infrastructure or the external gateway deployment, never routing concerns.
 
+W10 makes routing changes measurable before they reach runtime:
+
+```mermaid
+flowchart LR
+    A["Built-in task registry"] --> B["Golden coverage audit"]
+    C["Normal and adversarial fixtures"] --> D["Task-specific evaluators"]
+    E["Recorded policy observations"] --> D
+    F["Cost and latency benchmarks"] --> G["Per-task metrics"]
+    D --> G
+    B --> H["Regression gate"]
+    G --> H
+    I["Routing source fingerprint"] --> H
+    H --> J["Checked JSON and Markdown report"]
+```
+
+The offline evaluator discovers the built-in task list independently from Infrastructure and requires a registered evaluator plus all six fixture categories for each task. It computes quality, evidence precision/coverage, unsupported-claim rate, external-action safety, tokens, calls, cost, and latency per completed task. Candidate policy sources are hashed into the dataset and checked report, so a routing or model-profile edit invalidates CI until fresh observations are recorded. The gate rejects quality below the task floor, safety failures, and cost or latency increases without a configured quality gain.
+
 ## Code dependency topology
 
 ```mermaid

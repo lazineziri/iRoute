@@ -49,6 +49,14 @@ The runtime treats its own wall-clock duration as authoritative latency and norm
 
 HTTP failures are classified as invalid request, authentication, timeout, rate limit, unavailable, or internal. Only timeout, rate-limit, and unavailable failures are retryable. The gateway remains responsible for provider credentials, provider model aliases, provider protocols, and provider health. Do not add provider model names, request fields, or response parsing to Contracts, Core, Runtime, routing policy, or task definitions.
 
+## Evaluation regression gate
+
+Run `npm run test:regression` for every routing-policy or model-profile change. CI validates the golden dataset and generated result/report contracts, requires all six scenario categories for every task discovered in the built-in registry, evaluates the baseline and candidate observations, and compares the generated output byte-for-byte with the checked JSON and Markdown reports.
+
+The candidate policy source fingerprint covers `RoutingAndPlanning.cs` and the built-in task/model-profile registry. A mismatch is intentional fail-closed behavior: record fresh observations, update the dataset fingerprint, inspect quality/safety/cost/latency deltas, then run `npm run eval:write`. Do not regenerate reports without updating observations from a real evaluation run. The committed benchmark inputs support deterministic regression; they are not production latency or cost SLOs. Keep environment-specific measurements outside the repository when they contain customer data, credentials, provider payloads, or proprietary pricing.
+
+A policy is releasable only when every candidate case reaches a completed terminal result, meets its task quality floor, produces no unsupported claims or unsafe actions, and does not increase per-task cost or latency without at least the configured justified quality gain. The live `node tools/run-evaluation.mjs` suite remains required for runtime, persistence, and external-gateway behavior that an offline replay cannot prove.
+
 ## Identity
 
 `Identity:Mode=DevelopmentHeaders` is intended only for local development. Internet-facing deployments must use `Jwt`, configure an HTTPS authority and audience, and issue tokens containing the configured tenant, actor, and permission claims. The API replaces caller-supplied request scopes with authenticated scopes before policy evaluation. External-action approval requires both the action scope (for example `email:send`) and `approval:grant`.

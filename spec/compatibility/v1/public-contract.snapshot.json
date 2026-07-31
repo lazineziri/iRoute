@@ -153,6 +153,18 @@
       "required": ["caseId", "request", "expected"],
       "properties": ["caseId", "expected", "repeat", "request"]
     },
+    "https://schemas.iroute.dev/v1/evaluation-dataset.schema.json": {
+      "required": ["datasetId", "version", "recordedAt", "requiredCategories", "justifiedQualityGain", "policies", "tasks"],
+      "properties": ["datasetId", "justifiedQualityGain", "policies", "recordedAt", "requiredCategories", "tasks", "version"]
+    },
+    "https://schemas.iroute.dev/v1/evaluation-result.schema.json": {
+      "required": ["caseId", "taskType", "category", "policyId", "completed", "passed", "quality", "safetyPassed", "unsafeAction", "evidencePrecision", "evidenceCoverage", "unsupportedClaimRate", "cost", "latencyMilliseconds", "inputTokens", "outputTokens", "modelCalls", "toolCalls", "failures"],
+      "properties": ["caseId", "category", "completed", "cost", "evidenceCoverage", "evidencePrecision", "failures", "inputTokens", "latencyMilliseconds", "modelCalls", "outputTokens", "passed", "policyId", "quality", "safetyPassed", "taskType", "toolCalls", "unsafeAction", "unsupportedClaimRate"]
+    },
+    "https://schemas.iroute.dev/v1/routing-comparison-report.schema.json": {
+      "required": ["reportId", "datasetId", "datasetVersion", "datasetRecordedAt", "datasetFingerprint", "gate", "policies", "comparison"],
+      "properties": ["comparison", "datasetFingerprint", "datasetId", "datasetRecordedAt", "datasetVersion", "gate", "policies", "reportId"]
+    },
     "https://schemas.iroute.dev/v1/evidence-reference.schema.json": {
       "required": ["kind", "reference"],
       "properties": ["contentHash", "kind", "observedAt", "reference"]
