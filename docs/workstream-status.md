@@ -63,4 +63,21 @@ Acceptance evidence:
 - Repeated approval and task submissions reuse the recorded execution/action result and do not duplicate the side effect.
 - A SQLite process-restart test creates a pending approval, reconstructs all durable stores, resumes the approved workflow, and executes the action once.
 
-## Next: W05 — Typed tasks and capability registry
+### W05 — Artifact and memory store: complete
+
+Deliverables:
+
+- Tenant- and project-scoped artifact lineages with stable logical keys, deterministic versions, content hashes, and active/superseded/invalidated lifecycle states.
+- Versioned project facts and decisions extracted from typed request state, with evidence references and durable SQLite/PostgreSQL persistence.
+- Normalized dependency edges from artifacts and memory to evidence, source state, memory versions, and upstream artifacts.
+- Targeted invalidation that stays within the tenant boundary and recursively invalidates downstream artifacts without scanning or regenerating unrelated work.
+- Tenant scope enforced by direct artifact and memory store lookups, including the public artifact retrieval boundary.
+
+Acceptance evidence:
+
+- Store tests prove unchanged values deduplicate, changed values create deterministic successor versions, supersession pointers are preserved, and cross-tenant direct lookup returns no record.
+- Dependency tests prove a changed decision invalidates its dependent artifact and recursively invalidates derived artifacts while leaving another tenant untouched.
+- A SQLite restart test proves memory, artifacts, lifecycle metadata, and normalized dependency edges survive reconstruction; the same migration is exercised against PostgreSQL.
+- An end-to-end execution test changes an active project decision, observes memory supersession and artifact invalidation events, creates artifact version 2, then reuses that artifact with `ExactArtifact` and zero model calls.
+
+## Next: W06 — No-model resolver

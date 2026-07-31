@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
             services.AddSingleton<IExternalActionStore, InMemoryExternalActionStore>();
             services.AddSingleton<IArtifactStore, InMemoryArtifactStore>();
+            services.AddSingleton<IMemoryStore, InMemoryMemoryStore>();
         }
         else
         {
@@ -48,6 +49,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IApprovalStore, EfApprovalStore>();
             services.AddSingleton<IExternalActionStore, EfExternalActionStore>();
             services.AddSingleton<IArtifactStore, EfArtifactStore>();
+            services.AddSingleton<IMemoryStore, EfMemoryStore>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);
         }

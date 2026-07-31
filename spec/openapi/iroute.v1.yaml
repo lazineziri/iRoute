@@ -283,6 +283,7 @@ components:
             - type: 'null'
         metadata:
           type: [object, 'null']
+          description: Optional routing metadata. The reserved `artifactKey` value selects an artifact lineage and is limited to 200 characters.
           additionalProperties:
             type: string
           maxProperties: 32
@@ -441,6 +442,14 @@ components:
         reference: { type: string }
         contentHash: { type: [string, 'null'] }
         observedAt: { type: [string, 'null'], format: date-time }
+    DependencyReference:
+      type: object
+      additionalProperties: false
+      required: [kind, reference]
+      properties:
+        kind: { type: string, minLength: 1, maxLength: 120 }
+        reference: { type: string, minLength: 1, maxLength: 500 }
+        contentHash: { type: [string, 'null'], maxLength: 256 }
     ArtifactReference:
       type: object
       additionalProperties: false
@@ -475,6 +484,50 @@ components:
         createdAt: { type: string, format: date-time }
         expiresAt: { type: [string, 'null'], format: date-time }
         isActive: { type: boolean }
+        logicalKey: { type: [string, 'null'], minLength: 1, maxLength: 200 }
+        lifecycleStatus: { $ref: '#/components/schemas/ArtifactLifecycleStatus' }
+        supersedesArtifactId: { type: [string, 'null'], format: uuid }
+        supersededByArtifactId: { type: [string, 'null'], format: uuid }
+        dependencies:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/DependencyReference' }
+        invalidatedAt: { type: [string, 'null'], format: date-time }
+        invalidationReason: { type: [string, 'null'], maxLength: 2000 }
+    ArtifactLifecycleStatus:
+      type: string
+      enum: [Active, Superseded, Invalidated]
+    MemorySnapshot:
+      type: object
+      additionalProperties: false
+      required: [memoryId, tenantId, kind, key, version, value, contentHash, lifecycleStatus, evidence, dependencies, createdAt]
+      properties:
+        memoryId: { type: string, format: uuid }
+        tenantId: { type: string, minLength: 1, maxLength: 200 }
+        projectId: { type: [string, 'null'], maxLength: 200 }
+        kind: { $ref: '#/components/schemas/MemoryKind' }
+        key: { type: string, minLength: 1, maxLength: 200 }
+        version: { type: integer, minimum: 1 }
+        value: {}
+        contentHash: { type: string, minLength: 1, maxLength: 256 }
+        lifecycleStatus: { $ref: '#/components/schemas/MemoryLifecycleStatus' }
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/EvidenceReference' }
+        dependencies:
+          type: array
+          items: { $ref: '#/components/schemas/DependencyReference' }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        supersedesMemoryId: { type: [string, 'null'], format: uuid }
+        supersededByMemoryId: { type: [string, 'null'], format: uuid }
+        invalidatedAt: { type: [string, 'null'], format: date-time }
+        invalidationReason: { type: [string, 'null'], maxLength: 2000 }
+    MemoryKind:
+      type: string
+      enum: [Fact, Decision]
+    MemoryLifecycleStatus:
+      type: string
+      enum: [Active, Superseded, Invalidated]
     UsageSummary:
       type: object
       additionalProperties: false
@@ -559,6 +612,11 @@ components:
         - gateway.completed
         - validation.completed
         - artifact.materialized
+        - artifact.superseded
+        - artifact.invalidated
+        - memory.materialized
+        - memory.superseded
+        - memory.invalidated
         - execution.cancellation_requested
         - execution.completed
         - execution.failed

@@ -26,8 +26,14 @@ public interface IArtifactStore
     Task<ArtifactRecord?> FindReusableAsync(
         ArtifactReuseQuery query,
         CancellationToken cancellationToken);
-    Task<ArtifactRecord?> GetAsync(Guid artifactId, CancellationToken cancellationToken);
+    Task<ArtifactRecord?> GetAsync(
+        string tenantId,
+        Guid artifactId,
+        CancellationToken cancellationToken);
     Task<ArtifactRecord> SaveAsync(ArtifactRecord artifact, CancellationToken cancellationToken);
+    Task<ArtifactInvalidationResult> InvalidateByDependencyAsync(
+        DependencyChange change,
+        CancellationToken cancellationToken);
 }
 
 public interface INoModelResolver
@@ -162,8 +168,20 @@ public sealed record ArtifactRecord(
     IReadOnlyList<EvidenceReference> Evidence,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ExpiresAt,
-    bool IsActive)
+    bool IsActive,
+    string? LogicalKey = null,
+    ArtifactLifecycleStatus LifecycleStatus = ArtifactLifecycleStatus.Active,
+    Guid? SupersedesArtifactId = null,
+    Guid? SupersededByArtifactId = null,
+    IReadOnlyList<DependencyReference>? Dependencies = null,
+    DateTimeOffset? InvalidatedAt = null,
+    string? InvalidationReason = null)
 {
+    public string EffectiveLogicalKey =>
+        string.IsNullOrWhiteSpace(LogicalKey) ? TaskType : LogicalKey.Trim();
+
+    public IReadOnlyList<DependencyReference> EffectiveDependencies => Dependencies ?? [];
+
     public ArtifactReference ToReference() => new(ArtifactId, ArtifactType, Version, ContentHash);
 
     public ArtifactSnapshot ToSnapshot() => new(
@@ -176,7 +194,14 @@ public sealed record ArtifactRecord(
         Evidence,
         CreatedAt,
         ExpiresAt,
-        IsActive);
+        IsActive,
+        EffectiveLogicalKey,
+        LifecycleStatus,
+        SupersedesArtifactId,
+        SupersededByArtifactId,
+        EffectiveDependencies,
+        InvalidatedAt,
+        InvalidationReason);
 }
 
 public sealed record TaskDefinition(

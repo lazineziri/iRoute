@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
         WorkflowSchedulerOptions? schedulerOptions = null)
     {
         services.AddScoped<ExecutionOrchestrator>();
+        services.AddScoped<ProjectMemoryMaterializer>();
         services.AddSingleton<BoundedDependencyScheduler>();
         services.AddSingleton(schedulerOptions ?? new WorkflowSchedulerOptions());
         services.AddSingleton<IExecutionPlanFactory, DirectExecutionPlanFactory>();

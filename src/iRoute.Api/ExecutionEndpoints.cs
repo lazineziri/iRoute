@@ -296,10 +296,9 @@ public static class ExecutionEndpoints
         IArtifactStore store,
         CancellationToken cancellationToken)
     {
-        var artifact = await store.GetAsync(artifactId, cancellationToken);
-        return artifact is null || !IsVisibleToTenant(artifact.TenantId, request, identityOptions.Value)
-            ? Results.NotFound()
-            : Results.Ok(artifact.ToSnapshot());
+        var identity = RequestIdentity.Resolve(request, identityOptions.Value);
+        var artifact = await store.GetAsync(identity.TenantId, artifactId, cancellationToken);
+        return artifact is null ? Results.NotFound() : Results.Ok(artifact.ToSnapshot());
     }
 
     private static IResult Problem(int status, string code, string title, string detail) =>

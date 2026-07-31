@@ -10,7 +10,13 @@
 
 The local API defaults to SQLite at `Data Source=iroute.db`. The Compose profile uses PostgreSQL. `Storage:AutoInitialize=true` applies checked-in migrations at startup. Disable automatic initialization where migrations are run as a separate deployment job. Every future migration requires upgrade, rollback, and mixed-version tests.
 
-Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs remain authoritative inputs for downstream steps.
+Workflow plans and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs and active project state remain authoritative inputs for downstream steps.
+
+## Artifact and memory lifecycle
+
+Artifact and memory lineages have exactly one active version. Materializing identical content returns that version; changed content creates the next version and marks the prior version superseded. When a referenced memory/source version changes or disappears, targeted invalidation marks active dependents invalid and follows artifact-to-artifact edges recursively. Operators can inspect lifecycle metadata and hashes without loading request, memory, or artifact payloads into events or telemetry.
+
+All direct reads and invalidation queries require a tenant scope at the persistence boundary. Never implement an administrative cleanup or repair job with an unscoped artifact, memory, or dependency query. PostgreSQL serializable transactions protect version allocation; retry serialization conflicts at the job boundary rather than inventing a version.
 
 ## Scheduler bounds
 

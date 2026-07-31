@@ -11,14 +11,21 @@ public sealed class ExecutionOrchestratorTests
 {
     private static readonly string[] ActiveDecisions =
         ["Use the Markdown specification as the source of truth."];
+    private static readonly string[] ChangedDecisions =
+        ["Use PostgreSQL as the production source of truth."];
 
     [Fact]
     public async Task EmailDraftCompletesWithValidatedArtifactAndOrderedEvents()
     {
         var store = new InMemoryExecutionStore();
         var artifacts = new InMemoryArtifactStore();
+        var memories = new InMemoryMemoryStore();
         using var cancellations = new ExecutionCancellationRegistry();
-        var orchestrator = CreateOrchestrator(store, artifacts, cancellations);
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            memories: memories);
 
         var result = await orchestrator.ExecuteAsync(CreateRequest("tenant-a", "first"), TestContext.Current.CancellationToken);
 
@@ -29,7 +36,10 @@ public sealed class ExecutionOrchestratorTests
         Assert.True(Assert.IsType<ValidationSummary>(outcome.Validation).Passed);
         Assert.False(Assert.IsType<ContextManifest>(outcome.Context).Truncated);
         var artifactReference = Assert.Single(outcome.Artifacts);
-        var artifact = await artifacts.GetAsync(artifactReference.ArtifactId, TestContext.Current.CancellationToken);
+        var artifact = await artifacts.GetAsync(
+            "tenant-a",
+            artifactReference.ArtifactId,
+            TestContext.Current.CancellationToken);
         Assert.NotNull(artifact);
         Assert.Equal("email.draft", artifact.ArtifactType);
 
@@ -43,6 +53,7 @@ public sealed class ExecutionOrchestratorTests
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.StepCompleted);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.ContextCompiled);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.ValidationCompleted);
+        Assert.Contains(events, x => x.Type == ExecutionEventTypes.MemoryMaterialized);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.ArtifactMaterialized);
     }
 
@@ -64,6 +75,85 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(
             Assert.Single(firstOutcome.Artifacts).ArtifactId,
             Assert.Single(secondOutcome.Artifacts).ArtifactId);
+    }
+
+    [Fact]
+    public async Task ChangedDecisionInvalidatesDependentArtifactAndNewVersionIsReusableWithoutGeneration()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var memories = new InMemoryMemoryStore();
+        var gateway = new CountingModelGateway();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            memories: memories);
+
+        var first = await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "decision-v1"),
+            TestContext.Current.CancellationToken);
+        var firstArtifactId = Assert.Single(Assert.IsType<TaskOutcome>(first.Outcome).Artifacts).ArtifactId;
+        var firstDecision = await memories.GetActiveAsync(
+            new MemoryLookup(
+                "tenant-a",
+                "project-1",
+                MemoryKind.Decision,
+                "activeDecisions[0]",
+                DateTimeOffset.UtcNow),
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(firstDecision);
+
+        var changedRequest = CreateRequest("tenant-a", "decision-v2") with
+        {
+            Input = JsonSerializer.SerializeToElement(new
+            {
+                recipient = new { name = "Ada" },
+                projectName = "iRoute",
+                objective = "Share the first working runtime milestone.",
+                tone = "professional",
+                activeDecisions = ChangedDecisions
+            })
+        };
+        var second = await orchestrator.ExecuteAsync(
+            changedRequest,
+            TestContext.Current.CancellationToken);
+        var secondOutcome = Assert.IsType<TaskOutcome>(second.Outcome);
+        var secondArtifactReference = Assert.Single(secondOutcome.Artifacts);
+
+        var invalidated = await artifacts.GetAsync(
+            "tenant-a",
+            firstArtifactId,
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(invalidated);
+        Assert.Equal(ArtifactLifecycleStatus.Invalidated, invalidated.LifecycleStatus);
+        Assert.False(invalidated.IsActive);
+        Assert.Equal(2, secondArtifactReference.Version);
+        Assert.NotEqual(firstArtifactId, secondArtifactReference.ArtifactId);
+        Assert.Contains(
+            (await artifacts.GetAsync(
+                "tenant-a",
+                secondArtifactReference.ArtifactId,
+                TestContext.Current.CancellationToken))!.EffectiveDependencies,
+            dependency =>
+                dependency.Kind == "memory" &&
+                dependency.Reference != firstDecision.MemoryId.ToString());
+
+        var events = await ReadEventsAsync(store, second.ExecutionId);
+        Assert.Contains(events, item => item.Type == ExecutionEventTypes.MemorySuperseded);
+        Assert.Contains(events, item => item.Type == ExecutionEventTypes.ArtifactInvalidated);
+        Assert.Contains(events, item => item.Type == ExecutionEventTypes.ArtifactMaterialized);
+
+        var third = await orchestrator.ExecuteAsync(
+            changedRequest with { IdempotencyKey = "decision-v2-reuse" },
+            TestContext.Current.CancellationToken);
+        var thirdOutcome = Assert.IsType<TaskOutcome>(third.Outcome);
+        Assert.Equal(ResolutionLevel.ExactArtifact, thirdOutcome.ResolutionLevel);
+        Assert.Equal(0, thirdOutcome.Usage.ModelCalls);
+        Assert.Equal(secondArtifactReference.ArtifactId, Assert.Single(thirdOutcome.Artifacts).ArtifactId);
+        Assert.Equal(2, gateway.InvocationCount);
     }
 
     [Fact]
@@ -105,8 +195,13 @@ public sealed class ExecutionOrchestratorTests
     {
         var store = new InMemoryExecutionStore();
         var artifacts = new InMemoryArtifactStore();
+        var memories = new InMemoryMemoryStore();
         using var cancellations = new ExecutionCancellationRegistry();
-        var orchestrator = CreateOrchestrator(store, artifacts, cancellations);
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            memories: memories);
         var request = CreateRequest("tenant-a", "quality") with
         {
             Constraints = new TaskConstraints(MinimumQuality: 0.99m)
@@ -116,6 +211,14 @@ public sealed class ExecutionOrchestratorTests
 
         Assert.Equal(ExecutionStatus.Failed, result.Status);
         Assert.Equal("validation_failed", Assert.IsType<Problem>(result.Error).Code);
+        Assert.Null(await memories.GetActiveAsync(
+            new MemoryLookup(
+                "tenant-a",
+                "project-1",
+                MemoryKind.Decision,
+                "activeDecisions[0]",
+                DateTimeOffset.UtcNow),
+            TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -220,6 +323,9 @@ public sealed class ExecutionOrchestratorTests
                 Assert.Contains(
                     iRoute.Infrastructure.Migrations.PolicyApprovals.MigrationId,
                     appliedMigrations);
+                Assert.Contains(
+                    iRoute.Infrastructure.Migrations.ArtifactMemoryStore.MigrationId,
+                    appliedMigrations);
             }
 
             ExecutionSnapshot first;
@@ -229,7 +335,8 @@ public sealed class ExecutionOrchestratorTests
                     new EfExecutionStore(factory),
                     new EfArtifactStore(factory),
                     cancellations,
-                    checkpoints: new EfWorkflowCheckpointStore(factory));
+                    checkpoints: new EfWorkflowCheckpointStore(factory),
+                    memories: new EfMemoryStore(factory));
                 first = await orchestrator.ExecuteAsync(
                     CreateRequest("tenant-a", "persistent-first"),
                     TestContext.Current.CancellationToken);
@@ -241,7 +348,8 @@ public sealed class ExecutionOrchestratorTests
                 restartedStore,
                 new EfArtifactStore(factory),
                 restartedCancellations,
-                checkpoints: new EfWorkflowCheckpointStore(factory));
+                checkpoints: new EfWorkflowCheckpointStore(factory),
+                memories: new EfMemoryStore(factory));
             var second = await restarted.ExecuteAsync(
                 CreateRequest("tenant-a", "persistent-second"),
                 TestContext.Current.CancellationToken);
@@ -265,7 +373,8 @@ public sealed class ExecutionOrchestratorTests
         IWorkflowCheckpointStore? checkpoints = null,
         IApprovalStore? approvals = null,
         IExternalActionStore? externalActions = null,
-        IExternalActionExecutor? externalActionExecutor = null)
+        IExternalActionExecutor? externalActionExecutor = null,
+        IMemoryStore? memories = null)
     {
         var definitions = new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
@@ -273,6 +382,7 @@ public sealed class ExecutionOrchestratorTests
         checkpoints ??= new InMemoryWorkflowCheckpointStore();
         approvals ??= new InMemoryApprovalStore();
         externalActions ??= new InMemoryExternalActionStore();
+        memories ??= new InMemoryMemoryStore();
         var scheduler = new BoundedDependencyScheduler(
             checkpoints,
             store,
@@ -281,6 +391,7 @@ public sealed class ExecutionOrchestratorTests
         return new ExecutionOrchestrator(
             store,
             artifacts,
+            new ProjectMemoryMaterializer(memories, artifacts, clock),
             [new ArtifactReuseResolver(artifacts, definitions, fingerprint, clock)],
             definitions,
             planFactory ?? new DirectExecutionPlanFactory(),
@@ -367,6 +478,21 @@ public sealed class ExecutionOrchestratorTests
         {
             InvocationCount++;
             throw new InvalidOperationException("The invalid plan reached capability execution.");
+        }
+    }
+
+    private sealed class CountingModelGateway : IModelGateway
+    {
+        private readonly DeterministicModelGateway _inner = new();
+
+        public int InvocationCount { get; private set; }
+
+        public Task<ModelGatewayResult> ExecuteAsync(
+            ModelGatewayRequest request,
+            CancellationToken cancellationToken)
+        {
+            InvocationCount++;
+            return _inner.ExecuteAsync(request, cancellationToken);
         }
     }
 }

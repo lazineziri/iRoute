@@ -23,5 +23,18 @@
   ],
   "createdAt": "2026-07-31T12:00:01Z",
   "expiresAt": null,
-  "isActive": true
+  "isActive": true,
+  "logicalKey": "email.draft",
+  "lifecycleStatus": "Active",
+  "supersedesArtifactId": null,
+  "supersededByArtifactId": null,
+  "dependencies": [
+    {
+      "kind": "memory",
+      "reference": "0198f6b4-6f3c-7de1-86e8-5d223ab25450",
+      "contentHash": "d64f10a7d2f55ddfbfbc01da4436981de4450db4542138a699cdd6ef5e998a3f"
+    }
+  ],
+  "invalidatedAt": null,
+  "invalidationReason": null
 }

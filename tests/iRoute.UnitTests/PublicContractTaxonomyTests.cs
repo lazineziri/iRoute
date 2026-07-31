@@ -31,6 +31,11 @@ public sealed class PublicContractTaxonomyTests
             "gateway.completed",
             "validation.completed",
             "artifact.materialized",
+            "artifact.superseded",
+            "artifact.invalidated",
+            "memory.materialized",
+            "memory.superseded",
+            "memory.invalidated",
             "execution.cancellation_requested",
             "execution.completed",
             "execution.failed"

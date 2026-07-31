@@ -106,6 +106,11 @@ public sealed record ArtifactReference(
     int Version,
     string ContentHash);
 
+public sealed record DependencyReference(
+    string Kind,
+    string Reference,
+    string? ContentHash = null);
+
 public sealed record ArtifactSnapshot(
     ArtifactReference Artifact,
     string TenantId,
@@ -116,7 +121,33 @@ public sealed record ArtifactSnapshot(
     IReadOnlyList<EvidenceReference> Evidence,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ExpiresAt = null,
-    bool IsActive = true);
+    bool IsActive = true,
+    string? LogicalKey = null,
+    ArtifactLifecycleStatus LifecycleStatus = ArtifactLifecycleStatus.Active,
+    Guid? SupersedesArtifactId = null,
+    Guid? SupersededByArtifactId = null,
+    IReadOnlyList<DependencyReference>? Dependencies = null,
+    DateTimeOffset? InvalidatedAt = null,
+    string? InvalidationReason = null);
+
+public sealed record MemorySnapshot(
+    Guid MemoryId,
+    string TenantId,
+    string? ProjectId,
+    MemoryKind Kind,
+    string Key,
+    int Version,
+    JsonElement Value,
+    string ContentHash,
+    MemoryLifecycleStatus LifecycleStatus,
+    IReadOnlyList<EvidenceReference> Evidence,
+    IReadOnlyList<DependencyReference> Dependencies,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ExpiresAt = null,
+    Guid? SupersedesMemoryId = null,
+    Guid? SupersededByMemoryId = null,
+    DateTimeOffset? InvalidatedAt = null,
+    string? InvalidationReason = null);
 
 public sealed record ValidationSummary(
     bool Passed,
@@ -231,6 +262,29 @@ public enum ApprovalStatus
     Denied
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<ArtifactLifecycleStatus>))]
+public enum ArtifactLifecycleStatus
+{
+    Active,
+    Superseded,
+    Invalidated
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<MemoryKind>))]
+public enum MemoryKind
+{
+    Fact,
+    Decision
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<MemoryLifecycleStatus>))]
+public enum MemoryLifecycleStatus
+{
+    Active,
+    Superseded,
+    Invalidated
+}
+
 public static class ExecutionEventTypes
 {
     public const string Created = "execution.created";
@@ -255,6 +309,11 @@ public static class ExecutionEventTypes
     public const string GatewayCompleted = "gateway.completed";
     public const string ValidationCompleted = "validation.completed";
     public const string ArtifactMaterialized = "artifact.materialized";
+    public const string ArtifactSuperseded = "artifact.superseded";
+    public const string ArtifactInvalidated = "artifact.invalidated";
+    public const string MemoryMaterialized = "memory.materialized";
+    public const string MemorySuperseded = "memory.superseded";
+    public const string MemoryInvalidated = "memory.invalidated";
     public const string CancellationRequested = "execution.cancellation_requested";
     public const string Completed = "execution.completed";
     public const string Failed = "execution.failed";
@@ -283,6 +342,11 @@ public static class ExecutionEventTypes
         GatewayCompleted,
         ValidationCompleted,
         ArtifactMaterialized,
+        ArtifactSuperseded,
+        ArtifactInvalidated,
+        MemoryMaterialized,
+        MemorySuperseded,
+        MemoryInvalidated,
         CancellationRequested,
         Completed,
         Failed

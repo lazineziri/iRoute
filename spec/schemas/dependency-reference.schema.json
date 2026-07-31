@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/dependency-reference.schema.json",
+  "title": "DependencyReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "reference"],
+  "properties": {
+    "kind": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "reference": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "contentHash": { "type": ["string", "null"], "maxLength": 256 }
+  }
+}

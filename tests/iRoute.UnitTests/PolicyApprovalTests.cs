@@ -353,6 +353,7 @@ public sealed class PolicyApprovalTests
         return new ExecutionOrchestrator(
             executions,
             artifacts,
+            new ProjectMemoryMaterializer(new InMemoryMemoryStore(), artifacts, clock),
             [new ArtifactReuseResolver(artifacts, definitions, fingerprint, clock)],
             definitions,
             planFactory ?? new DirectExecutionPlanFactory(),

@@ -43,13 +43,21 @@
       "required": ["kind", "reference"],
       "properties": ["kind", "reference", "contentHash", "observedAt"]
     },
+    "DependencyReference": {
+      "required": ["kind", "reference"],
+      "properties": ["kind", "reference", "contentHash"]
+    },
     "ArtifactReference": {
       "required": ["artifactId", "artifactType", "version", "contentHash"],
       "properties": ["artifactId", "artifactType", "version", "contentHash"]
     },
     "ArtifactSnapshot": {
       "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
-      "properties": ["artifact", "tenantId", "projectId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "expiresAt", "isActive"]
+      "properties": ["artifact", "tenantId", "projectId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "expiresAt", "isActive", "logicalKey", "lifecycleStatus", "supersedesArtifactId", "supersededByArtifactId", "dependencies", "invalidatedAt", "invalidationReason"]
+    },
+    "MemorySnapshot": {
+      "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
+      "properties": ["memoryId", "tenantId", "projectId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt", "expiresAt", "supersedesMemoryId", "supersededByMemoryId", "invalidatedAt", "invalidationReason"]
     },
     "UsageSummary": {
       "required": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"],
@@ -85,7 +93,10 @@
     "ResolutionLevel": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"],
     "ApprovalStatus": ["Pending", "Approved", "Denied"],
     "SideEffectClass": ["None", "ReadOnly", "ReversibleWrite", "IrreversibleWrite"],
-    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "execution.cancellation_requested", "execution.completed", "execution.failed"],
+    "ArtifactLifecycleStatus": ["Active", "Superseded", "Invalidated"],
+    "MemoryKind": ["Fact", "Decision"],
+    "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
+    "TaskEventType": ["execution.created", "execution.status_changed", "resolution.considered", "plan.validated", "policy.evaluated", "capability.denied", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.completed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
     "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
   },
   "jsonSchemas": {
@@ -103,7 +114,7 @@
     },
     "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json": {
       "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
-      "properties": ["artifact", "content", "createdAt", "evidence", "expiresAt", "isActive", "projectId", "taskDefinitionVersion", "taskType", "tenantId"]
+      "properties": ["artifact", "content", "createdAt", "dependencies", "evidence", "expiresAt", "invalidatedAt", "invalidationReason", "isActive", "lifecycleStatus", "logicalKey", "projectId", "supersededByArtifactId", "supersedesArtifactId", "taskDefinitionVersion", "taskType", "tenantId"]
     },
     "https://schemas.iroute.dev/v1/capability-definition.schema.json": {
       "required": ["capability", "version", "kind", "description", "inputSchema", "outputSchema", "sideEffectClass", "authenticationScopes", "permissionScopes", "idempotency", "retry", "serviceProfile", "cacheability", "freshnessSeconds", "dataSensitivity", "trustLevel", "isolation"],
@@ -116,6 +127,10 @@
     "https://schemas.iroute.dev/v1/evidence-reference.schema.json": {
       "required": ["kind", "reference"],
       "properties": ["contentHash", "kind", "observedAt", "reference"]
+    },
+    "https://schemas.iroute.dev/v1/dependency-reference.schema.json": {
+      "required": ["kind", "reference"],
+      "properties": ["contentHash", "kind", "reference"]
     },
     "https://schemas.iroute.dev/v1/execution-plan.schema.json": {
       "required": ["planId", "version", "taskType", "taskVersion", "steps", "budget"],
@@ -132,6 +147,10 @@
     "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
       "required": ["output", "usage", "confidence", "evidence"],
       "properties": ["confidence", "evidence", "output", "usage"]
+    },
+    "https://schemas.iroute.dev/v1/memory-snapshot.schema.json": {
+      "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
+      "properties": ["contentHash", "createdAt", "dependencies", "evidence", "expiresAt", "invalidatedAt", "invalidationReason", "key", "kind", "lifecycleStatus", "memoryId", "projectId", "supersededByMemoryId", "supersedesMemoryId", "tenantId", "value", "version"]
     },
     "https://schemas.iroute.dev/v1/problem.schema.json": {
       "required": ["code", "title", "detail", "retryable"],

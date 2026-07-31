@@ -45,6 +45,22 @@ flowchart LR
     F -->|"completed reservation"| H
 ```
 
+The W05 project-state path makes reuse dependency-aware:
+
+```mermaid
+flowchart LR
+    A["Scoped facts and decisions"] --> B["Versioned memory records"]
+    B --> C["Validated artifact"]
+    D["Evidence and source references"] --> B
+    D --> C
+    B -->|"superseded"| E["Targeted invalidation"]
+    E --> C
+    C -->|"artifact dependency"| F["Derived artifact"]
+    E --> F
+```
+
+Each artifact lineage is identified by tenant, project, artifact type, and logical key. Only one version is active. An unchanged input/content pair deduplicates; a changed result creates the next version and records its predecessor. Facts and decisions use the same versioned lifecycle. Dependency edges hold references and hashes rather than copied payloads, allowing deterministic freshness checks and recursive invalidation.
+
 ## Code dependency topology
 
 ```mermaid
@@ -102,13 +118,13 @@ Every transition is persisted and emits an ordered event. Terminal states are im
 
 ## Persistence profiles
 
-`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans, per-step attempts and outputs, events, artifacts, approvals, and external-action reservations through the same ports. Restart tests cover both workflow-step recovery and approval-gated action resumption.
+`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans, per-step attempts and outputs, events, artifacts, memory records, dependency edges, approvals, and external-action reservations through the same ports. Restart tests cover workflow recovery, approval-gated action resumption, and project-state lifecycle parity.
 
 `Storage:AutoInitialize` applies checked-in EF migrations. The initial migration contains provider-specific SQL so SQLite uses its native storage representation while PostgreSQL uses native UUID and boolean columns. Future changes must follow expand-and-contract migration rules.
 
 ## Identity boundary
 
-The API has two explicit identity profiles. `DevelopmentHeaders` accepts local tenant, actor, and permission headers for a credential-free developer loop. `Jwt` validates bearer tokens against a configured authority and audience, requires a tenant claim, derives actor identity and permission scopes from claims, and ignores caller-controlled scope headers. Runtime stores, approvals, external actions, and reuse indexes remain tenant-scoped as a second line of isolation.
+The API has two explicit identity profiles. `DevelopmentHeaders` accepts local tenant, actor, and permission headers for a credential-free developer loop. `Jwt` validates bearer tokens against a configured authority and audience, requires a tenant claim, derives actor identity and permission scopes from claims, and ignores caller-controlled scope headers. Runtime stores, approvals, external actions, memory, dependency edges, and reuse indexes remain tenant-scoped as a second line of isolation. Artifact and memory direct-read ports require tenant identity, so filtering cannot be deferred until after a record is loaded.
 
 ## Extension rules
 

@@ -25,6 +25,16 @@
     "evidence": { "type": "array", "items": { "$ref": "evidence-reference.schema.json" } },
     "createdAt": { "type": "string", "format": "date-time" },
     "expiresAt": { "type": ["string", "null"], "format": "date-time" },
-    "isActive": { "type": "boolean" }
+    "isActive": { "type": "boolean" },
+    "logicalKey": { "type": ["string", "null"], "minLength": 1, "maxLength": 200 },
+    "lifecycleStatus": { "enum": ["Active", "Superseded", "Invalidated"] },
+    "supersedesArtifactId": { "type": ["string", "null"], "format": "uuid" },
+    "supersededByArtifactId": { "type": ["string", "null"], "format": "uuid" },
+    "dependencies": {
+      "type": ["array", "null"],
+      "items": { "$ref": "dependency-reference.schema.json" }
+    },
+    "invalidatedAt": { "type": ["string", "null"], "format": "date-time" },
+    "invalidationReason": { "type": ["string", "null"], "maxLength": 2000 }
   }
 }

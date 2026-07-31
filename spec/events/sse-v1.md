@@ -43,6 +43,11 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `gateway.completed` | The model gateway returned normalized usage. |
 | `validation.completed` | Task-specific validation completed. |
 | `artifact.materialized` | A versioned artifact was stored. |
+| `artifact.superseded` | A new artifact version records the artifact version it supersedes. |
+| `artifact.invalidated` | One or more artifacts became stale because a dependency changed or disappeared. |
+| `memory.materialized` | A scoped fact or decision version was stored. |
+| `memory.superseded` | A fact or decision was replaced by a newer scoped version. |
+| `memory.invalidated` | Derived memory became stale because a dependency changed or disappeared. |
 | `execution.cancellation_requested` | Cancellation was durably requested. |
 | `execution.completed` | The execution succeeded. |
 | `execution.failed` | The execution failed, was cancelled, or timed out. |

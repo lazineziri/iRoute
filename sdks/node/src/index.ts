@@ -61,6 +61,16 @@ export interface ArtifactReference {
   contentHash: string;
 }
 
+export interface DependencyReference {
+  kind: string;
+  reference: string;
+  contentHash?: string | null;
+}
+
+export type ArtifactLifecycleStatus = 'Active' | 'Superseded' | 'Invalidated';
+export type MemoryKind = 'Fact' | 'Decision';
+export type MemoryLifecycleStatus = 'Active' | 'Superseded' | 'Invalidated';
+
 export interface UsageSummary {
   inputTokens: number;
   outputTokens: number;
@@ -138,6 +148,33 @@ export interface ArtifactSnapshot {
   createdAt: string;
   expiresAt?: string | null;
   isActive: boolean;
+  logicalKey?: string | null;
+  lifecycleStatus?: ArtifactLifecycleStatus;
+  supersedesArtifactId?: string | null;
+  supersededByArtifactId?: string | null;
+  dependencies?: readonly DependencyReference[] | null;
+  invalidatedAt?: string | null;
+  invalidationReason?: string | null;
+}
+
+export interface MemorySnapshot {
+  memoryId: string;
+  tenantId: string;
+  projectId?: string | null;
+  kind: MemoryKind;
+  key: string;
+  version: number;
+  value: unknown;
+  contentHash: string;
+  lifecycleStatus: MemoryLifecycleStatus;
+  evidence: readonly EvidenceReference[];
+  dependencies: readonly DependencyReference[];
+  createdAt: string;
+  expiresAt?: string | null;
+  supersedesMemoryId?: string | null;
+  supersededByMemoryId?: string | null;
+  invalidatedAt?: string | null;
+  invalidationReason?: string | null;
 }
 
 export interface ExecutionEvent {

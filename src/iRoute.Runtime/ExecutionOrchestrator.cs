@@ -8,6 +8,7 @@ namespace iRoute.Runtime;
 public sealed class ExecutionOrchestrator(
     IExecutionStore store,
     IArtifactStore artifacts,
+    ProjectMemoryMaterializer projectMemory,
     IEnumerable<INoModelResolver> resolvers,
     ITaskDefinitionRegistry taskDefinitions,
     IExecutionPlanFactory planFactory,
@@ -608,11 +609,21 @@ public sealed class ExecutionOrchestrator(
         }
 
         snapshot = await TransitionAsync(snapshot, ExecutionStatus.Materializing, cancellationToken);
+        var memory = await MaterializeProjectMemoryAsync(snapshot, request, cancellationToken);
         var combinedEvidence = capabilityResult.Evidence
             .Concat(context.Evidence)
             .DistinctBy(x => (x.Kind, x.Reference))
             .ToArray();
         var createdAt = clock.UtcNow;
+        var dependencies = combinedEvidence
+            .Select(item => new DependencyReference(item.Kind, item.Reference, item.ContentHash))
+            .Concat(memory.Select(item => new DependencyReference(
+                "memory",
+                item.MemoryId.ToString(),
+                item.ContentHash)))
+            .DistinctBy(item => (item.Kind, item.Reference))
+            .ToArray();
+        var logicalKey = request.Metadata?.GetValueOrDefault("artifactKey")?.Trim();
         var artifact = await artifacts.SaveAsync(
             new ArtifactRecord(
                 Guid.CreateVersion7(),
@@ -628,7 +639,9 @@ public sealed class ExecutionOrchestrator(
                 combinedEvidence,
                 createdAt,
                 definition.ArtifactTimeToLive is { } ttl ? createdAt.Add(ttl) : null,
-                true),
+                true,
+                string.IsNullOrWhiteSpace(logicalKey) ? request.TaskType : logicalKey,
+                Dependencies: dependencies),
             cancellationToken);
         await AppendEventAsync(
             snapshot.ExecutionId,
@@ -638,9 +651,27 @@ public sealed class ExecutionOrchestrator(
                 artifact.ArtifactId,
                 artifact.ArtifactType,
                 artifact.Version,
-                artifact.ContentHash
+                artifact.ContentHash,
+                artifact.LogicalKey,
+                artifact.LifecycleStatus,
+                artifact.SupersedesArtifactId,
+                dependencies = artifact.EffectiveDependencies.Count
             },
             cancellationToken);
+        if (artifact.SupersedesArtifactId is not null)
+        {
+            await AppendEventAsync(
+                snapshot.ExecutionId,
+                ExecutionEventTypes.ArtifactSuperseded,
+                new
+                {
+                    artifact.ArtifactId,
+                    artifact.SupersedesArtifactId,
+                    artifact.LogicalKey,
+                    artifact.Version
+                },
+                cancellationToken);
+        }
 
         var outcome = new TaskOutcome(
             capabilityResult.Output,
@@ -961,6 +992,82 @@ public sealed class ExecutionOrchestrator(
         return await TerminalAsync(snapshot, status, problem, CancellationToken.None);
     }
 
+    private async Task<IReadOnlyList<MemoryRecord>> MaterializeProjectMemoryAsync(
+        ExecutionSnapshot snapshot,
+        TaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        var results = await projectMemory.MaterializeAsync(
+            request,
+            snapshot.ExecutionId,
+            cancellationToken);
+        foreach (var result in results)
+        {
+            if (result.Write.Created)
+            {
+                await AppendEventAsync(
+                    snapshot.ExecutionId,
+                    ExecutionEventTypes.MemoryMaterialized,
+                    new
+                    {
+                        result.Write.Record.MemoryId,
+                        result.Write.Record.Kind,
+                        result.Write.Record.Key,
+                        result.Write.Record.Version,
+                        result.Write.Record.ContentHash,
+                        result.Write.Record.LifecycleStatus
+                    },
+                    cancellationToken);
+            }
+
+            if (result.Write.Previous is not null)
+            {
+                await AppendEventAsync(
+                    snapshot.ExecutionId,
+                    ExecutionEventTypes.MemorySuperseded,
+                    new
+                    {
+                        memoryId = result.Write.Record.MemoryId,
+                        supersedesMemoryId = result.Write.Previous.MemoryId,
+                        result.Write.Record.Kind,
+                        result.Write.Record.Key,
+                        result.Write.Record.Version
+                    },
+                    cancellationToken);
+            }
+
+            if (result.InvalidatedMemory.MemoryIds.Count > 0)
+            {
+                await AppendEventAsync(
+                    snapshot.ExecutionId,
+                    ExecutionEventTypes.MemoryInvalidated,
+                    new
+                    {
+                        sourceMemoryId = result.Write.Previous?.MemoryId,
+                        memoryIds = result.InvalidatedMemory.MemoryIds,
+                        reason = "dependency_superseded"
+                    },
+                    cancellationToken);
+            }
+
+            if (result.InvalidatedArtifacts.ArtifactIds.Count > 0)
+            {
+                await AppendEventAsync(
+                    snapshot.ExecutionId,
+                    ExecutionEventTypes.ArtifactInvalidated,
+                    new
+                    {
+                        sourceMemoryId = result.Write.Previous?.MemoryId,
+                        artifactIds = result.InvalidatedArtifacts.ArtifactIds,
+                        reason = "dependency_superseded"
+                    },
+                    cancellationToken);
+            }
+        }
+
+        return results.Select(result => result.Write.Record).ToArray();
+    }
+
     private async Task<ExecutionSnapshot> FinishAsync(
         ExecutionSnapshot snapshot,
         TaskOutcome outcome,
@@ -1154,6 +1261,12 @@ public sealed class ExecutionOrchestrator(
         if (request.Constraints?.MinimumQuality is < 0 or > 1)
         {
             throw new ArgumentOutOfRangeException(nameof(request), "MinimumQuality must be between zero and one.");
+        }
+
+        if (request.Metadata?.TryGetValue("artifactKey", out var artifactKey) is true &&
+            artifactKey.Trim().Length > 200)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "Metadata artifactKey cannot exceed 200 characters.");
         }
     }
 

@@ -168,6 +168,81 @@ try {
   console.error(`FAIL w04-policy-approval-idempotency: ${error.message}`);
 }
 
+try {
+  const projectId = `evaluation-w05-${evaluationRunId}`;
+  const request = decision => ({
+    taskType: 'email.draft',
+    projectId,
+    input: {
+      recipient: { name: 'Ada' },
+      projectName: 'iRoute',
+      objective: 'Validate the artifact and memory lifecycle.',
+      tone: 'professional',
+      activeDecisions: [decision]
+    },
+    constraints: { maxModelCalls: 1 }
+  });
+  const execute = async (body, suffix) => {
+    const response = await fetch(new URL('/v1/executions', baseUrl), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'evaluation',
+        'x-actor-id': 'evaluation-runner',
+        'idempotency-key': `w05-${evaluationRunId}-${suffix}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) throw new Error(`execution ${suffix} returned HTTP ${response.status}: ${await response.text()}`);
+    return await response.json();
+  };
+
+  const first = await execute(request('Use SQLite for the prototype.'), 'v1');
+  const firstArtifact = first.outcome?.artifacts?.[0];
+  if (!firstArtifact) throw new Error('first execution did not materialize an artifact');
+  assertEqual(firstArtifact.version, 1, 'first artifact version');
+
+  const secondRequest = request('Use PostgreSQL for durable deployments.');
+  const second = await execute(secondRequest, 'v2');
+  const secondArtifact = second.outcome?.artifacts?.[0];
+  if (!secondArtifact) throw new Error('second execution did not materialize an artifact');
+  assertEqual(secondArtifact.version, 2, 'replacement artifact version');
+
+  const invalidatedResponse = await fetch(
+    new URL(`/v1/artifacts/${firstArtifact.artifactId}`, baseUrl),
+    { headers: { 'x-tenant-id': 'evaluation' } }
+  );
+  if (!invalidatedResponse.ok) throw new Error(`invalidated artifact lookup returned HTTP ${invalidatedResponse.status}`);
+  const invalidated = await invalidatedResponse.json();
+  assertEqual(invalidated.lifecycleStatus, 'Invalidated', 'previous artifact lifecycle');
+  assertEqual(invalidated.isActive, false, 'previous artifact active flag');
+
+  const hiddenResponse = await fetch(
+    new URL(`/v1/artifacts/${secondArtifact.artifactId}`, baseUrl),
+    { headers: { 'x-tenant-id': 'evaluation-other-tenant' } }
+  );
+  assertEqual(hiddenResponse.status, 404, 'cross-tenant artifact status');
+
+  const third = await execute(secondRequest, 'v2-reuse');
+  assertEqual(third.outcome?.resolutionLevel, 'ExactArtifact', 'replacement reuse resolution');
+  assertEqual(third.outcome?.usage?.modelCalls, 0, 'replacement reuse model calls');
+  assertEqual(third.outcome?.artifacts?.[0]?.artifactId, secondArtifact.artifactId, 'replacement reuse artifact');
+
+  const eventResponse = await fetch(
+    new URL(`/v1/executions/${second.executionId}/events?after=0`, baseUrl),
+    { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+  );
+  if (!eventResponse.ok) throw new Error(`W05 event replay returned HTTP ${eventResponse.status}`);
+  const events = await eventResponse.text();
+  for (const eventType of ['memory.superseded', 'artifact.invalidated', 'artifact.materialized']) {
+    if (!events.includes(`event: ${eventType}`)) throw new Error(`W05 event replay omitted ${eventType}`);
+  }
+  console.log('PASS w05-artifact-memory-lifecycle');
+} catch (error) {
+  failed++;
+  console.error(`FAIL w05-artifact-memory-lifecycle: ${error.message}`);
+}
+
 if (failed > 0) process.exitCode = 1;
 
 function assertEqual(actual, expected, label) {

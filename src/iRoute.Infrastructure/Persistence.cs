@@ -25,6 +25,8 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
     public DbSet<ApprovalEntity> Approvals => Set<ApprovalEntity>();
     public DbSet<ExternalActionEntity> ExternalActions => Set<ExternalActionEntity>();
     public DbSet<ArtifactEntity> Artifacts => Set<ArtifactEntity>();
+    public DbSet<MemoryEntity> MemoryRecords => Set<MemoryEntity>();
+    public DbSet<DependencyEdgeEntity> DependencyEdges => Set<DependencyEdgeEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -99,6 +101,8 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
         artifact.Property(x => x.ArtifactType).HasMaxLength(120);
         artifact.Property(x => x.InputHash).HasMaxLength(64);
         artifact.Property(x => x.ContentHash).HasMaxLength(64);
+        artifact.Property(x => x.LogicalKey).HasMaxLength(200);
+        artifact.Property(x => x.LifecycleStatus).HasConversion<string>().HasMaxLength(40);
         artifact.HasIndex(x => new
         {
             x.TenantId,
@@ -107,6 +111,69 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
             x.TaskDefinitionVersion,
             x.InputHash,
             x.IsActive
+        });
+        artifact.HasIndex(x => new
+        {
+            x.TenantId,
+            x.ProjectId,
+            x.ArtifactType,
+            x.LogicalKey,
+            x.Version
+        }).IsUnique();
+        artifact.HasIndex(x => new
+        {
+            x.TenantId,
+            x.ProjectId,
+            x.ArtifactType,
+            x.LogicalKey,
+            x.IsActive
+        });
+
+        var memory = modelBuilder.Entity<MemoryEntity>();
+        memory.ToTable("MemoryRecords");
+        memory.HasKey(x => x.MemoryId);
+        memory.Property(x => x.TenantId).HasMaxLength(200);
+        memory.Property(x => x.ProjectId).HasMaxLength(200);
+        memory.Property(x => x.Kind).HasConversion<string>().HasMaxLength(40);
+        memory.Property(x => x.Key).HasMaxLength(200);
+        memory.Property(x => x.ContentHash).HasMaxLength(64);
+        memory.Property(x => x.LifecycleStatus).HasConversion<string>().HasMaxLength(40);
+        memory.HasIndex(x => new
+        {
+            x.TenantId,
+            x.ProjectId,
+            x.Kind,
+            x.Key,
+            x.Version
+        }).IsUnique();
+        memory.HasIndex(x => new
+        {
+            x.TenantId,
+            x.ProjectId,
+            x.Kind,
+            x.Key,
+            x.LifecycleStatus
+        });
+
+        var dependency = modelBuilder.Entity<DependencyEdgeEntity>();
+        dependency.ToTable("DependencyEdges");
+        dependency.HasKey(x => new
+        {
+            x.SourceKind,
+            x.SourceId,
+            x.TargetKind,
+            x.TargetReference
+        });
+        dependency.Property(x => x.TenantId).HasMaxLength(200);
+        dependency.Property(x => x.SourceKind).HasMaxLength(40);
+        dependency.Property(x => x.TargetKind).HasMaxLength(120);
+        dependency.Property(x => x.TargetReference).HasMaxLength(500);
+        dependency.Property(x => x.TargetContentHash).HasMaxLength(64);
+        dependency.HasIndex(x => new
+        {
+            x.TenantId,
+            x.TargetKind,
+            x.TargetReference
         });
     }
 }
@@ -174,6 +241,12 @@ public sealed class ArtifactEntity
     public long CreatedAtUnixMilliseconds { get; set; }
     public long? ExpiresAtUnixMilliseconds { get; set; }
     public bool IsActive { get; set; }
+    public string LogicalKey { get; set; } = null!;
+    public ArtifactLifecycleStatus LifecycleStatus { get; set; }
+    public Guid? SupersedesArtifactId { get; set; }
+    public Guid? SupersededByArtifactId { get; set; }
+    public long? InvalidatedAtUnixMilliseconds { get; set; }
+    public string? InvalidationReason { get; set; }
 }
 
 public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextFactory) : IExecutionStore
@@ -560,19 +633,25 @@ public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFa
                 x.TaskDefinitionVersion == query.TaskDefinitionVersion &&
                 x.InputHash == query.InputHash &&
                 x.IsActive &&
+                x.LifecycleStatus == ArtifactLifecycleStatus.Active &&
                 (x.ExpiresAtUnixMilliseconds == null || x.ExpiresAtUnixMilliseconds > now))
             .OrderByDescending(x => x.Version)
             .FirstOrDefaultAsync(cancellationToken);
-        return entity is null ? null : PersistenceMapping.ToContract(entity);
+        return entity is null ? null : await ToRecordAsync(context, entity, cancellationToken);
     }
 
-    public async Task<ArtifactRecord?> GetAsync(Guid artifactId, CancellationToken cancellationToken)
+    public async Task<ArtifactRecord?> GetAsync(
+        string tenantId,
+        Guid artifactId,
+        CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Artifacts
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.ArtifactId == artifactId, cancellationToken);
-        return entity is null ? null : PersistenceMapping.ToContract(entity);
+            .SingleOrDefaultAsync(
+                x => x.TenantId == tenantId && x.ArtifactId == artifactId,
+                cancellationToken);
+        return entity is null ? null : await ToRecordAsync(context, entity, cancellationToken);
     }
 
     public async Task<ArtifactRecord> SaveAsync(
@@ -584,34 +663,123 @@ public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFa
             IsolationLevel.Serializable,
             cancellationToken);
         var projectId = artifact.ProjectId ?? string.Empty;
-        var existing = await context.Artifacts
+        var logicalKey = artifact.EffectiveLogicalKey;
+        var lineage = await context.Artifacts
             .Where(x =>
                 x.TenantId == artifact.TenantId &&
                 x.ProjectId == projectId &&
-                x.TaskType == artifact.TaskType &&
-                x.TaskDefinitionVersion == artifact.TaskDefinitionVersion &&
-                x.InputHash == artifact.InputHash &&
-                x.IsActive)
+                x.ArtifactType == artifact.ArtifactType &&
+                x.LogicalKey == logicalKey)
             .OrderByDescending(x => x.Version)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (existing is not null)
+            .ThenByDescending(x => x.ArtifactId)
+            .ToListAsync(cancellationToken);
+        var active = lineage.FirstOrDefault(item =>
+            item.IsActive && item.LifecycleStatus == ArtifactLifecycleStatus.Active);
+        if (active is not null &&
+            string.Equals(active.InputHash, artifact.InputHash, StringComparison.Ordinal) &&
+            string.Equals(active.ContentHash, artifact.ContentHash, StringComparison.Ordinal) &&
+            (active.ExpiresAtUnixMilliseconds is null ||
+                active.ExpiresAtUnixMilliseconds > artifact.CreatedAt.ToUnixTimeMilliseconds()))
         {
+            var existing = await ToRecordAsync(context, active, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return PersistenceMapping.ToContract(existing);
+            return existing;
         }
 
-        var latestVersion = await context.Artifacts
-            .Where(x =>
-                x.TenantId == artifact.TenantId &&
-                x.ProjectId == projectId &&
-                x.ArtifactType == artifact.ArtifactType)
-            .MaxAsync(x => (int?)x.Version, cancellationToken) ?? 0;
-        var versioned = artifact with { Version = checked(latestVersion + 1) };
+        var previous = lineage.FirstOrDefault();
+        var versioned = artifact with
+        {
+            Version = checked((previous?.Version ?? 0) + 1),
+            LogicalKey = logicalKey,
+            IsActive = true,
+            LifecycleStatus = ArtifactLifecycleStatus.Active,
+            SupersedesArtifactId = previous?.ArtifactId,
+            SupersededByArtifactId = null,
+            Dependencies = EfMemoryStore.NormalizeDependencies(artifact.EffectiveDependencies),
+            InvalidatedAt = null,
+            InvalidationReason = null
+        };
+        if (active is not null)
+        {
+            active.IsActive = false;
+            active.LifecycleStatus = ArtifactLifecycleStatus.Superseded;
+            active.SupersededByArtifactId = versioned.ArtifactId;
+        }
+
         context.Artifacts.Add(PersistenceMapping.ToEntity(versioned));
+        EfMemoryStore.AddDependencyEdges(
+            context,
+            "artifact",
+            versioned.ArtifactId,
+            versioned.TenantId,
+            versioned.EffectiveDependencies);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return versioned;
     }
+
+    public async Task<ArtifactInvalidationResult> InvalidateByDependencyAsync(
+        DependencyChange change,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var invalidated = new List<Guid>();
+        var seen = new HashSet<Guid>();
+        var changes = new Queue<DependencyChange>();
+        changes.Enqueue(change);
+        while (changes.TryDequeue(out var current))
+        {
+            var sourceIds = await EfMemoryStore.MatchingSourceIdsAsync(
+                context,
+                current,
+                "artifact",
+                cancellationToken);
+            var candidates = await context.Artifacts
+                .Where(item =>
+                    item.TenantId == change.TenantId &&
+                    sourceIds.Contains(item.ArtifactId) &&
+                    item.IsActive &&
+                    item.LifecycleStatus == ArtifactLifecycleStatus.Active)
+                .OrderBy(item => item.Version)
+                .ThenBy(item => item.ArtifactId)
+                .ToListAsync(cancellationToken);
+            foreach (var candidate in candidates.Where(item => seen.Add(item.ArtifactId)))
+            {
+                candidate.IsActive = false;
+                candidate.LifecycleStatus = ArtifactLifecycleStatus.Invalidated;
+                candidate.InvalidatedAtUnixMilliseconds = change.OccurredAt.ToUnixTimeMilliseconds();
+                candidate.InvalidationReason = change.Reason;
+                invalidated.Add(candidate.ArtifactId);
+                changes.Enqueue(new DependencyChange(
+                    change.TenantId,
+                    "artifact",
+                    candidate.ArtifactId.ToString(),
+                    candidate.ContentHash,
+                    true,
+                    change.Reason,
+                    change.OccurredAt));
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new ArtifactInvalidationResult(invalidated);
+    }
+
+    private static async Task<ArtifactRecord> ToRecordAsync(
+        IRouteDbContext context,
+        ArtifactEntity entity,
+        CancellationToken cancellationToken) =>
+        PersistenceMapping.ToContract(
+            entity,
+            await EfMemoryStore.ReadDependenciesAsync(
+                context,
+                "artifact",
+                entity.ArtifactId,
+                cancellationToken));
 }
 
 public sealed class PersistenceInitializer(
@@ -735,10 +903,18 @@ internal static class PersistenceMapping
         EvidenceJson = JsonSerializer.Serialize(artifact.Evidence, JsonOptions),
         CreatedAtUnixMilliseconds = artifact.CreatedAt.ToUnixTimeMilliseconds(),
         ExpiresAtUnixMilliseconds = artifact.ExpiresAt?.ToUnixTimeMilliseconds(),
-        IsActive = artifact.IsActive
+        IsActive = artifact.IsActive,
+        LogicalKey = artifact.EffectiveLogicalKey,
+        LifecycleStatus = artifact.LifecycleStatus,
+        SupersedesArtifactId = artifact.SupersedesArtifactId,
+        SupersededByArtifactId = artifact.SupersededByArtifactId,
+        InvalidatedAtUnixMilliseconds = artifact.InvalidatedAt?.ToUnixTimeMilliseconds(),
+        InvalidationReason = artifact.InvalidationReason
     };
 
-    public static ArtifactRecord ToContract(ArtifactEntity entity) => new(
+    public static ArtifactRecord ToContract(
+        ArtifactEntity entity,
+        IReadOnlyList<DependencyReference>? dependencies = null) => new(
         entity.ArtifactId,
         entity.TenantId,
         string.IsNullOrEmpty(entity.ProjectId) ? null : entity.ProjectId,
@@ -754,7 +930,16 @@ internal static class PersistenceMapping
         entity.ExpiresAtUnixMilliseconds is { } expiresAt
             ? DateTimeOffset.FromUnixTimeMilliseconds(expiresAt)
             : null,
-        entity.IsActive);
+        entity.IsActive,
+        entity.LogicalKey,
+        entity.LifecycleStatus,
+        entity.SupersedesArtifactId,
+        entity.SupersededByArtifactId,
+        dependencies ?? [],
+        entity.InvalidatedAtUnixMilliseconds is { } invalidatedAt
+            ? DateTimeOffset.FromUnixTimeMilliseconds(invalidatedAt)
+            : null,
+        entity.InvalidationReason);
 
     private static string? Serialize<T>(T? value) where T : class =>
         value is null ? null : JsonSerializer.Serialize(value, JsonOptions);

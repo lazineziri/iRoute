@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/memory-snapshot.schema.json",
+  "title": "MemorySnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
+  "properties": {
+    "memoryId": { "type": "string", "format": "uuid" },
+    "tenantId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "projectId": { "type": ["string", "null"], "maxLength": 200 },
+    "kind": { "enum": ["Fact", "Decision"] },
+    "key": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "version": { "type": "integer", "minimum": 1 },
+    "value": true,
+    "contentHash": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "lifecycleStatus": { "enum": ["Active", "Superseded", "Invalidated"] },
+    "evidence": { "type": "array", "items": { "$ref": "evidence-reference.schema.json" } },
+    "dependencies": { "type": "array", "items": { "$ref": "dependency-reference.schema.json" } },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": ["string", "null"], "format": "date-time" },
+    "supersedesMemoryId": { "type": ["string", "null"], "format": "uuid" },
+    "supersededByMemoryId": { "type": ["string", "null"], "format": "uuid" },
+    "invalidatedAt": { "type": ["string", "null"], "format": "date-time" },
+    "invalidationReason": { "type": ["string", "null"], "maxLength": 2000 }
+  }
+}
