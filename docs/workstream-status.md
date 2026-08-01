@@ -239,4 +239,22 @@ Acceptance evidence:
 - Privacy tests prove sensitive nested fields are redacted, safe long strings are bounded, metadata-only mode exposes no event fields, and timelines are ordered, bounded, and tenant scoped.
 - Contract tests compile both observability schemas and validate published examples; live API verification executes a task, queries its summary/timeline, and serves the dashboard assets.
 
-## Next: M3 / W14 — SDKs and CLI
+### W14 — SDKs and CLI: complete
+
+Deliverables:
+
+- Idiomatic .NET, Node.js, Python, Java, PHP, and Rust protocol clients with execution, lookup, cancellation, approval, artifact, health, observability, SSE, and typed API-error surfaces.
+- One language-neutral Base64-backed request/response, end-of-stream SSE, and RFC 9457 error fixture consumed by all six SDK test runners.
+- Injectable transports in every non-.NET SDK for deterministic conformance checks and application-specific HTTP stacks without importing runtime behavior.
+- A packageable `iroute` .NET CLI covering the public client operations, with local defaults and environment/flag-based connection, identity, and permission configuration.
+- Runnable reference examples for every SDK and the CLI, all targeting the credential-free deterministic local profile.
+- Native CI jobs for the six supported toolchain baselines plus architecture tests that constrain SDK and CLI dependencies to public protocol layers.
+
+Acceptance evidence:
+
+- Every SDK passes the identical byte-level request headers/body, final-frame SSE, response, and typed-error fixtures; CI runs each fixture in its native toolchain.
+- The .NET SDK depends only on Contracts, the CLI depends only on the .NET SDK, and cross-language source is checked for references to Core, Runtime, Infrastructure, or host implementations.
+- SDK implementations contain protocol serialization, HTTP transport, streaming, and error mapping only; routing, planning, model selection, prompts, memory, quality scoring, provider choice, and retry policy remain server-side.
+- The CLI and six reference programs connect to `http://localhost:8080` with local tenant/actor defaults; the deterministic development runtime needs no provider credentials.
+
+## Next: M3 / W15 — Packaging and operations

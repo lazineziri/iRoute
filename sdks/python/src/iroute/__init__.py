@@ -1,3 +1,3 @@
-from .client import IRouteClient
+from .client import IRouteApiError, IRouteClient
 
-__all__ = ["IRouteClient"]
+__all__ = ["IRouteApiError", "IRouteClient"]

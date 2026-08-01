@@ -3,7 +3,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using iRoute.Contracts;
 
 namespace iRoute.Sdk.DotNet;
@@ -11,7 +13,8 @@ namespace iRoute.Sdk.DotNet;
 public sealed record IRouteClientOptions(
     string? TenantId = null,
     string? ActorId = null,
-    IReadOnlyCollection<string>? PermissionScopes = null);
+    IReadOnlyCollection<string>? PermissionScopes = null,
+    string? BearerToken = null);
 
 public sealed record ObservabilityQueryOptions(
     DateTimeOffset? From = null,
@@ -19,9 +22,28 @@ public sealed record ObservabilityQueryOptions(
     string? TaskType = null,
     string? PolicyVersion = null);
 
+public sealed class IRouteApiException(
+    HttpStatusCode statusCode,
+    string? code,
+    string? title,
+    string? detail,
+    string responseBody) : HttpRequestException(
+        detail ?? title ?? $"iRoute request failed with HTTP {(int)statusCode}.",
+        null,
+        statusCode)
+{
+    public string? Code { get; } = code;
+    public string? Title { get; } = title;
+    public string? Detail { get; } = detail;
+    public string ResponseBody { get; } = responseBody;
+}
+
 public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? options = null)
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
     private readonly IRouteClientOptions _options = options ?? new();
 
     public async Task<ExecutionSnapshot> ExecuteAsync(
@@ -39,7 +61,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
         }
 
         using var response = await httpClient.SendAsync(message, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<ExecutionSnapshot>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("iRoute returned an empty response.");
     }
@@ -55,7 +77,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             return null;
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<ExecutionSnapshot>(JsonOptions, cancellationToken);
     }
 
@@ -68,7 +90,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             return false;
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return true;
     }
 
@@ -80,7 +102,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
         using var message = CreateScopedRequest(HttpMethod.Post, $"v1/executions/{executionId}/approvals");
         message.Content = JsonContent.Create(decision, options: JsonOptions);
         using var response = await httpClient.SendAsync(message, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<ApprovalResult>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("iRoute returned an empty approval response.");
     }
@@ -96,17 +118,18 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             return null;
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<ArtifactSnapshot>(JsonOptions, cancellationToken);
     }
 
     public async Task<ModelGatewayHealth> GetModelGatewayHealthAsync(
         CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync("health/model-gateway", cancellationToken);
+        using var message = CreateScopedRequest(HttpMethod.Get, "health/model-gateway");
+        using var response = await httpClient.SendAsync(message, cancellationToken);
         if (response.StatusCode is not HttpStatusCode.OK and not HttpStatusCode.ServiceUnavailable)
         {
-            response.EnsureSuccessStatusCode();
+            await EnsureSuccessAsync(response, cancellationToken);
         }
 
         return await response.Content.ReadFromJsonAsync<ModelGatewayHealth>(JsonOptions, cancellationToken)
@@ -127,7 +150,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             (parameters.Count == 0 ? string.Empty : $"?{string.Join('&', parameters)}");
         using var message = CreateScopedRequest(HttpMethod.Get, path);
         using var response = await httpClient.SendAsync(message, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<ObservabilitySummary>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("iRoute returned an empty observability summary.");
     }
@@ -145,7 +168,7 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             return null;
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<ExecutionTimeline>(JsonOptions, cancellationToken);
     }
 
@@ -161,20 +184,19 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             message,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream);
 
-        string? data = null;
+        var data = new StringBuilder();
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
             if (line.Length == 0)
             {
-                if (data is not null)
+                if (data.Length > 0)
                 {
-                    yield return JsonSerializer.Deserialize<ExecutionEvent>(data, JsonOptions)
-                        ?? throw new InvalidOperationException("iRoute returned an invalid execution event.");
-                    data = null;
+                    yield return DeserializeEvent(data.ToString());
+                    data.Clear();
                 }
 
                 continue;
@@ -183,10 +205,24 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             if (line.StartsWith("data:", StringComparison.Ordinal))
             {
                 var value = line[5..];
-                data = value.Length > 0 && value[0] == ' ' ? value[1..] : value;
+                if (data.Length > 0)
+                {
+                    data.Append('\n');
+                }
+
+                data.Append(value.Length > 0 && value[0] == ' ' ? value[1..] : value);
             }
         }
+
+        if (data.Length > 0)
+        {
+            yield return DeserializeEvent(data.ToString());
+        }
     }
+
+    private static ExecutionEvent DeserializeEvent(string data) =>
+        JsonSerializer.Deserialize<ExecutionEvent>(data, JsonOptions)
+            ?? throw new InvalidOperationException("iRoute returned an invalid execution event.");
 
     private HttpRequestMessage CreateScopedRequest(HttpMethod method, string path)
     {
@@ -201,6 +237,11 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
         string? actorId,
         IReadOnlyCollection<string>? permissionScopes)
     {
+        if (!string.IsNullOrWhiteSpace(_options.BearerToken))
+        {
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.BearerToken);
+        }
+
         AddOptionalHeader(message, "X-Tenant-Id", tenantId ?? _options.TenantId);
         AddOptionalHeader(message, "X-Actor-Id", actorId ?? _options.ActorId);
         var scopes = permissionScopes ?? _options.PermissionScopes;
@@ -225,4 +266,39 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             parameters.Add($"{name}={Uri.EscapeDataString(value)}");
         }
     }
+
+    private static async Task EnsureSuccessAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        string? code = null;
+        string? title = null;
+        string? detail = null;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                code = ReadString(document.RootElement, "code");
+                title = ReadString(document.RootElement, "title");
+                detail = ReadString(document.RootElement, "detail");
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        throw new IRouteApiException(response.StatusCode, code, title, detail, body);
+    }
+
+    private static string? ReadString(JsonElement root, string propertyName) =>
+        root.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 }

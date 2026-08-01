@@ -7,5 +7,3 @@ license = "Apache-2.0"
 description = "Thin Rust client for the iRoute runtime"
 
 [dependencies]
-# Versions are intentionally added by the generated-client workstream after
-# the OpenAPI contract is frozen and cargo audit runs. No routing logic belongs here.

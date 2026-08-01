@@ -52,6 +52,7 @@ secrets.json
 # Node.js and generated SDK output
 node_modules/
 dist/
+dist-test/
 *.tsbuildinfo
 .npm/
 .pnpm-store/

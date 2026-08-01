@@ -218,6 +218,7 @@ flowchart TD
     C --> D["Infrastructure"]
     D --> E["API and Worker"]
     A --> F["Native SDKs"]
+    F --> G["CLI"]
 ```
 
 Arrows mean “may be depended upon by.” Reverse references are forbidden.
@@ -233,6 +234,7 @@ Arrows mean “may be depended upon by.” Reverse references are forbidden.
 | API | HTTP/SSE, observability views, static dashboard, and composition | business logic |
 | Worker | durable jobs and lifecycle host | duplicate runtime rules |
 | SDKs | idiomatic clients | routing, prompts, memory logic |
+| CLI | local/operator commands delegated to an SDK | duplicate HTTP, routing, or runtime logic |
 
 ## State transition
 
@@ -280,5 +282,5 @@ The API has two explicit identity profiles. `DevelopmentHeaders` accepts local t
 - New deterministic or external capabilities implement Core ports.
 - New model providers belong behind the generic gateway.
 - New storage profiles implement state ports and must pass the same isolation and consistency suite.
-- New SDKs are generated from OpenAPI and wrapped idiomatically.
+- New SDKs are derived from the versioned OpenAPI contract and wrapped idiomatically.
 - New adaptive policies require offline evaluation and rollback.

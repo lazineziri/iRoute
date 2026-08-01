@@ -2,6 +2,6 @@
   "name": "iroute/sdk",
   "description": "Thin PHP client for the iRoute runtime",
   "license": "Apache-2.0",
-  "require": { "php": ">=8.5" },
+  "require": { "php": ">=8.3", "ext-curl": "*" },
   "autoload": { "psr-4": { "IRoute\\": "src/" } }
 }

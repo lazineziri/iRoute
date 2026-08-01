@@ -9,6 +9,7 @@
   "scripts": {
     "test:contracts": "node --test tools/schema-smoke.test.mjs tools/contract-compatibility.test.mjs",
     "test:regression": "node --test tools/evaluation-harness.test.mjs && node tools/run-regression.mjs --check",
+    "test:sdks": "node tools/run-sdk-conformance.mjs",
     "eval:report": "node tools/run-regression.mjs --print-markdown",
     "eval:write": "node tools/run-regression.mjs --write"
   },

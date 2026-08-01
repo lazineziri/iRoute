@@ -559,16 +559,34 @@ export interface IRouteClientOptions {
   tenantId?: string;
   actorId?: string;
   permissionScopes?: readonly string[];
+  fetch?: typeof globalThis.fetch;
+}
+
+export class IRouteApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string | undefined,
+    public readonly title: string | undefined,
+    public readonly detail: string | undefined,
+    public readonly responseBody: string
+  ) {
+    super(detail || title || `iRoute request failed with HTTP ${status}`);
+    this.name = 'IRouteApiError';
+  }
 }
 
 export class IRouteClient {
+  private readonly transport: typeof globalThis.fetch;
+
   constructor(
     private readonly baseUrl: URL,
     private readonly options: IRouteClientOptions = {}
-  ) {}
+  ) {
+    this.transport = options.fetch ?? globalThis.fetch;
+  }
 
   async execute(request: TaskRequest, signal?: AbortSignal): Promise<ExecutionSnapshot> {
-    const response = await fetch(new URL('/v1/executions', this.baseUrl), this.requestInit({
+    const response = await this.transport(new URL('/v1/executions', this.baseUrl), this.requestInit({
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -586,7 +604,7 @@ export class IRouteClient {
   }
 
   async get(executionId: string, signal?: AbortSignal): Promise<ExecutionSnapshot | undefined> {
-    const response = await fetch(
+    const response = await this.transport(
       new URL(`/v1/executions/${encodeURIComponent(executionId)}`, this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
@@ -595,7 +613,7 @@ export class IRouteClient {
   }
 
   async cancel(executionId: string, signal?: AbortSignal): Promise<boolean> {
-    const response = await fetch(
+    const response = await this.transport(
       new URL(`/v1/executions/${encodeURIComponent(executionId)}/cancel`, this.baseUrl),
       this.requestInit({ method: 'POST', ...(signal ? { signal } : {}) })
     );
@@ -609,7 +627,7 @@ export class IRouteClient {
     decision: ApprovalDecision,
     signal?: AbortSignal
   ): Promise<ApprovalResult> {
-    const response = await fetch(
+    const response = await this.transport(
       new URL(`/v1/executions/${encodeURIComponent(executionId)}/approvals`, this.baseUrl),
       this.requestInit({
         method: 'POST',
@@ -622,7 +640,7 @@ export class IRouteClient {
   }
 
   async getArtifact(artifactId: string, signal?: AbortSignal): Promise<ArtifactSnapshot | undefined> {
-    const response = await fetch(
+    const response = await this.transport(
       new URL(`/v1/artifacts/${encodeURIComponent(artifactId)}`, this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
@@ -631,7 +649,7 @@ export class IRouteClient {
   }
 
   async getModelGatewayHealth(signal?: AbortSignal): Promise<ModelGatewayHealth> {
-    const response = await fetch(
+    const response = await this.transport(
       new URL('/health/model-gateway', this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
@@ -650,7 +668,7 @@ export class IRouteClient {
     if (query.to) url.searchParams.set('to', toTimestamp(query.to));
     if (query.taskType) url.searchParams.set('taskType', query.taskType);
     if (query.policyVersion) url.searchParams.set('policyVersion', query.policyVersion);
-    const response = await fetch(
+    const response = await this.transport(
       url,
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
@@ -661,7 +679,7 @@ export class IRouteClient {
     executionId: string,
     signal?: AbortSignal
   ): Promise<ExecutionTimeline | undefined> {
-    const response = await fetch(
+    const response = await this.transport(
       new URL(`/v1/observability/executions/${encodeURIComponent(executionId)}`, this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
@@ -676,7 +694,7 @@ export class IRouteClient {
   ): AsyncGenerator<ExecutionEvent> {
     const url = new URL(`/v1/executions/${encodeURIComponent(executionId)}/events`, this.baseUrl);
     url.searchParams.set('after', afterSequence.toString());
-    const response = await fetch(url, this.requestInit({
+    const response = await this.transport(url, this.requestInit({
       method: 'GET',
       headers: { accept: 'text/event-stream' },
       ...(signal ? { signal } : {})
@@ -695,15 +713,13 @@ export class IRouteClient {
         while (boundary >= 0) {
           const block = buffer.slice(0, boundary);
           buffer = buffer.slice(boundary + 2);
-          const data = block
-            .split('\n')
-            .filter(line => line.startsWith('data:'))
-            .map(line => line.slice(5).trimStart())
-            .join('\n');
-          if (data) yield JSON.parse(data) as ExecutionEvent;
+          const event = parseSseBlock(block);
+          if (event) yield event;
           boundary = buffer.indexOf('\n\n');
         }
       }
+      const finalEvent = parseSseBlock(buffer);
+      if (finalEvent) yield finalEvent;
     } finally {
       reader.releaseLock();
     }
@@ -729,12 +745,32 @@ export class IRouteClient {
     return await response.json() as T;
   }
 
-  private async createError(response: Response): Promise<Error> {
-    const detail = await response.text();
-    return new Error(`iRoute request failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
+  private async createError(response: Response): Promise<IRouteApiError> {
+    const responseBody = await response.text();
+    let problem: { code?: string; title?: string; detail?: string } = {};
+    try {
+      problem = JSON.parse(responseBody) as typeof problem;
+    } catch {}
+    return new IRouteApiError(
+      response.status,
+      problem.code,
+      problem.title,
+      problem.detail,
+      responseBody
+    );
   }
 }
 
 function toTimestamp(value: string | Date): string {
   return value instanceof Date ? value.toISOString() : value;
+}
+
+function parseSseBlock(block: string): ExecutionEvent | undefined {
+  const data = block
+    .replaceAll('\r\n', '\n')
+    .split('\n')
+    .filter(line => line.startsWith('data:'))
+    .map(line => line.slice(5).trimStart())
+    .join('\n');
+  return data ? JSON.parse(data) as ExecutionEvent : undefined;
 }

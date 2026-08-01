@@ -7,9 +7,13 @@
     <Project Path="src/iRoute.Api/iRoute.Api.csproj" />
     <Project Path="src/iRoute.Worker/iRoute.Worker.csproj" />
     <Project Path="src/iRoute.Sdk.DotNet/iRoute.Sdk.DotNet.csproj" />
+    <Project Path="src/iRoute.Cli/iRoute.Cli.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/iRoute.UnitTests/iRoute.UnitTests.csproj" />
     <Project Path="tests/iRoute.ArchitectureTests/iRoute.ArchitectureTests.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/sdks/dotnet/iRoute.Example.csproj" />
   </Folder>
 </Solution>

@@ -9,6 +9,8 @@ The canonical, reviewable project documentation is maintained as Markdown.
 - [Version baseline](version-baseline.md)
 - [Workstream status](workstream-status.md)
 - [Evaluation and regression guide](../eval/README.md)
+- [Official SDKs](../sdks/README.md)
+- [SDK and CLI quick starts](../examples/sdks/README.md)
 - [Architecture decision records](adr/)
 
 Public protocol definitions live under [`spec/`](../spec/), including OpenAPI,

@@ -1,6 +1,6 @@
 # Official SDK architecture
 
-Official SDKs are thin clients generated from `spec/openapi/iroute.v1.yaml` and wrapped with a small idiomatic layer. They own authentication configuration, typed contracts, SSE consumption, cancellation, idempotency-safe retries, and error mapping. They do not own routing, task decomposition, prompts, memory, validation, or provider selection.
+Official SDKs are thin protocol clients aligned with `spec/openapi/iroute.v1.yaml` and wrapped with a small idiomatic layer. They own authentication configuration, public contracts, SSE consumption, cancellation, idempotency propagation, and error mapping. They do not own routing, task decomposition, prompts, memory, validation, retry policy, or provider selection.
 
 | SDK | Stable build baseline | Planned package |
 |---|---|---|
@@ -15,6 +15,17 @@ Each package must pass the same request, response, error, cancellation, streamin
 
 ## Implementation status
 
-- `.NET`: typed execution, lookup, cancellation, artifact retrieval, tenant/actor scope, idempotency, and SSE consumption are implemented in `src/iRoute.Sdk.DotNet`.
-- `Node.js`: the same runtime surface is implemented and type-checked in `sdks/node`.
-- Python, Java, PHP, and Rust directories currently hold package boundaries only; they are not published or represented as functional clients.
+- `.NET`: typed public contracts and async streaming in `src/iRoute.Sdk.DotNet`.
+- `Node.js`: typed TypeScript contracts with injectable Fetch transport in `sdks/node`.
+- `Python`: standard-library client with an injectable URL opener in `sdks/python`.
+- `Java`: JDK HTTP client with an injectable transport in `sdks/java`.
+- `PHP`: cURL client with an injectable callable transport in `sdks/php`.
+- `Rust`: dependency-free local HTTP client with an injectable transport for TLS or application-specific stacks in `sdks/rust`.
+
+All six clients implement execution, lookup, cancellation, approval, artifact, model-gateway health, observability summary/timeline, SSE, and typed API-error semantics. They consume the identical fixtures in `conformance/v1.properties`. Run every locally installed toolchain with:
+
+```bash
+npm run test:sdks
+```
+
+See the runnable [reference quick starts](../examples/sdks/README.md) and the `iroute` CLI in `src/iRoute.Cli`.

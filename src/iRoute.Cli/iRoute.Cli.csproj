@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>iroute</AssemblyName>
+    <RootNamespace>iRoute.Cli</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>iroute</ToolCommandName>
+    <PackageId>iRoute.Cli</PackageId>
+    <Version>0.1.0-alpha.1</Version>
+    <Description>Command-line client for the iRoute runtime.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Sdk.DotNet/iRoute.Sdk.DotNet.csproj" />
+  </ItemGroup>
+</Project>

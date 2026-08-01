@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W13**. See [the workstream status](docs/workstream-status.md). W14 is next.
+Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W14**. See [the workstream status](docs/workstream-status.md). W15 is next.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -33,7 +33,8 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - a tenant-scoped observability read model with redacted timelines, task/policy comparisons, and memory-hit diagnostics
 - a dependency-free operator dashboard at `/dashboard/` with bounded query windows and metadata-only timelines by default
 - versioned schema migration shared by SQLite and PostgreSQL
-- working .NET and Node.js clients
+- working .NET, Node.js, Python, Java, PHP, and Rust clients with shared conformance fixtures
+- a thin `iroute` CLI and runnable quick starts for every official SDK
 
 This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. Run one lifecycle worker per database until leasing is implemented. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
@@ -59,6 +60,15 @@ curl --request POST http://localhost:8080/v1/executions \
 ```
 
 The first request returns a validated `SmallModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
+
+The CLI uses the same local defaults and delegates to the .NET SDK:
+
+```bash
+dotnet run --project src/iRoute.Cli -- \
+  execute --request @examples/email-draft.json --idempotency-key cli-example-001
+```
+
+See the [SDK quick starts](examples/sdks/README.md) for runnable .NET, Node.js, Python, Java, PHP, and Rust examples.
 
 Open `http://localhost:8080/dashboard/` to inspect the request timeline and compare quality, cost, latency, token usage, and memory hits. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
 
@@ -89,7 +99,7 @@ dotnet run --project tests/iRoute.UnitTests --no-build -- -reporter quiet
 dotnet run --project tests/iRoute.ArchitectureTests --no-build -- -reporter quiet
 npm run test:contracts
 npm run test:regression
-npm --prefix sdks/node run check
+npm run test:sdks
 ```
 
 With the API running, execute the initial behavioral evaluation fixture:
