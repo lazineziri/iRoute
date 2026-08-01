@@ -21,6 +21,12 @@ services:
       Identity__Authority: ${IROUTE_IDENTITY_AUTHORITY:-}
       Identity__Audience: ${IROUTE_IDENTITY_AUDIENCE:-}
       Identity__PermissionClaim: ${IROUTE_IDENTITY_PERMISSION_CLAIM:-scope}
+      Observability__PayloadMode: ${IROUTE_OBSERVABILITY_PAYLOAD_MODE:-MetadataOnly}
+      Observability__MaxQueryDays: ${IROUTE_OBSERVABILITY_MAX_QUERY_DAYS:-90}
+      Observability__MaxExecutions: ${IROUTE_OBSERVABILITY_MAX_EXECUTIONS:-1000}
+      Observability__MaxTimelineEvents: ${IROUTE_OBSERVABILITY_MAX_TIMELINE_EVENTS:-1000}
+      Observability__MaxEventValueCharacters: ${IROUTE_OBSERVABILITY_MAX_EVENT_CHARACTERS:-1000}
+      Observability__MaxRecentExecutions: ${IROUTE_OBSERVABILITY_MAX_RECENT_EXECUTIONS:-25}
       Lifecycle__DefaultArtifactTimeToLive: ${IROUTE_ARTIFACT_TTL:-30.00:00:00}
       Lifecycle__DefaultMemoryTimeToLive: ${IROUTE_MEMORY_TTL:-90.00:00:00}
     ports:

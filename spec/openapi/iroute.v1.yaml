@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: iRoute Runtime API
   version: 1.0.0
-  description: Task-aware execution, event streaming, and reusable artifact API.
+  description: Task-aware execution, event streaming, reusable artifacts, and privacy-safe observability API.
   license:
     name: Apache-2.0
     identifier: Apache-2.0
@@ -176,6 +176,61 @@ paths:
         '401':
           $ref: '#/components/responses/Problem'
         '403':
+          $ref: '#/components/responses/Problem'
+  /v1/observability/summary:
+    get:
+      operationId: getObservabilitySummary
+      tags: [Observability]
+      summary: Compare execution quality, cost, latency, and memory behavior by task and policy.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: from
+          in: query
+          description: Inclusive window start. Defaults to 24 hours before `to`.
+          schema: { type: [string, 'null'], format: date-time }
+        - name: to
+          in: query
+          description: Inclusive window end. Defaults to the current runtime time.
+          schema: { type: [string, 'null'], format: date-time }
+        - name: taskType
+          in: query
+          schema: { type: [string, 'null'], minLength: 1, maxLength: 120 }
+        - name: policyVersion
+          in: query
+          schema: { type: [string, 'null'], minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Bounded, tenant-scoped observability aggregates.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservabilitySummary'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+  /v1/observability/executions/{executionId}:
+    get:
+      operationId: getExecutionTimeline
+      tags: [Observability]
+      summary: Inspect one redacted execution timeline and its trace correlation identifier.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Ordered and bounded execution timeline. Event data is metadata-only by default; recursively redacted fields are an operator opt-in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionTimeline'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
           $ref: '#/components/responses/Problem'
   /health/live:
     get:
@@ -550,6 +605,128 @@ components:
     MemoryLifecycleStatus:
       type: string
       enum: [Active, Superseded, Invalidated]
+    ObservabilitySummary:
+      type: object
+      additionalProperties: false
+      required: [from, to, truncated, sampledExecutions, totals, groups, memory, recentExecutions]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        truncated: { type: boolean }
+        sampledExecutions: { type: integer, minimum: 0 }
+        totals: { $ref: '#/components/schemas/ObservabilityMetricSet' }
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/ObservabilityMetricGroup' }
+        memory: { $ref: '#/components/schemas/MemoryHitDiagnostics' }
+        recentExecutions:
+          type: array
+          items: { $ref: '#/components/schemas/ObservabilityExecutionItem' }
+    ObservabilityMetricSet:
+      type: object
+      additionalProperties: false
+      required: [executions, completed, failed, completionRate, averageQuality, inputTokens, outputTokens, cost, averageLatencyMilliseconds, modelCalls, toolCalls, noModelResolutions, modelCallsAvoided]
+      properties:
+        executions: { type: integer, minimum: 0 }
+        completed: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        completionRate: { type: number, minimum: 0, maximum: 1 }
+        averageQuality: { type: number, minimum: 0, maximum: 1 }
+        inputTokens: { type: integer, format: int64, minimum: 0 }
+        outputTokens: { type: integer, format: int64, minimum: 0 }
+        cost: { type: number, minimum: 0 }
+        averageLatencyMilliseconds: { type: number, minimum: 0 }
+        modelCalls: { type: integer, minimum: 0 }
+        toolCalls: { type: integer, minimum: 0 }
+        noModelResolutions: { type: integer, minimum: 0 }
+        modelCallsAvoided: { type: integer, minimum: 0 }
+    ObservabilityMetricGroup:
+      type: object
+      additionalProperties: false
+      required: [taskType, policyVersion, metrics]
+      properties:
+        taskType: { type: string }
+        policyVersion: { type: string }
+        metrics: { $ref: '#/components/schemas/ObservabilityMetricSet' }
+    MemoryHitDiagnostics:
+      type: object
+      additionalProperties: false
+      required: [considered, accepted, rejected, hitRate, resolvers]
+      properties:
+        considered: { type: integer, minimum: 0 }
+        accepted: { type: integer, minimum: 0 }
+        rejected: { type: integer, minimum: 0 }
+        hitRate: { type: number, minimum: 0, maximum: 1 }
+        resolvers:
+          type: array
+          items: { $ref: '#/components/schemas/MemoryResolverDiagnostic' }
+    MemoryResolverDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [resolver, considered, accepted, rejected, reasons]
+      properties:
+        resolver: { type: string }
+        considered: { type: integer, minimum: 0 }
+        accepted: { type: integer, minimum: 0 }
+        rejected: { type: integer, minimum: 0 }
+        reasons:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+    ObservabilityExecutionItem:
+      type: object
+      additionalProperties: false
+      required: [executionId, taskType, policyVersion, status, startedAt, durationMilliseconds, resolutionLevel, quality, cost, inputTokens, outputTokens]
+      properties:
+        executionId: { type: string, format: uuid }
+        taskType: { type: string }
+        policyVersion: { type: string }
+        status: { $ref: '#/components/schemas/ExecutionStatus' }
+        startedAt: { type: string, format: date-time }
+        durationMilliseconds: { type: integer, format: int64, minimum: 0 }
+        resolutionLevel:
+          oneOf:
+            - $ref: '#/components/schemas/ResolutionLevel'
+            - type: 'null'
+        quality: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        cost: { type: number, minimum: 0 }
+        inputTokens: { type: integer, minimum: 0 }
+        outputTokens: { type: integer, minimum: 0 }
+    ExecutionTimeline:
+      type: object
+      additionalProperties: false
+      required: [executionId, traceId, taskType, taskDefinitionVersion, policyVersion, status, startedAt, updatedAt, durationMilliseconds, actorReference, projectReference, payloadMode, truncated, events]
+      properties:
+        executionId: { type: string, format: uuid }
+        traceId: { type: string, minLength: 1, maxLength: 64 }
+        taskType: { type: string }
+        taskDefinitionVersion: { type: [integer, 'null'], minimum: 1 }
+        policyVersion: { type: string }
+        status: { $ref: '#/components/schemas/ExecutionStatus' }
+        startedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        durationMilliseconds: { type: integer, format: int64, minimum: 0 }
+        actorReference: { type: string, pattern: '^sha256:[a-f0-9]{16}$' }
+        projectReference: { type: [string, 'null'], pattern: '^sha256:[a-f0-9]{16}$' }
+        payloadMode: { $ref: '#/components/schemas/ObservabilityPayloadMode' }
+        truncated: { type: boolean }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/ExecutionTimelineEntry' }
+    ExecutionTimelineEntry:
+      type: object
+      additionalProperties: false
+      required: [sequence, type, occurredAt, offsetMilliseconds, data]
+      properties:
+        sequence: { type: integer, format: int64, minimum: 1 }
+        type: { type: string }
+        occurredAt: { type: string, format: date-time }
+        offsetMilliseconds: { type: integer, format: int64, minimum: 0 }
+        data:
+          type: object
+          additionalProperties: true
+    ObservabilityPayloadMode:
+      type: string
+      enum: [MetadataOnly, Redacted]
     UsageSummary:
       type: object
       additionalProperties: false

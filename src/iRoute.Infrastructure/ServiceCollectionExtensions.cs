@@ -13,6 +13,10 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<ModelGatewayOptions>(configuration.GetSection("ModelGateway"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
+        var observabilityOptions = configuration.GetSection("Observability").Get<ObservabilityOptions>()
+            ?? new ObservabilityOptions();
+        observabilityOptions.EnsureValid();
+        services.AddSingleton(observabilityOptions);
         var lifecyclePolicy = configuration.GetSection("Lifecycle").Get<LifecyclePolicy>()
             ?? new LifecyclePolicy();
         lifecyclePolicy.EnsureValid();
@@ -21,7 +25,9 @@ public static class ServiceCollectionExtensions
         var storageProvider = configuration["Storage:Provider"] ?? "Sqlite";
         if (string.Equals(storageProvider, "Memory", StringComparison.OrdinalIgnoreCase))
         {
-            services.AddSingleton<IExecutionStore, InMemoryExecutionStore>();
+            services.AddSingleton<InMemoryExecutionStore>();
+            services.AddSingleton<IExecutionStore>(provider =>
+                provider.GetRequiredService<InMemoryExecutionStore>());
             services.AddSingleton<IWorkflowCheckpointStore, InMemoryWorkflowCheckpointStore>();
             services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
             services.AddSingleton<IExternalActionStore, InMemoryExternalActionStore>();
@@ -32,6 +38,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IMemoryStore>(provider =>
                 provider.GetRequiredService<InMemoryMemoryStore>());
             services.AddSingleton<ILifecycleStore, InMemoryLifecycleStore>();
+            services.AddSingleton<IObservabilityStore, InMemoryObservabilityStore>();
         }
         else
         {
@@ -60,6 +67,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IArtifactStore, EfArtifactStore>();
             services.AddSingleton<IMemoryStore, EfMemoryStore>();
             services.AddSingleton<ILifecycleStore, EfLifecycleStore>();
+            services.AddSingleton<IObservabilityStore, EfObservabilityStore>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);
         }

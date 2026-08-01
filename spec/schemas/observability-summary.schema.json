@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/observability-summary.schema.json",
+  "title": "ObservabilitySummary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
+  "$defs": {
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executions", "completed", "failed", "completionRate", "averageQuality", "inputTokens", "outputTokens", "cost", "averageLatencyMilliseconds", "modelCalls", "toolCalls", "noModelResolutions", "modelCallsAvoided"],
+      "properties": {
+        "executions": { "type": "integer", "minimum": 0 },
+        "completed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "completionRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "averageQuality": { "type": "number", "minimum": 0, "maximum": 1 },
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "cost": { "type": "number", "minimum": 0 },
+        "averageLatencyMilliseconds": { "type": "number", "minimum": 0 },
+        "modelCalls": { "type": "integer", "minimum": 0 },
+        "toolCalls": { "type": "integer", "minimum": 0 },
+        "noModelResolutions": { "type": "integer", "minimum": 0 },
+        "modelCallsAvoided": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskType", "policyVersion", "metrics"],
+      "properties": {
+        "taskType": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "policyVersion": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "metrics": { "$ref": "#/$defs/metrics" }
+      }
+    },
+    "memoryResolver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resolver", "considered", "accepted", "rejected", "reasons"],
+      "properties": {
+        "resolver": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "considered": { "type": "integer", "minimum": 0 },
+        "accepted": { "type": "integer", "minimum": 0 },
+        "rejected": { "type": "integer", "minimum": 0 },
+        "reasons": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["considered", "accepted", "rejected", "hitRate", "resolvers"],
+      "properties": {
+        "considered": { "type": "integer", "minimum": 0 },
+        "accepted": { "type": "integer", "minimum": 0 },
+        "rejected": { "type": "integer", "minimum": 0 },
+        "hitRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "resolvers": { "type": "array", "items": { "$ref": "#/$defs/memoryResolver" } }
+      }
+    },
+    "recentExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executionId", "taskType", "policyVersion", "status", "startedAt", "durationMilliseconds", "resolutionLevel", "quality", "cost", "inputTokens", "outputTokens"],
+      "properties": {
+        "executionId": { "type": "string", "format": "uuid" },
+        "taskType": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "policyVersion": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "status": { "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "durationMilliseconds": { "type": "integer", "minimum": 0 },
+        "resolutionLevel": {
+          "type": ["string", "null"],
+          "enum": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman", null]
+        },
+        "quality": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "cost": { "type": "number", "minimum": 0 },
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "properties": {
+    "from": { "type": "string", "format": "date-time" },
+    "to": { "type": "string", "format": "date-time" },
+    "truncated": { "type": "boolean" },
+    "sampledExecutions": { "type": "integer", "minimum": 0 },
+    "totals": { "$ref": "#/$defs/metrics" },
+    "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
+    "memory": { "$ref": "#/$defs/memory" },
+    "recentExecutions": { "type": "array", "items": { "$ref": "#/$defs/recentExecution" } }
+  }
+}

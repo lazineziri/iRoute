@@ -22,9 +22,11 @@ builder.Services.AddIRouteInfrastructure(builder.Configuration);
 var telemetry = builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("iRoute.Api"))
     .WithTracing(tracing => tracing
+        .AddSource(RuntimeTelemetry.ActivitySourceName)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation())
     .WithMetrics(metrics => metrics
+        .AddMeter(RuntimeTelemetry.MeterName)
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation());
@@ -36,6 +38,8 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
 
 var app = builder.Build();
 app.UseExceptionHandler();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
@@ -57,6 +61,7 @@ app.MapGet("/health/model-gateway", async (
         statusCode: health.Status == ModelGatewayHealthStatus.Unavailable ? 503 : 200);
 }).AllowAnonymous().WithName("getModelGatewayHealth");
 app.MapIRouteEndpoints(identityOptions.UsesJwt);
+app.MapIRouteObservabilityEndpoints(identityOptions.UsesJwt);
 app.Run();
 
 public partial class Program;

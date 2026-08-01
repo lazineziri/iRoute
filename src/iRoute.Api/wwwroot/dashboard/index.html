@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>iRoute Observatory</title>
+  <link rel="stylesheet" href="/dashboard/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <header class="topbar">
+    <a class="brand" href="/dashboard/" aria-label="iRoute Observatory home">
+      <span class="brand-mark" aria-hidden="true">iR</span>
+      <span><strong>iRoute</strong><small>Observatory</small></span>
+    </a>
+    <div class="privacy-pill"><span></span> Payload controls active</div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Execution intelligence</p>
+        <h1>See where every request went—and why.</h1>
+        <p class="lede">A local, tenant-scoped view of quality, spend, latency, reuse, and the complete execution timeline.</p>
+      </div>
+      <form id="query-form" class="query-panel">
+        <label>Tenant<input id="tenant" value="local" autocomplete="organization"></label>
+        <label>Window<select id="window"><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option></select></label>
+        <label>Task<input id="task" placeholder="All task types"></label>
+        <label>Policy<input id="policy" placeholder="All policy versions"></label>
+        <details>
+          <summary>Authentication</summary>
+          <label>Actor<input id="actor" value="dashboard" autocomplete="username"></label>
+          <label>Bearer token<input id="token" type="password" autocomplete="off" placeholder="Optional in JWT mode"></label>
+        </details>
+        <button type="submit">Refresh view <span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
+
+    <div id="notice" class="notice" hidden></div>
+
+    <section class="kpi-grid" aria-label="Key metrics">
+      <article class="kpi accent"><span>Completion</span><strong id="completion">—</strong><small id="execution-count">No executions loaded</small></article>
+      <article class="kpi"><span>Average quality</span><strong id="quality">—</strong><small>Validated task score</small></article>
+      <article class="kpi"><span>Total cost</span><strong id="cost">—</strong><small id="model-calls">Across model calls</small></article>
+      <article class="kpi"><span>Average latency</span><strong id="latency">—</strong><small>Completed executions</small></article>
+      <article class="kpi"><span>Tokens processed</span><strong id="tokens">—</strong><small id="token-split">Input + output</small></article>
+      <article class="kpi"><span>No-model rate</span><strong id="no-model">—</strong><small id="avoided">Model calls avoided</small></article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel comparison-panel">
+        <div class="panel-head"><div><p class="eyebrow">Policy comparison</p><h2>Quality, cost &amp; latency</h2></div><span id="sample-badge" class="badge">0 sampled</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Task / policy</th><th>Runs</th><th>Quality</th><th>Cost</th><th>Latency</th><th>No-model</th></tr></thead>
+            <tbody id="groups"><tr><td colspan="6" class="empty">Refresh to load policy metrics.</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel memory-panel">
+        <div class="panel-head"><div><p class="eyebrow">State reuse</p><h2>Memory-hit diagnostics</h2></div><strong id="hit-rate" class="ring-label">—</strong></div>
+        <div id="memory-bars" class="memory-bars"><p class="empty">Resolver diagnostics appear here.</p></div>
+        <div class="memory-total"><span id="memory-accepted">0 accepted</span><span id="memory-rejected">0 rejected</span></div>
+      </article>
+    </section>
+
+    <section class="content-grid lower-grid">
+      <article class="panel recent-panel">
+        <div class="panel-head"><div><p class="eyebrow">Recent activity</p><h2>Executions</h2></div><span class="hint">Select a row to trace</span></div>
+        <div id="recent" class="recent-list"><p class="empty">No executions loaded.</p></div>
+      </article>
+
+      <article class="panel timeline-panel">
+        <div class="panel-head"><div><p class="eyebrow">End-to-end trace</p><h2>Execution timeline</h2></div><button id="copy-trace" class="icon-button" type="button" disabled>Copy trace ID</button></div>
+        <div id="timeline-summary" class="timeline-summary"><p class="empty">Choose a recent execution to inspect every recorded transition.</p></div>
+        <ol id="timeline" class="timeline"></ol>
+      </article>
+    </section>
+  </main>
+
+  <footer><span>Local-first telemetry</span><span>OpenTelemetry-compatible</span><span>No third-party assets</span></footer>
+  <script src="/dashboard/app.js" defer></script>
+</body>
+</html>

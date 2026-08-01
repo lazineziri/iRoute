@@ -85,9 +85,15 @@ A completed external action is replayed from its durable result. A conflicting r
 
 The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. The lifecycle host is asynchronous but does not yet own a distributed lease. Cross-replica leasing, renewal, automatic recovery scans, external-action reconciliation, and distributed cancellation remain required before horizontal execution scaling.
 
-## Telemetry
+## Observability and telemetry
 
-ASP.NET Core, HTTP client, and runtime metrics/traces are instrumented. Export is disabled unless `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Request and artifact payloads are not intentionally added to telemetry.
+`GET /v1/observability/summary` returns tenant-scoped aggregates over a bounded time window and can filter by `taskType` and `policyVersion`. `GET /v1/observability/executions/{executionId}` returns an ordered timeline with its trace ID; a different tenant receives not found. The dashboard at `/dashboard/` calls only these authenticated data endpoints. Static assets are public, but no execution data is embedded in them.
+
+The default limits are 90 query days, 1,000 sampled executions, 25 recent rows, 1,000 timeline events, and 1,000 characters per retained safe event string. A `truncated` flag identifies bounded results. Increase limits only after measuring database and response costs; the projection reads existing execution/event persistence and intentionally does not maintain a second analytics database.
+
+`Observability:PayloadMode=MetadataOnly` is the default and replaces every event data object with a redaction marker, making unknown future event shapes fail closed. Operators may opt into `Redacted`, which removes input, output, content, value, prompt, response, request, body, raw, credential, secret, authorization, tenant/actor/project IDs, permission scopes, passwords, tokens, cookies, headers, and API-key variants recursively while bounding retained safe strings. Actor and project references are one-way SHA-256 prefixes. Never add payload, credential, scope values, raw identifiers, or unbounded strings to a trace tag, metric attribute, event, log, or dashboard field.
+
+OpenTelemetry instruments ASP.NET Core, HTTP clients, runtime process metrics, and the custom `iRoute.Runtime` execution source/meter. Execution spans cover execute/resume, attach safe ordered event names, and record terminal quality, cost, tokens, latency, and call counts. Export remains disabled unless `OTEL_EXPORTER_OTLP_ENDPOINT` is configured. Correlate the span trace ID with the durable timeline when investigating a request; use task type and policy version—not tenant or actor—as comparison dimensions.
 
 ## Backup and recovery
 

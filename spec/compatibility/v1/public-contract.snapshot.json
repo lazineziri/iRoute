@@ -7,6 +7,8 @@
     "POST /v1/executions/{executionId}/cancel": "cancelExecution",
     "POST /v1/executions/{executionId}/approvals": "submitExecutionApproval",
     "GET /v1/artifacts/{artifactId}": "getArtifact",
+    "GET /v1/observability/summary": "getObservabilitySummary",
+    "GET /v1/observability/executions/{executionId}": "getExecutionTimeline",
     "GET /health/live": "getLiveness",
     "GET /health/ready": "getReadiness",
     "GET /health/model-gateway": "getModelGatewayHealth"
@@ -59,6 +61,38 @@
     "MemorySnapshot": {
       "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
       "properties": ["memoryId", "tenantId", "projectId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt", "expiresAt", "supersedesMemoryId", "supersededByMemoryId", "invalidatedAt", "invalidationReason"]
+    },
+    "ObservabilitySummary": {
+      "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
+      "properties": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"]
+    },
+    "ObservabilityMetricSet": {
+      "required": ["executions", "completed", "failed", "completionRate", "averageQuality", "inputTokens", "outputTokens", "cost", "averageLatencyMilliseconds", "modelCalls", "toolCalls", "noModelResolutions", "modelCallsAvoided"],
+      "properties": ["executions", "completed", "failed", "completionRate", "averageQuality", "inputTokens", "outputTokens", "cost", "averageLatencyMilliseconds", "modelCalls", "toolCalls", "noModelResolutions", "modelCallsAvoided"]
+    },
+    "ObservabilityMetricGroup": {
+      "required": ["taskType", "policyVersion", "metrics"],
+      "properties": ["taskType", "policyVersion", "metrics"]
+    },
+    "MemoryHitDiagnostics": {
+      "required": ["considered", "accepted", "rejected", "hitRate", "resolvers"],
+      "properties": ["considered", "accepted", "rejected", "hitRate", "resolvers"]
+    },
+    "MemoryResolverDiagnostic": {
+      "required": ["resolver", "considered", "accepted", "rejected", "reasons"],
+      "properties": ["resolver", "considered", "accepted", "rejected", "reasons"]
+    },
+    "ObservabilityExecutionItem": {
+      "required": ["executionId", "taskType", "policyVersion", "status", "startedAt", "durationMilliseconds", "resolutionLevel", "quality", "cost", "inputTokens", "outputTokens"],
+      "properties": ["executionId", "taskType", "policyVersion", "status", "startedAt", "durationMilliseconds", "resolutionLevel", "quality", "cost", "inputTokens", "outputTokens"]
+    },
+    "ExecutionTimeline": {
+      "required": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"],
+      "properties": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"]
+    },
+    "ExecutionTimelineEntry": {
+      "required": ["sequence", "type", "occurredAt", "offsetMilliseconds", "data"],
+      "properties": ["sequence", "type", "occurredAt", "offsetMilliseconds", "data"]
     },
     "UsageSummary": {
       "required": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"],
@@ -117,6 +151,7 @@
     "ArtifactLifecycleStatus": ["Active", "Superseded", "Invalidated"],
     "MemoryKind": ["Fact", "Decision"],
     "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
+    "ObservabilityPayloadMode": ["MetadataOnly", "Redacted"],
     "RoutingPath": ["Direct", "Workflow"],
     "ModelTier": ["Small", "Strong", "Verifier"],
     "ModelGatewayHealthStatus": ["Healthy", "Degraded", "Unavailable"],
@@ -193,6 +228,10 @@
       "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
       "properties": ["actorId", "cancellationRequestedAt", "createdAt", "error", "executionId", "outcome", "projectId", "status", "taskDefinitionVersion", "taskType", "tenantId", "updatedAt"]
     },
+    "https://schemas.iroute.dev/v1/execution-timeline.schema.json": {
+      "required": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"],
+      "properties": ["actorReference", "durationMilliseconds", "events", "executionId", "payloadMode", "policyVersion", "projectReference", "startedAt", "status", "taskDefinitionVersion", "taskType", "traceId", "truncated", "updatedAt"]
+    },
     "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
       "required": ["capability", "input", "context", "maxOutputTokens"],
       "properties": ["capability", "context", "correlationId", "deadlineMilliseconds", "input", "maxOutputTokens", "profileId"]
@@ -220,6 +259,10 @@
     "https://schemas.iroute.dev/v1/memory-snapshot.schema.json": {
       "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
       "properties": ["contentHash", "createdAt", "dependencies", "evidence", "expiresAt", "invalidatedAt", "invalidationReason", "key", "kind", "lifecycleStatus", "memoryId", "projectId", "supersededByMemoryId", "supersedesMemoryId", "tenantId", "value", "version"]
+    },
+    "https://schemas.iroute.dev/v1/observability-summary.schema.json": {
+      "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
+      "properties": ["from", "groups", "memory", "recentExecutions", "sampledExecutions", "to", "totals", "truncated"]
     },
     "https://schemas.iroute.dev/v1/problem.schema.json": {
       "required": ["code", "title", "detail", "retryable"],

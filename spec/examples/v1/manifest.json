@@ -25,6 +25,8 @@
     { "file": "artifact.email-draft.json", "schema": "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json" },
     { "file": "memory.decision.json", "schema": "https://schemas.iroute.dev/v1/memory-snapshot.schema.json" },
     { "file": "evidence-reference.request.json", "schema": "https://schemas.iroute.dev/v1/evidence-reference.schema.json" },
-    { "file": "problem.invalid-plan.json", "schema": "https://schemas.iroute.dev/v1/problem.schema.json" }
+    { "file": "problem.invalid-plan.json", "schema": "https://schemas.iroute.dev/v1/problem.schema.json" },
+    { "file": "observability-summary.email-draft.json", "schema": "https://schemas.iroute.dev/v1/observability-summary.schema.json" },
+    { "file": "execution-timeline.email-draft.json", "schema": "https://schemas.iroute.dev/v1/execution-timeline.schema.json" }
   ]
 }

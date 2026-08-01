@@ -13,6 +13,12 @@ public sealed record IRouteClientOptions(
     string? ActorId = null,
     IReadOnlyCollection<string>? PermissionScopes = null);
 
+public sealed record ObservabilityQueryOptions(
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    string? TaskType = null,
+    string? PolicyVersion = null);
+
 public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? options = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -107,6 +113,42 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             ?? throw new InvalidOperationException("iRoute returned an empty model-gateway health response.");
     }
 
+    public async Task<ObservabilitySummary> GetObservabilitySummaryAsync(
+        ObservabilityQueryOptions? query = null,
+        CancellationToken cancellationToken = default)
+    {
+        query ??= new ObservabilityQueryOptions();
+        var parameters = new List<string>();
+        AddQuery(parameters, "from", query.From?.ToString("O", CultureInfo.InvariantCulture));
+        AddQuery(parameters, "to", query.To?.ToString("O", CultureInfo.InvariantCulture));
+        AddQuery(parameters, "taskType", query.TaskType);
+        AddQuery(parameters, "policyVersion", query.PolicyVersion);
+        var path = "v1/observability/summary" +
+            (parameters.Count == 0 ? string.Empty : $"?{string.Join('&', parameters)}");
+        using var message = CreateScopedRequest(HttpMethod.Get, path);
+        using var response = await httpClient.SendAsync(message, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ObservabilitySummary>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("iRoute returned an empty observability summary.");
+    }
+
+    public async Task<ExecutionTimeline?> GetExecutionTimelineAsync(
+        Guid executionId,
+        CancellationToken cancellationToken = default)
+    {
+        using var message = CreateScopedRequest(
+            HttpMethod.Get,
+            $"v1/observability/executions/{executionId}");
+        using var response = await httpClient.SendAsync(message, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ExecutionTimeline>(JsonOptions, cancellationToken);
+    }
+
     public async IAsyncEnumerable<ExecutionEvent> StreamEventsAsync(
         Guid executionId,
         long afterSequence = 0,
@@ -173,6 +215,14 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
         if (!string.IsNullOrWhiteSpace(value))
         {
             message.Headers.TryAddWithoutValidation(name, value);
+        }
+    }
+
+    private static void AddQuery(List<string> parameters, string name, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            parameters.Add($"{name}={Uri.EscapeDataString(value)}");
         }
     }
 }

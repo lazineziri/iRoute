@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/execution-timeline.schema.json",
+  "title": "ExecutionTimeline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"],
+  "$defs": {
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "type", "occurredAt", "offsetMilliseconds", "data"],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1 },
+        "type": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "occurredAt": { "type": "string", "format": "date-time" },
+        "offsetMilliseconds": { "type": "integer", "minimum": 0 },
+        "data": { "type": "object", "additionalProperties": true }
+      }
+    }
+  },
+  "properties": {
+    "executionId": { "type": "string", "format": "uuid" },
+    "traceId": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "taskType": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "taskDefinitionVersion": { "type": ["integer", "null"], "minimum": 1 },
+    "policyVersion": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"] },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "durationMilliseconds": { "type": "integer", "minimum": 0 },
+    "actorReference": { "type": "string", "pattern": "^sha256:[a-f0-9]{16}$" },
+    "projectReference": { "type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{16}$" },
+    "payloadMode": { "enum": ["MetadataOnly", "Redacted"] },
+    "truncated": { "type": "boolean" },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+  }
+}

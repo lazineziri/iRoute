@@ -25,9 +25,11 @@ public sealed class ExecutionOrchestrator(
     IEnumerable<ITaskOutcomeValidator> validators,
     IInputFingerprint fingerprint,
     IExecutionCancellationRegistry cancellations,
-    IClock clock)
+    IClock clock,
+    IExecutionTelemetry? executionTelemetry = null)
 {
     private static readonly JsonSerializerOptions ContractJsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly IExecutionTelemetry _telemetry = executionTelemetry ?? NoOpExecutionTelemetry.Instance;
 
     public async Task<ExecutionSnapshot> ExecuteAsync(TaskRequest request, CancellationToken cancellationToken)
     {
@@ -57,11 +59,22 @@ public sealed class ExecutionOrchestrator(
             TenantId: tenantId,
             ActorId: actorId,
             ProjectId: request.ProjectId);
+        using var trace = _telemetry.StartExecution(
+            snapshot,
+            request.PermissionScopes ?? [],
+            "execute");
         await store.CreateAsync(snapshot, request.IdempotencyKey, cancellationToken);
         await AppendEventAsync(
             snapshot.ExecutionId,
             ExecutionEventTypes.Created,
-            new { snapshot.TaskType, snapshot.TenantId, snapshot.ActorId, snapshot.ProjectId },
+            new
+            {
+                snapshot.TaskType,
+                snapshot.TenantId,
+                snapshot.ActorId,
+                snapshot.ProjectId,
+                traceId = trace.TraceId
+            },
             cancellationToken);
 
         var registeredCancellation = cancellations.Register(snapshot.ExecutionId, cancellationToken);
@@ -434,6 +447,8 @@ public sealed class ExecutionOrchestrator(
                 "Approval not found",
                 "The requested approval was not found.");
         }
+
+        using var trace = _telemetry.StartExecution(snapshot, permissionScopes, "resume");
 
         var approval = await approvals.GetAsync(executionId, decision.ActionId, cancellationToken);
         if (approval is null || !string.Equals(approval.TenantId, tenantId, StringComparison.Ordinal))
@@ -1563,6 +1578,7 @@ public sealed class ExecutionOrchestrator(
                 artifacts = outcome.Artifacts.Count
             },
             cancellationToken);
+        _telemetry.RecordTerminal(snapshot);
         return snapshot;
     }
 
@@ -1591,6 +1607,7 @@ public sealed class ExecutionOrchestrator(
             ExecutionEventTypes.Failed,
             new { status = terminal, problem.Code, problem.Title, problem.Retryable },
             cancellationToken);
+        _telemetry.RecordTerminal(updated);
         return updated;
     }
 
@@ -1610,17 +1627,21 @@ public sealed class ExecutionOrchestrator(
         return updated;
     }
 
-    private Task<ExecutionEvent> AppendEventAsync(
+    private async Task<ExecutionEvent> AppendEventAsync(
         Guid executionId,
         string eventType,
         object data,
-        CancellationToken cancellationToken) =>
-        store.AppendEventAsync(
+        CancellationToken cancellationToken)
+    {
+        var executionEvent = await store.AppendEventAsync(
             executionId,
             eventType,
             clock.UtcNow,
             JsonSerializer.SerializeToElement(data),
             cancellationToken);
+        _telemetry.RecordEvent(eventType);
+        return executionEvent;
+    }
 
     private Task<ExecutionEvent> AppendResolutionDecisionAsync(
         Guid executionId,

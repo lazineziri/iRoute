@@ -457,6 +457,103 @@ export interface ApprovalResult {
   execution: ExecutionSnapshot;
 }
 
+export interface ObservabilityMetricSet {
+  executions: number;
+  completed: number;
+  failed: number;
+  completionRate: number;
+  averageQuality: number;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  averageLatencyMilliseconds: number;
+  modelCalls: number;
+  toolCalls: number;
+  noModelResolutions: number;
+  modelCallsAvoided: number;
+}
+
+export interface ObservabilityMetricGroup {
+  taskType: string;
+  policyVersion: string;
+  metrics: ObservabilityMetricSet;
+}
+
+export interface MemoryResolverDiagnostic {
+  resolver: string;
+  considered: number;
+  accepted: number;
+  rejected: number;
+  reasons: Readonly<Record<string, number>>;
+}
+
+export interface MemoryHitDiagnostics {
+  considered: number;
+  accepted: number;
+  rejected: number;
+  hitRate: number;
+  resolvers: readonly MemoryResolverDiagnostic[];
+}
+
+export interface ObservabilityExecutionItem {
+  executionId: string;
+  taskType: string;
+  policyVersion: string;
+  status: ExecutionStatus;
+  startedAt: string;
+  durationMilliseconds: number;
+  resolutionLevel: ResolutionLevel | null;
+  quality: number | null;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface ObservabilitySummary {
+  from: string;
+  to: string;
+  truncated: boolean;
+  sampledExecutions: number;
+  totals: ObservabilityMetricSet;
+  groups: readonly ObservabilityMetricGroup[];
+  memory: MemoryHitDiagnostics;
+  recentExecutions: readonly ObservabilityExecutionItem[];
+}
+
+export type ObservabilityPayloadMode = 'MetadataOnly' | 'Redacted';
+
+export interface ExecutionTimelineEntry {
+  sequence: number;
+  type: string;
+  occurredAt: string;
+  offsetMilliseconds: number;
+  data: Readonly<Record<string, unknown>>;
+}
+
+export interface ExecutionTimeline {
+  executionId: string;
+  traceId: string;
+  taskType: string;
+  taskDefinitionVersion: number | null;
+  policyVersion: string;
+  status: ExecutionStatus;
+  startedAt: string;
+  updatedAt: string;
+  durationMilliseconds: number;
+  actorReference: string;
+  projectReference: string | null;
+  payloadMode: ObservabilityPayloadMode;
+  truncated: boolean;
+  events: readonly ExecutionTimelineEntry[];
+}
+
+export interface ObservabilityQuery {
+  from?: string | Date;
+  to?: string | Date;
+  taskType?: string;
+  policyVersion?: string;
+}
+
 export interface IRouteClientOptions {
   token?: string;
   tenantId?: string;
@@ -544,6 +641,34 @@ export class IRouteClient {
     return await response.json() as ModelGatewayHealth;
   }
 
+  async getObservabilitySummary(
+    query: ObservabilityQuery = {},
+    signal?: AbortSignal
+  ): Promise<ObservabilitySummary> {
+    const url = new URL('/v1/observability/summary', this.baseUrl);
+    if (query.from) url.searchParams.set('from', toTimestamp(query.from));
+    if (query.to) url.searchParams.set('to', toTimestamp(query.to));
+    if (query.taskType) url.searchParams.set('taskType', query.taskType);
+    if (query.policyVersion) url.searchParams.set('policyVersion', query.policyVersion);
+    const response = await fetch(
+      url,
+      this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
+    );
+    return await this.readJson<ObservabilitySummary>(response);
+  }
+
+  async getExecutionTimeline(
+    executionId: string,
+    signal?: AbortSignal
+  ): Promise<ExecutionTimeline | undefined> {
+    const response = await fetch(
+      new URL(`/v1/observability/executions/${encodeURIComponent(executionId)}`, this.baseUrl),
+      this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
+    );
+    if (response.status === 404) return undefined;
+    return await this.readJson<ExecutionTimeline>(response);
+  }
+
   async *streamEvents(
     executionId: string,
     afterSequence = 0,
@@ -608,4 +733,8 @@ export class IRouteClient {
     const detail = await response.text();
     return new Error(`iRoute request failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
   }
+}
+
+function toTimestamp(value: string | Date): string {
+  return value instanceof Date ? value.toISOString() : value;
 }

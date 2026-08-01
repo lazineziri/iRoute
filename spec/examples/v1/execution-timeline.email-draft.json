@@ -1,0 +1,49 @@
+{
+  "executionId": "019883a0-7b00-7000-8000-000000000013",
+  "traceId": "0123456789abcdef0123456789abcdef",
+  "taskType": "email.draft",
+  "taskDefinitionVersion": 1,
+  "policyVersion": "routing.w08.v1",
+  "status": "Succeeded",
+  "startedAt": "2026-08-01T13:45:00Z",
+  "updatedAt": "2026-08-01T13:45:00.640Z",
+  "durationMilliseconds": 640,
+  "actorReference": "sha256:61ea0803f8853523",
+  "projectReference": "sha256:778b5601a479aa3c",
+  "payloadMode": "Redacted",
+  "truncated": false,
+  "events": [
+    {
+      "sequence": 1,
+      "type": "execution.created",
+      "occurredAt": "2026-08-01T13:45:00Z",
+      "offsetMilliseconds": 0,
+      "data": {
+        "taskType": "email.draft",
+        "tenantId": "[REDACTED]",
+        "actorId": "[REDACTED]",
+        "traceId": "0123456789abcdef0123456789abcdef"
+      }
+    },
+    {
+      "sequence": 2,
+      "type": "routing.decided",
+      "occurredAt": "2026-08-01T13:45:00.120Z",
+      "offsetMilliseconds": 120,
+      "data": {
+        "policyVersion": "routing.w08.v1",
+        "selectedCapability": "model.text.generate"
+      }
+    },
+    {
+      "sequence": 3,
+      "type": "execution.completed",
+      "occurredAt": "2026-08-01T13:45:00.640Z",
+      "offsetMilliseconds": 640,
+      "data": {
+        "resolutionLevel": "SmallModel",
+        "confidence": 0.94
+      }
+    }
+  ]
+}

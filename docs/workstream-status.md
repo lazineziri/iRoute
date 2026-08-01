@@ -220,4 +220,23 @@ Acceptance evidence:
 - A SQLite restart test proves archives survive reconstruction, source deletion occurs only on a later sweep, storage remains bounded, and the lifecycle migration is applied.
 - Worker tests prove cleanup starts asynchronously and respects host cancellation; the full unit, architecture, contract, regression, and SDK verification suites remain green.
 
-## Next: M3 / W13 — Observability and dashboard
+### W13 — Observability and dashboard: complete
+
+Deliverables:
+
+- OpenTelemetry execution spans correlated by trace ID across orchestration events, plus metrics for starts, completions, failures, duration, quality, cost, input/output tokens, memory hits, and model calls avoided.
+- A durable observability projection over the existing execution snapshots and ordered event stream, with equivalent in-memory and EF/SQLite/PostgreSQL query paths and no duplicate telemetry database.
+- Tenant-scoped, bounded summary and execution-timeline endpoints with task/policy filters, hashed actor/project references, deterministic trace correlation, and cross-tenant not-found behavior.
+- Quality, cost, latency, token, completion, no-model, and tool/model-call comparison views grouped by task type and routing policy version.
+- Memory-hit diagnostics by resolver and stable acceptance/rejection code.
+- Fail-closed payload controls: default `MetadataOnly` suppresses every event field; opt-in `Redacted` removes sensitive fields and bounds retained safe strings. Runtime traces and metrics never contain prompts, payloads, credentials, raw identifiers, or permission values.
+- A responsive, dependency-free dashboard at `/dashboard/`, versioned OpenAPI and JSON Schemas/examples, compatibility coverage, and .NET/Node client access.
+
+Acceptance evidence:
+
+- Telemetry tests capture one complete execution span, correlate its trace ID with the durable timeline, observe terminal metrics, and prove tenant, actor, project, scope, and payload values are absent.
+- Projection tests compare quality, cost, latency, tokens, and reuse across task/policy groups; a SQLite reconstruction test proves summaries and timelines survive process restart.
+- Privacy tests prove sensitive nested fields are redacted, safe long strings are bounded, metadata-only mode exposes no event fields, and timelines are ordered, bounded, and tenant scoped.
+- Contract tests compile both observability schemas and validate published examples; live API verification executes a task, queries its summary/timeline, and serves the dashboard assets.
+
+## Next: M3 / W14 — SDKs and CLI

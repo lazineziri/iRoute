@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITaskOutcomeValidator, EmailSendOutcomeValidator>();
         services.AddSingleton<ITaskOutcomeValidator, DefaultTaskOutcomeValidator>();
         services.AddSingleton<IExecutionCancellationRegistry, ExecutionCancellationRegistry>();
+        services.AddSingleton<IExecutionTelemetry, RuntimeTelemetry>();
         return services;
     }
 }

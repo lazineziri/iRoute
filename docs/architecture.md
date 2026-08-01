@@ -191,6 +191,24 @@ flowchart LR
 
 Core owns lifecycle policy, results, deletion requests, storage snapshots, and the lifecycle-store port. Infrastructure implements equivalent in-memory and EF cleanup engines. The Worker owns cadence and count-only logging. Expiry and explicit deletion both invalidate dependent memory and artifacts before source removal. Archival is idempotent and tenant-scoped; a newly created archive can never authorize deletion in the same sweep. Physical deletion removes dependency edges and broken supersession pointers, while archive retention remains independently bounded.
 
+W13 makes runtime behavior inspectable without creating a second source of truth:
+
+```mermaid
+flowchart LR
+    A["Execution orchestrator"] --> B["OpenTelemetry span and metrics"]
+    A --> C["Durable snapshot and ordered events"]
+    C --> D["Tenant-scoped observability projection"]
+    D --> E["Task and policy comparison"]
+    D --> F["Memory-hit diagnostics"]
+    D --> G["Redacted execution timeline"]
+    E --> H["Operator dashboard"]
+    F --> H
+    G --> H
+    B --> I["Optional OTLP collector"]
+```
+
+The durable execution snapshot and event stream remain the query source for the dashboard, so a restart does not split operational truth between application and telemetry stores. Runtime spans use hashed references and low-cardinality task/policy/status tags; metrics record counts and measurements only. The trace ID written with `execution.created` correlates an exported span with its durable timeline. Infrastructure owns bounded aggregation and recursive redaction. API identity supplies the tenant scope and never accepts an unscoped observability query.
+
 ## Code dependency topology
 
 ```mermaid
@@ -211,8 +229,8 @@ Arrows mean “may be depended upon by.” Reverse references are forbidden.
 | Contracts | wire records, enums, compatibility | persistence or routing behavior |
 | Core | state rules, entities, ports, policies | HTTP, EF Core, provider formats |
 | Runtime | use cases, orchestration, context, scheduling | host configuration or provider SDKs |
-| Infrastructure | persistence, HTTP gateway, telemetry | product policy decisions |
-| API | HTTP/SSE and composition | business logic |
+| Infrastructure | persistence, HTTP gateway, telemetry projection | product policy decisions |
+| API | HTTP/SSE, observability views, static dashboard, and composition | business logic |
 | Worker | durable jobs and lifecycle host | duplicate runtime rules |
 | SDKs | idiomatic clients | routing, prompts, memory logic |
 

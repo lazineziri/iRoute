@@ -91,5 +91,11 @@ public sealed class InMemoryExecutionStore : IExecutionStore
         return Task.FromResult(executionEvent);
     }
 
+    internal IReadOnlyList<ExecutionSnapshot> ObservabilitySnapshot() =>
+        _executions.Values.ToArray();
+
+    internal IReadOnlyList<ExecutionEvent> ObservabilityEvents(Guid executionId) =>
+        _events.TryGetValue(executionId, out var queue) ? queue.ToArray() : [];
+
     private static string CreateIdempotencyKey(string tenantId, string key) => $"{tenantId}\u001f{key}";
 }

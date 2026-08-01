@@ -1,0 +1,75 @@
+{
+  "from": "2026-08-01T12:00:00Z",
+  "to": "2026-08-01T14:00:00Z",
+  "truncated": false,
+  "sampledExecutions": 2,
+  "totals": {
+    "executions": 2,
+    "completed": 2,
+    "failed": 0,
+    "completionRate": 1,
+    "averageQuality": 0.94,
+    "inputTokens": 920,
+    "outputTokens": 280,
+    "cost": 0.024,
+    "averageLatencyMilliseconds": 640,
+    "modelCalls": 1,
+    "toolCalls": 0,
+    "noModelResolutions": 1,
+    "modelCallsAvoided": 1
+  },
+  "groups": [
+    {
+      "taskType": "email.draft",
+      "policyVersion": "routing.w08.v1",
+      "metrics": {
+        "executions": 2,
+        "completed": 2,
+        "failed": 0,
+        "completionRate": 1,
+        "averageQuality": 0.94,
+        "inputTokens": 920,
+        "outputTokens": 280,
+        "cost": 0.024,
+        "averageLatencyMilliseconds": 640,
+        "modelCalls": 1,
+        "toolCalls": 0,
+        "noModelResolutions": 1,
+        "modelCallsAvoided": 1
+      }
+    }
+  ],
+  "memory": {
+    "considered": 2,
+    "accepted": 1,
+    "rejected": 1,
+    "hitRate": 0.5,
+    "resolvers": [
+      {
+        "resolver": "exact-cache",
+        "considered": 2,
+        "accepted": 1,
+        "rejected": 1,
+        "reasons": {
+          "exact_cache_hit": 1,
+          "exact_cache_miss": 1
+        }
+      }
+    ]
+  },
+  "recentExecutions": [
+    {
+      "executionId": "019883a0-7b00-7000-8000-000000000013",
+      "taskType": "email.draft",
+      "policyVersion": "routing.w08.v1",
+      "status": "Succeeded",
+      "startedAt": "2026-08-01T13:45:00Z",
+      "durationMilliseconds": 640,
+      "resolutionLevel": "SmallModel",
+      "quality": 0.94,
+      "cost": 0.024,
+      "inputTokens": 920,
+      "outputTokens": 280
+    }
+  ]
+}

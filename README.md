@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W12**. See [the workstream status](docs/workstream-status.md). W13 is next.
+Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W13**. See [the workstream status](docs/workstream-status.md). W14 is next.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -29,6 +29,9 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - connector projection before model context, bounded outputs/deadlines, classified failures, and write reuse through the approval/idempotency boundary
 - configurable artifact/memory TTLs, lineage and tenant quotas, dependency-safe cold archival, and bounded archive retention
 - asynchronous lifecycle sweeps with recursive invalidation, deletion propagation, supersession-pointer repair, and dangling-index checks
+- end-to-end OpenTelemetry execution spans and cost, token, quality, latency, reuse, and completion metrics
+- a tenant-scoped observability read model with redacted timelines, task/policy comparisons, and memory-hit diagnostics
+- a dependency-free operator dashboard at `/dashboard/` with bounded query windows and metadata-only timelines by default
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
@@ -57,6 +60,8 @@ curl --request POST http://localhost:8080/v1/executions \
 
 The first request returns a validated `SmallModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
 
+Open `http://localhost:8080/dashboard/` to inspect the request timeline and compare quality, cost, latency, token usage, and memory hits. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
+
 Run the lifecycle host in another terminal to enforce TTL, quota, archival, and deletion policies asynchronously:
 
 ```bash
@@ -72,6 +77,9 @@ Useful endpoints:
 - `POST /v1/executions/{executionId}/cancel`
 - `POST /v1/executions/{executionId}/approvals`
 - `GET /v1/artifacts/{artifactId}`
+- `GET /v1/observability/summary?from=...&to=...&taskType=...&policyVersion=...`
+- `GET /v1/observability/executions/{executionId}`
+- `GET /dashboard/`
 - `GET /health/live`, `GET /health/ready`, `GET /health/model-gateway`, and `GET /openapi/v1.json`
 
 ## Verification
@@ -128,6 +136,12 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Identity__TenantClaim` | Claim containing tenant identity | `tenant_id` |
 | `Identity__ActorClaim` | Claim containing actor identity | `sub` |
 | `Identity__PermissionClaim` | Claim containing space- or comma-separated permission scopes | `scope` |
+| `Observability__PayloadMode` | `MetadataOnly` event envelopes or opt-in recursively `Redacted` fields | `MetadataOnly` |
+| `Observability__MaxQueryDays` | Maximum requested summary window | `90` |
+| `Observability__MaxExecutions` | Maximum executions projected per summary | `1,000` |
+| `Observability__MaxTimelineEvents` | Maximum events returned for one timeline | `1,000` |
+| `Observability__MaxEventValueCharacters` | Maximum retained safe string length | `1,000` |
+| `Observability__MaxRecentExecutions` | Maximum recent execution rows in a summary | `25` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Opt-in telemetry export | unset |
 
 Use the deterministic gateway only for local development and repeatable tests. Buffered HTTP mode expects `POST {BaseUrl}/v1/execute`; streaming mode expects `POST {BaseUrl}/v1/stream` with monotonic NDJSON events and one terminal result. Both use the same provider-neutral request/result contract. `GET {BaseUrl}/health` supplies normalized optional-gateway health without affecting `/health/ready`.
