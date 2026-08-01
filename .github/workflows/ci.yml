@@ -17,6 +17,22 @@ jobs:
       - uses: actions/dependency-review-action@v5
   dotnet:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4-alpine
+        env:
+          POSTGRES_DB: iroute_test
+          POSTGRES_USER: iroute
+          POSTGRES_PASSWORD: iroute-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U iroute -d iroute_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      IROUTE_TEST_POSTGRES: Host=localhost;Port=5432;Database=iroute_test;Username=iroute;Password=iroute-test-only
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5

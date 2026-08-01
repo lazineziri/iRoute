@@ -245,8 +245,9 @@ stateDiagram-v2
     Resolving --> Planning
     Resolving --> Validating
     Planning --> WaitingForApproval
-    Planning --> Running
-    WaitingForApproval --> Running
+    Planning --> Queued
+    WaitingForApproval --> Queued
+    Queued --> Running
     Running --> Validating
     Validating --> Materializing
     Materializing --> Succeeded
@@ -260,6 +261,7 @@ stateDiagram-v2
     Validating --> Failed
     Resolving --> Cancelled
     Planning --> Cancelled
+    Queued --> Cancelled
     Running --> Cancelled
     Validating --> Cancelled
 ```
@@ -268,7 +270,7 @@ Every transition is persisted and emits an ordered event. Terminal states are im
 
 ## Persistence profiles
 
-`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, and external-action reservations through the same ports. Restart tests cover workflow recovery, approval-gated action resumption, routing-decision preservation, project-state lifecycle parity, and two-phase archival/deletion.
+`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, work items and leases, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, and external-action reservations through the same ports. PostgreSQL tests cover concurrent claims, fencing, lease expiry, takeover, workflow recovery, and cancellation; restart tests also cover approval-gated action resumption, routing-decision preservation, project-state lifecycle parity, and two-phase archival/deletion.
 
 `Storage:AutoInitialize` applies checked-in EF migrations only in local profiles. Production API and worker processes disable it and depend on the one-shot migration image. Readiness fails while known migrations are pending. The initial migration contains provider-specific SQL so SQLite uses its native storage representation while PostgreSQL uses native UUID and boolean columns. Future changes must follow expand-and-contract migration rules.
 
@@ -279,11 +281,12 @@ flowchart LR
     L["Load balancer / ingress"] --> A["API replicas (2-10)"]
     A --> P["External PostgreSQL"]
     M["One-shot migration job"] --> P
+    E["Execution workers (2+)"] --> P
     W["Lifecycle worker (exactly 1)"] --> P
-    A --> G["External model gateway"]
+    E --> G["External model gateway"]
 ```
 
-API replicas scale independent synchronous requests and durable read/query traffic over one PostgreSQL schema. A migration job upgrades that schema before new pods become ready. The lifecycle worker remains single-instance because W12 does not yet implement distributed leasing. SQLite is intentionally limited to the one-container local profile.
+API replicas persist submissions and serve durable reads over one PostgreSQL schema. Execution workers claim work with expiring fenced leases and scale independently; the lifecycle worker remains single-instance. A migration job upgrades the schema before new pods become ready. SQLite is intentionally limited to the local API-plus-worker profile.
 
 ## Identity boundary
 

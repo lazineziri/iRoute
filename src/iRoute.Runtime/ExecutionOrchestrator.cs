@@ -26,12 +26,22 @@ public sealed class ExecutionOrchestrator(
     IInputFingerprint fingerprint,
     IExecutionCancellationRegistry cancellations,
     IClock clock,
-    IExecutionTelemetry? executionTelemetry = null)
+    IExecutionTelemetry? executionTelemetry = null,
+    IExecutionWorkStore? executionWork = null)
 {
     private static readonly JsonSerializerOptions ContractJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IExecutionTelemetry _telemetry = executionTelemetry ?? NoOpExecutionTelemetry.Instance;
 
-    public async Task<ExecutionSnapshot> ExecuteAsync(TaskRequest request, CancellationToken cancellationToken)
+    public Task<ExecutionSnapshot> ExecuteAsync(TaskRequest request, CancellationToken cancellationToken) =>
+        ExecuteCoreAsync(request, false, cancellationToken);
+
+    public Task<ExecutionSnapshot> SubmitAsync(TaskRequest request, CancellationToken cancellationToken) =>
+        ExecuteCoreAsync(request, true, cancellationToken);
+
+    private async Task<ExecutionSnapshot> ExecuteCoreAsync(
+        TaskRequest request,
+        bool deferExecution,
+        CancellationToken cancellationToken)
     {
         Validate(request);
         var tenantId = RequestScope.Tenant(request);
@@ -271,12 +281,18 @@ public sealed class ExecutionOrchestrator(
                 return snapshot;
             }
 
+            if (deferExecution)
+            {
+                return await QueueAsync(snapshot, ExecutionStatus.Planning, executionToken);
+            }
+
             return await RunPlanAsync(
                 snapshot,
                 request,
                 definition,
                 plan,
                 routing.Decision,
+                false,
                 executionToken);
         }
         catch (OperationCanceledException)
@@ -423,12 +439,45 @@ public sealed class ExecutionOrchestrator(
         }
     }
 
-    public async Task<ApprovalResult> SubmitApprovalAsync(
+    public Task<ApprovalResult> SubmitApprovalAsync(
         Guid executionId,
         ApprovalDecision decision,
         string tenantId,
         string actorId,
         IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken) =>
+        SubmitApprovalCoreAsync(
+            executionId,
+            decision,
+            tenantId,
+            actorId,
+            permissionScopes,
+            false,
+            cancellationToken);
+
+    public Task<ApprovalResult> SubmitApprovalForQueueAsync(
+        Guid executionId,
+        ApprovalDecision decision,
+        string tenantId,
+        string actorId,
+        IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken) =>
+        SubmitApprovalCoreAsync(
+            executionId,
+            decision,
+            tenantId,
+            actorId,
+            permissionScopes,
+            true,
+            cancellationToken);
+
+    private async Task<ApprovalResult> SubmitApprovalCoreAsync(
+        Guid executionId,
+        ApprovalDecision decision,
+        string tenantId,
+        string actorId,
+        IReadOnlyCollection<string> permissionScopes,
+        bool deferExecution,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(decision.ActionId))
@@ -575,6 +624,15 @@ public sealed class ExecutionOrchestrator(
             return new ApprovalResult(approval.ToSnapshot(), snapshot);
         }
 
+        if (deferExecution)
+        {
+            snapshot = await QueueAsync(
+                snapshot,
+                ExecutionStatus.WaitingForApproval,
+                cancellationToken);
+            return new ApprovalResult(approval.ToSnapshot(), snapshot);
+        }
+
         var registeredCancellation = cancellations.Register(executionId, cancellationToken);
         using var deadlineSource = new CancellationTokenSource();
         deadlineSource.CancelAfter(TimeSpan.FromMilliseconds(checkpoint.Plan.Budget.DeadlineMilliseconds));
@@ -589,6 +647,7 @@ public sealed class ExecutionOrchestrator(
                 definition,
                 checkpoint.Plan,
                 checkpoint.Routing,
+                false,
                 executionSource.Token);
         }
         catch (Exception exception)
@@ -606,15 +665,129 @@ public sealed class ExecutionOrchestrator(
         return new ApprovalResult(approval.ToSnapshot(), snapshot);
     }
 
+    public async Task<ExecutionSnapshot> ProcessQueuedAsync(
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await store.GetAsync(executionId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Execution '{executionId}' was not found.");
+        if (IsTerminal(snapshot.Status))
+        {
+            return snapshot;
+        }
+
+        if (snapshot.Status is not (ExecutionStatus.Queued or ExecutionStatus.Running))
+        {
+            throw new InvalidOperationException(
+                $"Execution '{executionId}' cannot be processed from {snapshot.Status}.");
+        }
+
+        var checkpoint = await checkpoints.GetAsync(executionId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"Queued execution '{executionId}' has no durable workflow checkpoint.");
+        var definition = await taskDefinitions.FindAsync(checkpoint.Request.TaskType, cancellationToken)
+            ?? throw new InvalidOperationException(
+                $"No active task definition exists for '{checkpoint.Request.TaskType}'.");
+        using var trace = _telemetry.StartExecution(
+            snapshot,
+            checkpoint.Request.PermissionScopes ?? [],
+            "worker");
+        var remainingDeadline = await RemainingWorkerDeadlineAsync(
+            executionId,
+            checkpoint.Plan.Budget.DeadlineMilliseconds,
+            cancellationToken);
+        if (remainingDeadline <= TimeSpan.Zero)
+        {
+            await CancelCheckpointAsync(executionId, CancellationToken.None);
+            return await TerminalAsync(
+                snapshot,
+                ExecutionStatus.TimedOut,
+                new Problem(
+                    ErrorCodes.ExecutionTimedOut,
+                    "Execution timed out",
+                    "The execution exceeded its durable queue deadline.",
+                    true),
+                CancellationToken.None);
+        }
+
+        using var deadline = new CancellationTokenSource(remainingDeadline);
+        using var execution = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            deadline.Token);
+        try
+        {
+            if (snapshot.CancellationRequestedAt is not null)
+            {
+                await CancelCheckpointAsync(executionId, CancellationToken.None);
+                return await TerminalAsync(
+                    snapshot,
+                    ExecutionStatus.Cancelled,
+                    new Problem(
+                        ErrorCodes.ExecutionCancelled,
+                        "Execution cancelled",
+                        "The execution was cancelled before a worker started it."),
+                    CancellationToken.None);
+            }
+
+            return await RunPlanAsync(
+                snapshot,
+                checkpoint.Request,
+                definition,
+                checkpoint.Plan,
+                checkpoint.Routing,
+                true,
+                execution.Token);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            await CancelCheckpointAsync(executionId, CancellationToken.None);
+            return await TerminalAsync(
+                snapshot,
+                ExecutionStatus.TimedOut,
+                new Problem(
+                    ErrorCodes.ExecutionTimedOut,
+                    "Execution timed out",
+                    "The execution exceeded its worker deadline.",
+                    true),
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            var latest = await store.GetAsync(executionId, CancellationToken.None) ?? snapshot;
+            if (latest.CancellationRequestedAt is null)
+            {
+                throw;
+            }
+
+            await CancelCheckpointAsync(executionId, CancellationToken.None);
+            return await TerminalAsync(
+                latest,
+                ExecutionStatus.Cancelled,
+                new Problem(
+                    ErrorCodes.ExecutionCancelled,
+                    "Execution cancelled",
+                    "The execution was cancelled while running."),
+                CancellationToken.None);
+        }
+        catch (Exception exception) when (IsExecutionFailure(exception))
+        {
+            return await HandleResumedFailureAsync(snapshot, exception, false);
+        }
+    }
+
     private async Task<ExecutionSnapshot> RunPlanAsync(
         ExecutionSnapshot snapshot,
         TaskRequest request,
         TaskDefinition definition,
         ExecutionPlan plan,
         RoutingDecision routing,
+        bool preserveCheckpointOnCancellation,
         CancellationToken cancellationToken)
     {
-        snapshot = await TransitionAsync(snapshot, ExecutionStatus.Running, cancellationToken);
+        if (snapshot.Status != ExecutionStatus.Running)
+        {
+            snapshot = await TransitionAsync(snapshot, ExecutionStatus.Running, cancellationToken);
+        }
         var context = await contextCompiler.CompileAsync(request, definition, cancellationToken);
         await AppendEventAsync(
             snapshot.ExecutionId,
@@ -669,7 +842,8 @@ public sealed class ExecutionOrchestrator(
                 };
                 return JsonSerializer.SerializeToElement(result, ContractJsonOptions);
             },
-            cancellationToken);
+            cancellationToken,
+            preserveCheckpointOnCancellation);
         if (!workflow.Outputs.TryGetValue("execute", out var resultOutput))
         {
             throw new WorkflowStepExecutionException(
@@ -888,6 +1062,8 @@ public sealed class ExecutionOrchestrator(
                             $"The model gateway emitted an invalid {streamEvent.Kind} event.");
                 }
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (result is null)
             {
@@ -1260,6 +1436,7 @@ public sealed class ExecutionOrchestrator(
                     step.SideEffectClass,
                     step.TimeoutMilliseconds),
                 cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             stopwatch.Stop();
             await externalActions.CompleteAsync(
                 snapshot.TenantId,
@@ -1582,6 +1759,61 @@ public sealed class ExecutionOrchestrator(
         return snapshot;
     }
 
+    private async Task<ExecutionSnapshot> QueueAsync(
+        ExecutionSnapshot snapshot,
+        ExecutionStatus expectedStatus,
+        CancellationToken cancellationToken)
+    {
+        var work = executionWork ?? throw new InvalidOperationException(
+            "Durable execution work is not configured for asynchronous submission.");
+        var queuedAt = clock.UtcNow;
+        await work.EnqueueAsync(
+            snapshot.ExecutionId,
+            expectedStatus,
+            queuedAt,
+            cancellationToken);
+        var queued = snapshot with { Status = ExecutionStatus.Queued, UpdatedAt = queuedAt };
+        await AppendEventAsync(
+            queued.ExecutionId,
+            ExecutionEventTypes.StatusChanged,
+            new { from = expectedStatus, to = ExecutionStatus.Queued },
+            cancellationToken);
+        await AppendEventAsync(
+            queued.ExecutionId,
+            ExecutionEventTypes.Queued,
+            new { availableAt = queuedAt },
+            cancellationToken);
+        return queued;
+    }
+
+    private Task CancelCheckpointAsync(Guid executionId, CancellationToken cancellationToken) =>
+        checkpoints.CancelIncompleteStepsAsync(
+            executionId,
+            new Problem(
+                ErrorCodes.ExecutionCancelled,
+                "Execution stopped",
+                "The durable execution stopped before all steps completed."),
+            clock.UtcNow,
+            cancellationToken);
+
+    private async Task<TimeSpan> RemainingWorkerDeadlineAsync(
+        Guid executionId,
+        int deadlineMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        DateTimeOffset? queuedAt = null;
+        await foreach (var item in store.ReadEventsAsync(executionId, 0, cancellationToken))
+        {
+            if (item.Type == ExecutionEventTypes.Queued)
+            {
+                queuedAt = item.OccurredAt;
+            }
+        }
+
+        var startedAt = queuedAt ?? clock.UtcNow;
+        return startedAt.AddMilliseconds(deadlineMilliseconds) - clock.UtcNow;
+    }
+
     private async Task<ExecutionSnapshot> TerminalAsync(
         ExecutionSnapshot snapshot,
         ExecutionStatus terminal,
@@ -1825,6 +2057,17 @@ public sealed class ExecutionOrchestrator(
         ExecutionStatus.Failed or
         ExecutionStatus.Cancelled or
         ExecutionStatus.TimedOut;
+
+    private static bool IsExecutionFailure(Exception exception) => exception is
+        TaskExecutionException or
+        ContextCompilationException or
+        RoutingException or
+        InvalidExecutionPlanException or
+        ExternalActionExecutionException or
+        CapabilityInvocationException or
+        WorkflowStepTimedOutException or
+        WorkflowStepExecutionException or
+        ModelGatewayException;
 
     private static void Validate(TaskRequest request)
     {

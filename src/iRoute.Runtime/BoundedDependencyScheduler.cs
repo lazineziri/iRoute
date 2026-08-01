@@ -10,6 +10,9 @@ public sealed record WorkflowSchedulerOptions
 {
     public int QueueCapacity { get; init; } = 16;
     public int MaxParallelSteps { get; init; } = 4;
+    public int RetryBaseDelayMilliseconds { get; init; } = 100;
+    public int RetryMaxDelayMilliseconds { get; init; } = 5000;
+    public double RetryJitterRatio { get; init; } = 0.2;
 }
 
 public delegate Task<JsonElement> WorkflowStepHandler(
@@ -68,7 +71,8 @@ public sealed class BoundedDependencyScheduler(
         ExecutionPlan plan,
         RoutingDecision routing,
         WorkflowStepHandler handler,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool preserveCheckpointOnCancellation = false)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ValidateOptions(options);
@@ -152,10 +156,15 @@ public sealed class BoundedDependencyScheduler(
                     states,
                     outputs,
                     handler,
+                    preserveCheckpointOnCancellation,
                     cancellationToken);
                 peakQueued = Math.Max(peakQueued, round.PeakQueuedSteps);
                 backpressureWaits = checked(backpressureWaits + round.BackpressureWaitCount);
             }
+        }
+        catch (OperationCanceledException) when (preserveCheckpointOnCancellation)
+        {
+            throw;
         }
         catch (OperationCanceledException)
         {
@@ -182,6 +191,7 @@ public sealed class BoundedDependencyScheduler(
         ConcurrentDictionary<string, WorkflowStepStatus> states,
         ConcurrentDictionary<string, JsonElement> outputs,
         WorkflowStepHandler handler,
+        bool preserveCheckpointOnCancellation,
         CancellationToken cancellationToken)
     {
         var queueCapacity = options.QueueCapacity;
@@ -260,6 +270,7 @@ public sealed class BoundedDependencyScheduler(
                             states,
                             outputs,
                             handler,
+                            preserveCheckpointOnCancellation,
                             roundCancellation.Token);
                     }
                     catch (Exception exception)
@@ -285,6 +296,7 @@ public sealed class BoundedDependencyScheduler(
         ConcurrentDictionary<string, WorkflowStepStatus> states,
         ConcurrentDictionary<string, JsonElement> outputs,
         WorkflowStepHandler handler,
+        bool preserveCheckpointOnCancellation,
         CancellationToken cancellationToken)
     {
         while (true)
@@ -330,6 +342,17 @@ public sealed class BoundedDependencyScheduler(
                 timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
             {
                 var exception = new WorkflowStepTimedOutException(step.Id, step.TimeoutMilliseconds);
+                if (await TryScheduleRetryAsync(
+                        executionId,
+                        step,
+                        checkpoint.Attempt,
+                        exception,
+                        states,
+                        cancellationToken))
+                {
+                    continue;
+                }
+
                 var problem = new Problem(
                     ErrorCodes.WorkflowStepTimedOut,
                     "Workflow step timed out",
@@ -343,6 +366,10 @@ public sealed class BoundedDependencyScheduler(
                     CancellationToken.None);
                 states[step.Id] = WorkflowStepStatus.TimedOut;
                 throw exception;
+            }
+            catch (OperationCanceledException) when (preserveCheckpointOnCancellation)
+            {
+                throw;
             }
             catch (OperationCanceledException)
             {
@@ -361,19 +388,14 @@ public sealed class BoundedDependencyScheduler(
             }
             catch (Exception exception)
             {
-                if (checkpoint.Attempt < step.MaxAttempts)
+                if (await TryScheduleRetryAsync(
+                        executionId,
+                        step,
+                        checkpoint.Attempt,
+                        exception,
+                        states,
+                        cancellationToken))
                 {
-                    await checkpoints.ResetStepForRetryAsync(
-                        executionId,
-                        step.Id,
-                        clock.UtcNow,
-                        CancellationToken.None);
-                    states[step.Id] = WorkflowStepStatus.Pending;
-                    await AppendEventAsync(
-                        executionId,
-                        ExecutionEventTypes.StepRetryScheduled,
-                        new { stepId = step.Id, checkpoint.Attempt, step.MaxAttempts },
-                        CancellationToken.None);
                     continue;
                 }
 
@@ -420,6 +442,84 @@ public sealed class BoundedDependencyScheduler(
             }
         }
     }
+
+    private async Task<bool> TryScheduleRetryAsync(
+        Guid executionId,
+        ExecutionPlanStep step,
+        int attempt,
+        Exception exception,
+        ConcurrentDictionary<string, WorkflowStepStatus> states,
+        CancellationToken cancellationToken)
+    {
+        if (attempt >= step.MaxAttempts || !IsRetryable(exception))
+        {
+            return false;
+        }
+
+        var delay = RetryDelay(executionId, step.Id, attempt, exception);
+        await checkpoints.ResetStepForRetryAsync(
+            executionId,
+            step.Id,
+            clock.UtcNow,
+            CancellationToken.None);
+        states[step.Id] = WorkflowStepStatus.Pending;
+        await AppendEventAsync(
+            executionId,
+            ExecutionEventTypes.StepRetryScheduled,
+            new
+            {
+                stepId = step.Id,
+                attempt,
+                step.MaxAttempts,
+                delayMilliseconds = checked((int)delay.TotalMilliseconds),
+                failure = exception.GetType().Name
+            },
+            CancellationToken.None);
+        await Task.Delay(delay, cancellationToken);
+        return true;
+    }
+
+    private TimeSpan RetryDelay(
+        Guid executionId,
+        string stepId,
+        int attempt,
+        Exception exception)
+    {
+        var exponential = Math.Min(
+            options.RetryMaxDelayMilliseconds,
+            options.RetryBaseDelayMilliseconds * Math.Pow(2, Math.Max(0, attempt - 1)));
+        var jitterPosition = StableJitter(executionId, stepId, attempt);
+        var jitterFactor = 1 + ((jitterPosition * 2 - 1) * options.RetryJitterRatio);
+        var calculated = TimeSpan.FromMilliseconds(Math.Max(0, exponential * jitterFactor));
+        var retryAfter = exception is ModelGatewayException { RetryAfter: { } value }
+            ? value
+            : TimeSpan.Zero;
+        var selected = calculated > retryAfter ? calculated : retryAfter;
+        return selected > TimeSpan.FromMilliseconds(options.RetryMaxDelayMilliseconds)
+            ? TimeSpan.FromMilliseconds(options.RetryMaxDelayMilliseconds)
+            : selected;
+    }
+
+    private static double StableJitter(Guid executionId, string stepId, int attempt)
+    {
+        var hash = 2166136261u;
+        foreach (var value in $"{executionId:N}:{stepId}:{attempt}")
+        {
+            hash ^= value;
+            hash *= 16777619u;
+        }
+
+        return (hash % 10_001) / 10_000d;
+    }
+
+    private static bool IsRetryable(Exception exception) => exception switch
+    {
+        WorkflowStepTimedOutException => true,
+        ModelGatewayException gateway => gateway.Retryable,
+        ExternalActionExecutionException action => action.Retryable,
+        CapabilityInvocationException capability => capability.Retryable,
+        _ => false
+    };
 
     private async Task FailStepAsync(
         Guid executionId,
@@ -488,6 +588,13 @@ public sealed class BoundedDependencyScheduler(
         if (value.MaxParallelSteps < 1)
         {
             throw new InvalidOperationException("Workflow maximum parallel steps must be positive.");
+        }
+
+        if (value.RetryBaseDelayMilliseconds < 0 ||
+            value.RetryMaxDelayMilliseconds < value.RetryBaseDelayMilliseconds ||
+            value.RetryJitterRatio is < 0 or > 1)
+        {
+            throw new InvalidOperationException("Workflow retry settings are invalid.");
         }
     }
 

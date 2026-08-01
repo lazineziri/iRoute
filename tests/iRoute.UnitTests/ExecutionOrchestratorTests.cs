@@ -109,6 +109,348 @@ public sealed class ExecutionOrchestratorTests
     }
 
     [Fact]
+    public async Task SubmitQueuesModelWorkBeforeAWorkerInvokesTheGateway()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var gateway = new CountingModelGateway();
+        var work = new InMemoryExecutionWorkStore(store);
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            executionWork: work);
+
+        var submitted = await orchestrator.SubmitAsync(
+            CreateRequest("tenant-a", "queued-model"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Queued, submitted.Status);
+        Assert.Equal(0, gateway.InvocationCount);
+        Assert.Equal(
+            ExecutionWorkState.Pending,
+            Assert.IsType<ExecutionWorkItem>(await work.GetAsync(
+                submitted.ExecutionId,
+                TestContext.Current.CancellationToken)).State);
+
+        var lease = Assert.IsType<ExecutionLease>(await work.TryClaimAsync(
+            "worker-a",
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(30),
+            TestContext.Current.CancellationToken));
+        var completed = await orchestrator.ProcessQueuedAsync(
+            submitted.ExecutionId,
+            TestContext.Current.CancellationToken);
+        Assert.True(await work.CompleteAsync(
+            lease,
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(ExecutionStatus.Succeeded, completed.Status);
+        Assert.Equal(1, gateway.InvocationCount);
+        var events = await ReadEventsAsync(store, submitted.ExecutionId);
+        Assert.Contains(events, item => item.Type == ExecutionEventTypes.Queued);
+        Assert.Contains(events, item =>
+            item.Type == ExecutionEventTypes.StatusChanged &&
+            item.Data.GetProperty("to").GetString() == nameof(ExecutionStatus.Running));
+    }
+
+    [Fact]
+    public async Task SubmitKeepsExactArtifactResolutionOutOfTheWorkerQueue()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var gateway = new CountingModelGateway();
+        var work = new InMemoryExecutionWorkStore(store);
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            executionWork: work);
+        await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "exact-source"),
+            TestContext.Current.CancellationToken);
+
+        var submitted = await orchestrator.SubmitAsync(
+            CreateRequest("tenant-a", "exact-fast-path"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, submitted.Status);
+        Assert.Equal(
+            ResolutionLevel.ExactArtifact,
+            Assert.IsType<TaskOutcome>(submitted.Outcome).ResolutionLevel);
+        Assert.Null(await work.GetAsync(
+            submitted.ExecutionId,
+            TestContext.Current.CancellationToken));
+        Assert.Equal(1, gateway.InvocationCount);
+    }
+
+    [Fact]
+    public async Task InterruptedWorkerIsTakenOverAndResumesItsRunningCheckpoint()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        var gateway = new InterruptOnceModelGateway();
+        var work = new InMemoryExecutionWorkStore(store);
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            artifacts,
+            cancellations,
+            gateway,
+            checkpoints: checkpoints,
+            executionWork: work);
+        var submitted = await orchestrator.SubmitAsync(
+            CreateRequest("tenant-a", "worker-takeover"),
+            TestContext.Current.CancellationToken);
+        var firstLease = Assert.IsType<ExecutionLease>(await work.TryClaimAsync(
+            "worker-a",
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(30),
+            TestContext.Current.CancellationToken));
+        using var interrupted = new CancellationTokenSource();
+        var firstAttempt = orchestrator.ProcessQueuedAsync(submitted.ExecutionId, interrupted.Token);
+        await gateway.FirstAttemptStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        interrupted.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstAttempt);
+        Assert.Equal(
+            ExecutionStatus.Running,
+            Assert.IsType<ExecutionSnapshot>(await store.GetAsync(
+                submitted.ExecutionId,
+                TestContext.Current.CancellationToken)).Status);
+        Assert.Equal(
+            WorkflowStepStatus.Running,
+            Assert.Single(Assert.IsType<WorkflowCheckpoint>(await checkpoints.GetAsync(
+                submitted.ExecutionId,
+                TestContext.Current.CancellationToken)).Steps).Status);
+
+        Assert.True(await work.AbandonAsync(
+            firstLease,
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken));
+        var takeover = Assert.IsType<ExecutionLease>(await work.TryClaimAsync(
+            "worker-b",
+            DateTimeOffset.UtcNow.AddSeconds(1),
+            TimeSpan.FromSeconds(30),
+            TestContext.Current.CancellationToken));
+        var completed = await orchestrator.ProcessQueuedAsync(
+            submitted.ExecutionId,
+            TestContext.Current.CancellationToken);
+        Assert.True(await work.CompleteAsync(
+            takeover,
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(ExecutionStatus.Succeeded, completed.Status);
+        Assert.Equal(2, gateway.InvocationCount);
+        Assert.Contains(
+            await ReadEventsAsync(store, submitted.ExecutionId),
+            item => item.Type == ExecutionEventTypes.WorkflowResumed);
+    }
+
+    [Fact]
+    public async Task PersistedCancellationInterruptsAQueuedExecutionWhileItIsRunning()
+    {
+        var store = new InMemoryExecutionStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        var gateway = new InterruptOnceModelGateway();
+        var work = new InMemoryExecutionWorkStore(store);
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            new InMemoryArtifactStore(),
+            cancellations,
+            gateway,
+            checkpoints: checkpoints,
+            executionWork: work);
+        var submitted = await orchestrator.SubmitAsync(
+            CreateRequest("tenant-a", "running-cancellation"),
+            TestContext.Current.CancellationToken);
+        var lease = Assert.IsType<ExecutionLease>(await work.TryClaimAsync(
+            "cancellation-worker",
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(30),
+            TestContext.Current.CancellationToken));
+        using var heartbeatCancellation = new CancellationTokenSource();
+        var processing = orchestrator.ProcessQueuedAsync(
+            submitted.ExecutionId,
+            heartbeatCancellation.Token);
+        await gateway.FirstAttemptStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+        var running = Assert.IsType<ExecutionSnapshot>(await store.GetAsync(
+            submitted.ExecutionId,
+            TestContext.Current.CancellationToken));
+        var cancellationAt = DateTimeOffset.UtcNow;
+        await store.UpdateAsync(
+            running with
+            {
+                UpdatedAt = cancellationAt,
+                CancellationRequestedAt = cancellationAt
+            },
+            TestContext.Current.CancellationToken);
+
+        heartbeatCancellation.Cancel();
+        var cancelled = await processing;
+        Assert.True(await work.CompleteAsync(
+            lease,
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(ExecutionStatus.Cancelled, cancelled.Status);
+        Assert.Equal(
+            WorkflowStepStatus.Cancelled,
+            Assert.Single(Assert.IsType<WorkflowCheckpoint>(await checkpoints.GetAsync(
+                submitted.ExecutionId,
+                TestContext.Current.CancellationToken)).Steps).Status);
+        Assert.Equal(1, gateway.InvocationCount);
+    }
+
+    [Fact]
+    public async Task PostgresWorkersProveClaimCrashTakeoverRecoveryAndCancellation()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("IROUTE_TEST_POSTGRES");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        var factory = new PostgresContextFactory(connectionString);
+        await using (var reset = factory.CreateDbContext())
+        {
+            await reset.Database.EnsureDeletedAsync(TestContext.Current.CancellationToken);
+        }
+
+        try
+        {
+            await new SchemaMigrationManager(factory).UpgradeAsync(
+                cancellationToken: TestContext.Current.CancellationToken);
+            var store = new EfExecutionStore(factory);
+            var checkpoints = new EfWorkflowCheckpointStore(factory);
+            var gateway = new InterruptOnceModelGateway();
+            var work = new EfExecutionWorkStore(factory);
+            using var cancellations = new ExecutionCancellationRegistry();
+            var orchestrator = CreateOrchestrator(
+                store,
+                new EfArtifactStore(factory),
+                cancellations,
+                gateway,
+                checkpoints: checkpoints,
+                memories: new EfMemoryStore(factory),
+                executionWork: work);
+            var submitted = await orchestrator.SubmitAsync(
+                CreateRequest("postgres-tenant", "postgres-takeover"),
+                TestContext.Current.CancellationToken);
+
+            var claims = await Task.WhenAll(
+                new EfExecutionWorkStore(factory).TryClaimAsync(
+                    "postgres-worker-a",
+                    DateTimeOffset.UtcNow,
+                    TimeSpan.FromSeconds(30),
+                    TestContext.Current.CancellationToken),
+                new EfExecutionWorkStore(factory).TryClaimAsync(
+                    "postgres-worker-b",
+                    DateTimeOffset.UtcNow,
+                    TimeSpan.FromSeconds(30),
+                    TestContext.Current.CancellationToken));
+            var firstLease = Assert.IsType<ExecutionLease>(Assert.Single(
+                claims,
+                claim => claim is not null));
+            using var interrupted = new CancellationTokenSource();
+            var firstAttempt = orchestrator.ProcessQueuedAsync(submitted.ExecutionId, interrupted.Token);
+            await gateway.FirstAttemptStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+            interrupted.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstAttempt);
+
+            var takeover = Assert.IsType<ExecutionLease>(await work.TryClaimAsync(
+                "postgres-worker-takeover",
+                firstLease.ExpiresAt.AddMilliseconds(1),
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken));
+            Assert.Equal(2, takeover.DeliveryAttempt);
+            Assert.False(await work.CompleteAsync(
+                firstLease,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken));
+            var recovered = await orchestrator.ProcessQueuedAsync(
+                submitted.ExecutionId,
+                TestContext.Current.CancellationToken);
+            Assert.True(await work.CompleteAsync(
+                takeover,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken));
+            Assert.Equal(ExecutionStatus.Succeeded, recovered.Status);
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(index =>
+                store.AppendEventAsync(
+                    submitted.ExecutionId,
+                    ExecutionEventTypes.LeaseRenewed,
+                    DateTimeOffset.UtcNow,
+                    JsonSerializer.SerializeToElement(new { workerId = $"concurrent-{index}" }),
+                    TestContext.Current.CancellationToken)));
+            var recoveredEvents = await ReadEventsAsync(store, submitted.ExecutionId);
+            Assert.Contains(
+                recoveredEvents,
+                item => item.Type == ExecutionEventTypes.WorkflowResumed);
+            Assert.Equal(
+                Enumerable.Range(1, recoveredEvents.Count).Select(index => (long)index),
+                recoveredEvents.Select(item => item.Sequence));
+
+            var cancellationRequest = CreateRequest(
+                "postgres-tenant",
+                "postgres-cancellation") with
+            {
+                Input = JsonSerializer.SerializeToElement(new
+                {
+                    recipient = new { name = "Grace" },
+                    projectName = "iRoute",
+                    objective = "Prove distributed cancellation through a database heartbeat.",
+                    tone = "concise"
+                })
+            };
+            var cancellable = await orchestrator.SubmitAsync(
+                cancellationRequest,
+                TestContext.Current.CancellationToken);
+            var cancellationLease = Assert.IsType<ExecutionLease>(await work.TryClaimAsync(
+                "postgres-cancellation-worker",
+                DateTimeOffset.UtcNow,
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken));
+            var cancellationAt = DateTimeOffset.UtcNow;
+            await store.UpdateAsync(
+                cancellable with
+                {
+                    UpdatedAt = cancellationAt,
+                    CancellationRequestedAt = cancellationAt
+                },
+                TestContext.Current.CancellationToken);
+            var heartbeat = await work.RenewAsync(
+                cancellationLease,
+                cancellationAt,
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken);
+            Assert.True(heartbeat.Renewed);
+            Assert.True(heartbeat.CancellationRequested);
+            var cancelled = await orchestrator.ProcessQueuedAsync(
+                cancellable.ExecutionId,
+                TestContext.Current.CancellationToken);
+            Assert.True(await work.CompleteAsync(
+                cancellationLease,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken));
+            Assert.Equal(ExecutionStatus.Cancelled, cancelled.Status);
+        }
+        finally
+        {
+            await using var reset = factory.CreateDbContext();
+            await reset.Database.EnsureDeletedAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task RawHistoryIsProjectedOutBeforeTheModelGateway()
     {
         var store = new InMemoryExecutionStore();
@@ -664,8 +1006,10 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(ModelGatewayFailureKind.Unavailable.ToString(), metadata["gatewayFailureKind"]);
         Assert.Equal("external-failure", metadata["gatewayId"]);
         var events = await ReadEventsAsync(store, result.ExecutionId);
-        Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayStarted);
-        var failed = Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayFailed);
+        Assert.Equal(3, events.Count(item => item.Type == ExecutionEventTypes.GatewayStarted));
+        Assert.Equal(2, events.Count(item => item.Type == ExecutionEventTypes.StepRetryScheduled));
+        var failed = events.Last(item => item.Type == ExecutionEventTypes.GatewayFailed);
+        Assert.Equal(3, events.Count(item => item.Type == ExecutionEventTypes.GatewayFailed));
         Assert.Equal("Unavailable", failed.Data.GetProperty("kind").GetString());
         Assert.True(failed.Data.GetProperty("retryable").GetBoolean());
         Assert.Equal(503, failed.Data.GetProperty("statusCode").GetInt32());
@@ -851,7 +1195,8 @@ public sealed class ExecutionOrchestratorTests
         IExternalActionExecutor? externalActionExecutor = null,
         IMemoryStore? memories = null,
         IEnumerable<IDeterministicTaskHandler>? deterministicHandlers = null,
-        ITaskDefinitionRegistry? taskDefinitions = null)
+        ITaskDefinitionRegistry? taskDefinitions = null,
+        IExecutionWorkStore? executionWork = null)
     {
         ITaskDefinitionRegistry definitions = taskDefinitions ?? new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
@@ -890,7 +1235,8 @@ public sealed class ExecutionOrchestratorTests
             [new EmailDraftOutcomeValidator(), new DefaultTaskOutcomeValidator()],
             fingerprint,
             cancellations,
-            clock);
+            clock,
+            executionWork: executionWork);
     }
 
     private static NormalizedCapabilityExecutor CreateCapabilityExecutor(IClock clock) =>
@@ -954,6 +1300,17 @@ public sealed class ExecutionOrchestratorTests
         private readonly DbContextOptions<IRouteDbContext> _options =
             new DbContextOptionsBuilder<IRouteDbContext>()
                 .UseSqlite($"Data Source={databasePath}")
+                .Options;
+
+        public IRouteDbContext CreateDbContext() => new(_options);
+    }
+
+    private sealed class PostgresContextFactory(string connectionString)
+        : IDbContextFactory<IRouteDbContext>
+    {
+        private readonly DbContextOptions<IRouteDbContext> _options =
+            new DbContextOptionsBuilder<IRouteDbContext>()
+                .UseNpgsql(connectionString)
                 .Options;
 
         public IRouteDbContext CreateDbContext() => new(_options);
@@ -1085,6 +1442,30 @@ public sealed class ExecutionOrchestratorTests
         {
             InvocationCount++;
             return _inner.ExecuteAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class InterruptOnceModelGateway : IModelGateway
+    {
+        private readonly DeterministicModelGateway _inner = new();
+
+        public TaskCompletionSource FirstAttemptStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int InvocationCount { get; private set; }
+
+        public async Task<ModelGatewayResult> ExecuteAsync(
+            ModelGatewayRequest request,
+            CancellationToken cancellationToken)
+        {
+            InvocationCount++;
+            if (InvocationCount == 1)
+            {
+                FirstAttemptStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
+            return await _inner.ExecuteAsync(request, cancellationToken);
         }
     }
 

@@ -13,7 +13,9 @@ The local API defaults to SQLite at `Data Source=iroute.db`. The single-containe
 
 Readiness requires both a reachable durable store and no pending migration known to the running binary. A production pod therefore remains outside service until the migration job has completed. Liveness never probes the database and must not be used as readiness.
 
-Workflow plans, their routing decisions, and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`; cold lifecycle payloads are stored in `LifecycleArchives`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs, the selected route/profile, and active project state remain authoritative inputs for downstream work, while completed archives preserve recoverable provenance.
+Durable submissions and fenced leases are stored in `ExecutionWorkItems`; workflow plans, routing decisions, and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`; cold lifecycle payloads are stored in `LifecycleArchives`. A lease takeover resets only interrupted workflow steps to `Pending`; completed step outputs, the selected route/profile, and active project state remain authoritative inputs for downstream work.
+
+Execution workers renew leases before half the configured lease duration and poll the persisted cancellation marker on every heartbeat. If a process exits or loses database connectivity, the lease expires and another worker claims the same execution with a new fencing token. A stale worker cannot complete or abandon work after takeover. Retries occur only for classified retryable failures, remain within step call budgets and the absolute queued-execution deadline, and use bounded exponential backoff, deterministic jitter, and provider `Retry-After` guidance.
 
 ## Artifact and memory lifecycle
 
@@ -85,9 +87,9 @@ A completed external action is replayed from its durable result. A conflicting r
 
 ## Scaling
 
-The PostgreSQL API is horizontally scalable for independent synchronous requests, persisted result/event reads, observability queries, and dashboard traffic. The Kubernetes reference starts two replicas, spreads them across nodes when possible, rolls with zero unavailable replicas, and exposes an HPA range of two to ten pods. All replicas use the same external PostgreSQL schema and run with `Storage:AutoInitialize=false`.
+The PostgreSQL API is horizontally scalable for durable submissions, persisted result/event reads, observability queries, and dashboard traffic. The Kubernetes reference starts two API replicas, spreads them across nodes when possible, rolls with zero unavailable replicas, and exposes an HPA range of two to ten pods. All replicas use the same external PostgreSQL schema and run with `Storage:AutoInitialize=false`.
 
-An in-flight execution still belongs to the API process serving that request; process-local cancellation cannot interrupt work running in another replica. The lifecycle host does not yet own a distributed lease and therefore remains a single `Recreate` replica. Do not scale the worker. Cross-replica execution leasing, renewal, recovery scans, distributed cancellation, and external-action reconciliation remain future requirements. These limits do not prevent scaling independent API traffic, but they do prevent treating a running execution as transparently movable between nodes.
+Execution workers are independently scalable because each work item has one expiring lease owner and fencing token. The reference starts two rolling execution-worker replicas and one `Recreate` lifecycle-worker replica. Do not scale the lifecycle role: lifecycle sweeps do not yet own a distributed lease. Persisted cancellation is observed by the active execution worker heartbeat. External actions additionally use tenant-scoped idempotency reservations; uncertain provider outcomes still require operator reconciliation.
 
 ## Observability and telemetry
 
@@ -109,7 +111,7 @@ Schema changes must use expand-and-contract migrations. API and worker versions 
 
 ## Container quick starts
 
-### One container with SQLite
+### SQLite API and worker
 
 ```bash
 docker compose -f deploy/compose.sqlite.yaml up --build --wait
@@ -117,7 +119,7 @@ curl --fail http://localhost:8080/health/live
 curl --fail http://localhost:8080/health/ready
 ```
 
-This is the smallest durable profile: one non-root, read-only API container, one named SQLite volume, the deterministic gateway, and development identity headers. It does not run lifecycle cleanup continuously. Run the worker separately when local TTL/quota sweeps are required. `docker compose ... down` preserves the named volume; use `down --volumes` only for an intentional reset.
+This is the smallest durable profile: non-root, read-only API and worker containers, one shared named SQLite volume, the deterministic gateway, and development identity headers. The worker processes queued executions and lifecycle sweeps. `docker compose ... down` preserves the named volume; use `down --volumes` only for an intentional reset.
 
 ### PostgreSQL with migration and worker
 
@@ -150,7 +152,7 @@ Set `Storage__Provider` and `ConnectionStrings__iRoute` for the target database.
 4. Apply only expand-phase schema changes. Run `iRoute.Migrations status`, then `up`, as a one-shot job using the release migration image.
 5. Require a successful migration job and a schema-current `/health/ready` before allowing new API pods into service.
 6. Roll API replicas with `maxUnavailable: 0`; verify liveness, readiness, an execution, SSE replay, and observability before completing the rollout.
-7. Replace the single worker only after API health is stable. Confirm one worker replica and a successful lifecycle sweep.
+7. Roll execution workers only after API health is stable, preserving at least one available replica; then replace the singleton lifecycle worker and confirm a successful sweep.
 8. Leave contract-phase column/table removal to a later release after all old binaries and rollback windows have expired.
 
 ## Rollback procedure
@@ -167,7 +169,7 @@ The reference manifests assume an external highly available PostgreSQL service, 
 2. Apply `namespace.yaml`, `configmap.yaml`, and `serviceaccounts.yaml`.
 3. Create `iroute-secrets` from the platform secret manager. `secret.example.yaml` documents required keys but must never receive real values in Git; local `secret.yaml` is ignored.
 4. Create a unique migration job with `kubectl create -f deploy/kubernetes/migrate-job.yaml`, then wait for its generated Job name to complete and inspect its status output.
-5. Apply the workloads with `kubectl apply -k deploy/kubernetes` and wait for both `deployment/iroute-api` and `deployment/iroute-worker` rollouts.
+5. Apply the workloads with `kubectl apply -k deploy/kubernetes` and wait for `deployment/iroute-api`, `deployment/iroute-execution-worker`, and `deployment/iroute-lifecycle-worker` rollouts.
 6. Verify `/health/live`, `/health/ready`, authenticated execution, event replay, and the dashboard through the operator-managed Service/Ingress.
 
-The API Deployment starts with two replicas and can scale to ten on measured CPU. Resource requests make HPA input meaningful; a PodDisruptionBudget keeps one API replica available; topology spreading reduces single-node concentration. The worker remains fixed at one replica until distributed leasing is implemented. The migration Job is never part of the steady-state Deployment and uses a generated name so every release has an auditable run.
+The API Deployment starts with two replicas and can scale to ten on measured CPU. Resource requests make HPA input meaningful; a PodDisruptionBudget keeps one API replica available; topology spreading reduces single-node concentration. The execution-worker Deployment starts with two replicas using distributed leases; the lifecycle worker remains fixed at one. The migration Job is never part of the steady-state Deployment and uses a generated name so every release has an auditable run.

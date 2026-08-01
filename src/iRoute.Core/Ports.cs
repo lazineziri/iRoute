@@ -22,6 +22,45 @@ public interface IExecutionStore
         CancellationToken cancellationToken);
 }
 
+public interface IExecutionWorkStore
+{
+    Task<ExecutionWorkItem> EnqueueAsync(
+        Guid executionId,
+        ExecutionStatus expectedStatus,
+        DateTimeOffset queuedAt,
+        CancellationToken cancellationToken);
+
+    Task<ExecutionLease?> TryClaimAsync(
+        string workerId,
+        DateTimeOffset claimedAt,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
+    Task<ExecutionLeaseHeartbeat> RenewAsync(
+        ExecutionLease lease,
+        DateTimeOffset renewedAt,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
+    Task<bool> CompleteAsync(
+        ExecutionLease lease,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken);
+
+    Task<bool> AbandonAsync(
+        ExecutionLease lease,
+        DateTimeOffset availableAt,
+        CancellationToken cancellationToken);
+
+    Task<bool> CancelPendingAsync(
+        Guid executionId,
+        DateTimeOffset cancelledAt,
+        Problem problem,
+        CancellationToken cancellationToken);
+
+    Task<ExecutionWorkItem?> GetAsync(Guid executionId, CancellationToken cancellationToken);
+}
+
 public interface IArtifactStore
 {
     Task<ArtifactRecord?> FindReusableAsync(
@@ -98,7 +137,8 @@ public sealed class ModelGatewayException(
     Exception? innerException = null,
     ModelGatewayFailureKind failureKind = ModelGatewayFailureKind.Internal,
     string? gatewayId = null,
-    string? correlationId = null) : Exception(message, innerException)
+    string? correlationId = null,
+    TimeSpan? retryAfter = null) : Exception(message, innerException)
 {
     public string Code { get; } = code;
     public bool Retryable { get; } = retryable;
@@ -106,6 +146,7 @@ public sealed class ModelGatewayException(
     public ModelGatewayFailureKind FailureKind { get; } = failureKind;
     public string? GatewayId { get; } = gatewayId;
     public string? CorrelationId { get; } = correlationId;
+    public TimeSpan? RetryAfter { get; } = retryAfter;
 
     public ModelGatewayFailure ToFailure() => new(
         Code,
@@ -114,7 +155,10 @@ public sealed class ModelGatewayException(
         Retryable,
         StatusCode,
         GatewayId,
-        CorrelationId);
+        CorrelationId,
+        RetryAfter is { } retryAfterValue
+            ? checked((int)Math.Min(int.MaxValue, retryAfterValue.TotalMilliseconds))
+            : null);
 }
 
 public interface IContextCompiler
@@ -211,6 +255,37 @@ public interface IClock
 {
     DateTimeOffset UtcNow { get; }
 }
+
+public enum ExecutionWorkState
+{
+    Pending,
+    Leased,
+    Completed,
+    Cancelled
+}
+
+public sealed record ExecutionWorkItem(
+    Guid ExecutionId,
+    ExecutionWorkState State,
+    DateTimeOffset AvailableAt,
+    int DeliveryAttempt,
+    string? LeaseOwner = null,
+    Guid? LeaseToken = null,
+    DateTimeOffset? LeaseExpiresAt = null,
+    DateTimeOffset? HeartbeatAt = null,
+    DateTimeOffset? CompletedAt = null);
+
+public sealed record ExecutionLease(
+    Guid ExecutionId,
+    string WorkerId,
+    Guid LeaseToken,
+    int DeliveryAttempt,
+    DateTimeOffset ExpiresAt);
+
+public sealed record ExecutionLeaseHeartbeat(
+    bool Renewed,
+    bool CancellationRequested,
+    DateTimeOffset? ExpiresAt = null);
 
 public sealed record ResolutionCandidate(
     ResolutionLevel Level,
@@ -340,7 +415,8 @@ public sealed record TaskDefinition(
     int DefaultMaxParallelCalls = 1,
     int DefaultMaxTaskDepth = 1,
     decimal? DefaultMaxCost = null,
-    RoutingWeights? RoutingWeights = null)
+    RoutingWeights? RoutingWeights = null,
+    int DefaultMaxAttempts = 3)
 {
     public IReadOnlyList<string> EffectiveAllowedCapabilities =>
         AllowedCapabilities is { Count: > 0 } ? AllowedCapabilities : [Capability];

@@ -23,6 +23,10 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 |---|---|
 | `execution.created` | The durable execution record exists. |
 | `execution.status_changed` | The state machine accepted a transition. |
+| `execution.queued` | The validated plan was committed to the durable work queue. |
+| `execution.lease_claimed` | A worker atomically claimed the execution with a fenced lease. |
+| `execution.lease_renewed` | The active worker renewed its lease and polled distributed cancellation. |
+| `execution.lease_released` | A worker completed or safely abandoned its owned lease. |
 | `resolution.considered` | A no-model resolver was accepted or rejected with a safe reason and permission/freshness results. |
 | `routing.decided` | The versioned routing policy selected a direct or workflow path from measured candidates. |
 | `routing.escalated` | A lower-cost route was bypassed because it failed a mandatory eligibility constraint. |

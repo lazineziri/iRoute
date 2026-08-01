@@ -30,5 +30,29 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: worker
+    environment:
+      Storage__Provider: Sqlite
+      Storage__AutoInitialize: "false"
+      ConnectionStrings__iRoute: Data Source=/var/lib/iroute/iroute.db
+      ModelGateway__Mode: Deterministic
+      ExecutionWorker__Enabled: "true"
+      Lifecycle__Enabled: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - sqlite-data:/var/lib/iroute
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
 volumes:
   sqlite-data:

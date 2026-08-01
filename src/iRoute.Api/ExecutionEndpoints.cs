@@ -25,7 +25,7 @@ public static class ExecutionEndpoints
 
         executions.MapPost("/", ExecuteAsync)
             .WithName("CreateExecution")
-            .Produces<ExecutionSnapshot>(StatusCodes.Status200OK)
+            .Produces<ExecutionSnapshot>(StatusCodes.Status202Accepted)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
@@ -102,8 +102,8 @@ public static class ExecutionEndpoints
         };
         try
         {
-            var result = await orchestrator.ExecuteAsync(scopedRequest, cancellationToken);
-            return Results.Ok(result);
+            var result = await orchestrator.SubmitAsync(scopedRequest, cancellationToken);
+            return Results.Accepted($"/v1/executions/{result.ExecutionId}", result);
         }
         catch (ArgumentException exception)
         {
@@ -126,7 +126,7 @@ public static class ExecutionEndpoints
         var identity = RequestIdentity.Resolve(request, identityOptions.Value);
         try
         {
-            var result = await orchestrator.SubmitApprovalAsync(
+            var result = await orchestrator.SubmitApprovalForQueueAsync(
                 executionId,
                 decision,
                 identity.TenantId,
@@ -168,6 +168,7 @@ public static class ExecutionEndpoints
         IOptions<IRouteIdentityOptions> identityOptions,
         IExecutionStore store,
         IWorkflowCheckpointStore checkpoints,
+        IExecutionWorkStore executionWork,
         IExecutionCancellationRegistry cancellationRegistry,
         IClock clock,
         CancellationToken cancellationToken)
@@ -196,12 +197,20 @@ public static class ExecutionEndpoints
             requestedAt,
             JsonSerializer.SerializeToElement(new { requestedAt }),
             cancellationToken);
-        if (snapshot.Status == ExecutionStatus.WaitingForApproval)
+        var problem = new Problem(
+            ErrorCodes.ExecutionCancelled,
+            "Execution cancelled",
+            snapshot.Status == ExecutionStatus.WaitingForApproval
+                ? "The execution was cancelled while waiting for approval."
+                : "The execution was cancelled before a worker claimed it.");
+        var cancelledBeforeLease = snapshot.Status == ExecutionStatus.Queued &&
+            await executionWork.CancelPendingAsync(
+                executionId,
+                requestedAt,
+                problem,
+                cancellationToken);
+        if (snapshot.Status == ExecutionStatus.WaitingForApproval || cancelledBeforeLease)
         {
-            var problem = new Problem(
-                ErrorCodes.ExecutionCancelled,
-                "Execution cancelled",
-                "The execution was cancelled while waiting for approval.");
             await checkpoints.CancelIncompleteStepsAsync(
                 executionId,
                 problem,
@@ -220,7 +229,7 @@ public static class ExecutionEndpoints
                 requestedAt,
                 JsonSerializer.SerializeToElement(new
                 {
-                    from = ExecutionStatus.WaitingForApproval,
+                    from = snapshot.Status,
                     to = ExecutionStatus.Cancelled
                 }),
                 cancellationToken);

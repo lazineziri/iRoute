@@ -25,14 +25,14 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
                 "email.draft", 1, "text.generation", 800, 0.80m, true, SideEffectClass.None, "email.draft",
                 DefaultMaxInputTokens: 4000,
                 DefaultDeadlineMilliseconds: 30000,
-                DefaultMaxModelCalls: 1,
+                DefaultMaxModelCalls: 3,
                 AllowedCapabilities: ["text.generation"]),
             ["email.send"] = new(
                 "email.send", 1, "email.send", 800, 0.90m, true, SideEffectClass.IrreversibleWrite, "email.send.receipt",
                 DefaultMaxInputTokens: 4000,
                 DefaultDeadlineMilliseconds: 30000,
                 DefaultMaxModelCalls: 0,
-                DefaultMaxToolCalls: 1,
+                DefaultMaxToolCalls: 3,
                 AllowedCapabilities: ["email.send"],
                 PermissionScopes: ["email:send"],
                 ApprovalRequired: true),
@@ -41,7 +41,7 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
                 DefaultMaxInputTokens: 3000,
                 DefaultDeadlineMilliseconds: 20000,
                 DefaultMaxModelCalls: 0,
-                DefaultMaxToolCalls: 1,
+                DefaultMaxToolCalls: 3,
                 AllowedCapabilities: ["calendar.read"],
                 PermissionScopes: ["calendar:read"]),
             ["database.answer"] = new(
@@ -49,21 +49,21 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
                 DefaultMaxInputTokens: 3000,
                 DefaultDeadlineMilliseconds: 20000,
                 DefaultMaxModelCalls: 0,
-                DefaultMaxToolCalls: 1,
+                DefaultMaxToolCalls: 3,
                 AllowedCapabilities: ["database.read"],
                 PermissionScopes: ["database:read"]),
             ["document.summarize"] = new(
                 "document.summarize", 1, "text.summarization", 1200, 0.85m, true, SideEffectClass.None, "document.summary",
                 DefaultMaxInputTokens: 8000,
                 DefaultDeadlineMilliseconds: 45000,
-                DefaultMaxModelCalls: 1,
+                DefaultMaxModelCalls: 3,
                 AllowedCapabilities: ["text.summarization"]),
             ["project.decision.get"] = new(
                 "project.decision.get", 1, "project.memory.read", 400, 1m, true, SideEffectClass.ReadOnly, "project.decision",
                 DefaultMaxInputTokens: 1000,
                 DefaultDeadlineMilliseconds: 5000,
                 DefaultMaxModelCalls: 0,
-                DefaultMaxToolCalls: 1,
+                DefaultMaxToolCalls: 3,
                 AllowedCapabilities: ["project.memory.read"],
                 PermissionScopes: ["project:read"]),
             ["project.fact.get"] = new(
@@ -71,7 +71,7 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
                 DefaultMaxInputTokens: 1000,
                 DefaultDeadlineMilliseconds: 5000,
                 DefaultMaxModelCalls: 0,
-                DefaultMaxToolCalls: 1,
+                DefaultMaxToolCalls: 3,
                 AllowedCapabilities: ["project.memory.read"],
                 PermissionScopes: ["project:read"])
         };
@@ -620,7 +620,24 @@ public sealed class GenericHttpModelGateway(
             statusCode,
             failureKind: kind,
             gatewayId: _options.GatewayId,
-            correlationId: request.CorrelationId);
+            correlationId: request.CorrelationId,
+            retryAfter: RetryAfter(response));
+    }
+
+    private static TimeSpan? RetryAfter(HttpResponseMessage response)
+    {
+        if (response.Headers.RetryAfter?.Delta is { } delta)
+        {
+            return delta < TimeSpan.Zero ? TimeSpan.Zero : delta;
+        }
+
+        if (response.Headers.RetryAfter?.Date is { } date)
+        {
+            var remaining = date - DateTimeOffset.UtcNow;
+            return remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
+        }
+
+        return null;
     }
 
     private ModelGatewayStreamEvent NormalizeStreamEvent(

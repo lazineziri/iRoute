@@ -12,6 +12,10 @@
       "enum": [
         "execution.created",
         "execution.status_changed",
+        "execution.queued",
+        "execution.lease_claimed",
+        "execution.lease_renewed",
+        "execution.lease_released",
         "resolution.considered",
         "routing.decided",
         "routing.escalated",

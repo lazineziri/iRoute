@@ -71,7 +71,7 @@
         "executionId": { "type": "string", "format": "uuid" },
         "taskType": { "type": "string", "minLength": 1, "maxLength": 120 },
         "policyVersion": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "status": { "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"] },
+        "status": { "enum": ["Accepted", "Resolving", "Planning", "Queued", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"] },
         "startedAt": { "type": "string", "format": "date-time" },
         "durationMilliseconds": { "type": "integer", "minimum": 0 },
         "resolutionLevel": {

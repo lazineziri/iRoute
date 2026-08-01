@@ -28,6 +28,7 @@ export type ExecutionStatus =
   | 'Accepted'
   | 'Resolving'
   | 'Planning'
+  | 'Queued'
   | 'WaitingForApproval'
   | 'Running'
   | 'Validating'
@@ -219,6 +220,7 @@ export interface ModelGatewayFailure {
   statusCode?: number | null;
   gatewayId?: string | null;
   correlationId?: string | null;
+  retryAfterMilliseconds?: number | null;
 }
 
 export interface ModelGatewayHealth {

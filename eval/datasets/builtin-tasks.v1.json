@@ -25,7 +25,7 @@
       "policyId": "task-aware.v1",
       "role": "candidate",
       "description": "Measured task-aware routing with no-model resolution, bounded context, and cheapest-eligible model selection.",
-      "sourceFingerprint": "sha256:71b13d203a5ba383f8058f96e3389fb57a2417155c5e7a6952c8931af17afc79",
+      "sourceFingerprint": "sha256:c22e65db5a09c053cbd0dcf3dd0dd4f3b9922ef1c80a09a61a07f62735621275",
       "sourceFiles": ["src/iRoute.Infrastructure/DefaultServices.cs", "src/iRoute.Runtime/RoutingAndPlanning.cs"],
       "benchmarks": {
         "email.draft": { "sampleSize": 30, "meanInputTokens": 720, "meanOutputTokens": 240, "meanCost": 0.004, "meanLatencyMilliseconds": 860, "p95LatencyMilliseconds": 1200, "meanModelCalls": 1, "meanToolCalls": 0 },

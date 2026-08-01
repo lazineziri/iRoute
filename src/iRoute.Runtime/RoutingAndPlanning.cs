@@ -42,7 +42,12 @@ public sealed class DirectPathSelector(
             1,
             definition.TaskType,
             definition.Version,
-            [CreateStep("execute", selected, [], budget.DeadlineMilliseconds)],
+            [CreateStep(
+                "execute",
+                selected,
+                [],
+                budget.DeadlineMilliseconds,
+                RetryAttempts(selected, definition, budget, 1))],
             budget);
         var decision = RoutingDecisions.Create(
             RoutingPath.Direct,
@@ -61,7 +66,8 @@ public sealed class DirectPathSelector(
         string id,
         CapabilityCandidate candidate,
         IReadOnlyList<string> dependencies,
-        int timeoutMilliseconds) =>
+        int timeoutMilliseconds,
+        int maxAttempts) =>
         new(
             id,
             candidate.StepKind,
@@ -69,8 +75,26 @@ public sealed class DirectPathSelector(
             dependencies,
             candidate.SideEffectClass,
             timeoutMilliseconds,
-            1,
+            maxAttempts,
             candidate.ProfileId);
+
+    internal static int RetryAttempts(
+        CapabilityCandidate candidate,
+        TaskDefinition definition,
+        ExecutionPlanBudget budget,
+        int stepsOfKind)
+    {
+        var callBudget = candidate.StepKind switch
+        {
+            ExecutionStepKind.Model => budget.MaxModelCalls,
+            ExecutionStepKind.Tool => budget.MaxToolCalls,
+            _ => 1
+        };
+        return Math.Clamp(
+            Math.Min(definition.DefaultMaxAttempts, Math.Max(1, callBudget / Math.Max(1, stepsOfKind))),
+            1,
+            5);
+    }
 }
 
 public sealed class BoundedTaskPlanner(
@@ -114,6 +138,9 @@ public sealed class BoundedTaskPlanner(
 
         var budget = RoutingBudgets.Create(request, definition, required.Count);
         EnsureWithinBudget(selections.Select(item => item.Selected).ToArray(), budget);
+        var selectedCandidates = selections.Select(item => item.Selected).ToArray();
+        var modelSteps = selectedCandidates.Count(item => item.StepKind == ExecutionStepKind.Model);
+        var toolSteps = selectedCandidates.Count(item => item.StepKind == ExecutionStepKind.Tool);
         var steps = new List<ExecutionPlanStep>(required.Count);
         for (var index = 0; index < selections.Count; index++)
         {
@@ -123,7 +150,14 @@ public sealed class BoundedTaskPlanner(
                 id,
                 selections[index].Selected,
                 dependencies,
-                budget.DeadlineMilliseconds));
+                budget.DeadlineMilliseconds,
+                DirectPathSelector.RetryAttempts(
+                    selections[index].Selected,
+                    definition,
+                    budget,
+                    selections[index].Selected.StepKind == ExecutionStepKind.Model
+                        ? modelSteps
+                        : toolSteps)));
         }
 
         var plan = new ExecutionPlan(

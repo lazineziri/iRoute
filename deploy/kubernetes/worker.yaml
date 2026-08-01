@@ -1,25 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: iroute-worker
+  name: iroute-execution-worker
   namespace: iroute
   labels:
     app.kubernetes.io/name: iroute
-    app.kubernetes.io/component: worker
+    app.kubernetes.io/component: execution-worker
 spec:
-  replicas: 1
+  replicas: 2
   revisionHistoryLimit: 3
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: iroute
-      app.kubernetes.io/component: worker
+      app.kubernetes.io/component: execution-worker
   template:
     metadata:
       labels:
         app.kubernetes.io/name: iroute
-        app.kubernetes.io/component: worker
+        app.kubernetes.io/component: execution-worker
     spec:
       serviceAccountName: iroute-worker
       automountServiceAccountToken: false
@@ -29,7 +32,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: worker
+        - name: execution-worker
           image: ghcr.io/your-org/iroute-worker:0.1.0-alpha.1
           imagePullPolicy: IfNotPresent
           envFrom:
@@ -41,6 +44,82 @@ spec:
                 secretKeyRef:
                   name: iroute-secrets
                   key: ConnectionStrings__iRoute
+            - name: ModelGateway__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: iroute-secrets
+                  key: ModelGateway__ApiKey
+            - name: ExecutionWorker__Enabled
+              value: "true"
+            - name: Lifecycle__Enabled
+              value: "false"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iroute-lifecycle-worker
+  namespace: iroute
+  labels:
+    app.kubernetes.io/name: iroute
+    app.kubernetes.io/component: lifecycle-worker
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: iroute
+      app.kubernetes.io/component: lifecycle-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: iroute
+        app.kubernetes.io/component: lifecycle-worker
+    spec:
+      serviceAccountName: iroute-worker
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: lifecycle-worker
+          image: ghcr.io/your-org/iroute-worker:0.1.0-alpha.1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: iroute-config
+          env:
+            - name: ConnectionStrings__iRoute
+              valueFrom:
+                secretKeyRef:
+                  name: iroute-secrets
+                  key: ConnectionStrings__iRoute
+            - name: ExecutionWorker__Enabled
+              value: "false"
+            - name: Lifecycle__Enabled
+              value: "true"
           volumeMounts:
             - name: tmp
               mountPath: /tmp

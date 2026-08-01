@@ -25,7 +25,7 @@ for (const fixture of cases) {
       })
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-    return await response.json();
+    return await waitForExecution(await response.json(), 'evaluation');
   };
 
   try {
@@ -130,7 +130,7 @@ try {
     })
   });
   if (!response.ok) throw new Error(`execution returned HTTP ${response.status}: ${await response.text()}`);
-  const execution = await response.json();
+  const execution = await waitForExecution(await response.json(), 'evaluation');
   assertEqual(execution.status, 'Succeeded', 'W09 execution status');
   if (typeof execution.outcome?.usage?.durationMilliseconds !== 'number') {
     throw new Error('W09 outcome omitted normalized observed latency');
@@ -191,7 +191,7 @@ try {
     })
   });
   if (!response.ok) throw new Error(`execution returned HTTP ${response.status}: ${await response.text()}`);
-  const execution = await response.json();
+  const execution = await waitForExecution(await response.json(), 'evaluation');
   assertEqual(execution.status, 'Succeeded', 'W08 execution status');
   assertEqual(execution.outcome?.resolutionLevel, 'StrongModel', 'W08 resolution level');
   const routing = execution.outcome?.routing;
@@ -281,6 +281,7 @@ try {
     throw new Error(`approval returned HTTP ${approvalResponse.status}: ${await approvalResponse.text()}`);
   }
   const approved = await approvalResponse.json();
+  approved.execution = await waitForExecution(approved.execution, 'evaluation');
   assertEqual(approved.approval?.status, 'Approved', 'approval status');
   assertEqual(approved.execution?.status, 'Succeeded', 'post-approval status');
   assertEqual(approved.execution?.outcome?.resolutionLevel, 'DeterministicCapability', 'resolutionLevel');
@@ -347,7 +348,7 @@ try {
       body: JSON.stringify(body)
     });
     if (!response.ok) throw new Error(`execution ${suffix} returned HTTP ${response.status}: ${await response.text()}`);
-    return await response.json();
+    return await waitForExecution(await response.json(), 'evaluation');
   };
 
   const first = await execute(request('Use SQLite for the prototype.'), 'v1');
@@ -567,7 +568,7 @@ try {
       throw new Error(`${item.id} execution returned HTTP ${response.status}: ${await response.text()}`);
     }
 
-    const execution = await response.json();
+    const execution = await waitForExecution(await response.json(), 'evaluation');
     assertEqual(execution.status, 'Succeeded', `W11 ${item.id} status`);
     assertEqual(execution.outcome?.resolutionLevel, 'DeterministicCapability', `W11 ${item.id} resolution`);
     assertEqual(execution.outcome?.usage?.modelCalls, 0, `W11 ${item.id} model calls`);
@@ -599,6 +600,28 @@ try {
 }
 
 if (failed > 0) process.exitCode = 1;
+
+async function waitForExecution(execution, tenantId) {
+  const settled = new Set(['WaitingForApproval', 'Succeeded', 'Failed', 'Cancelled', 'TimedOut']);
+  const deadline = Date.now() + 60_000;
+  while (!settled.has(execution.status)) {
+    if (Date.now() >= deadline) {
+      throw new Error(`execution ${execution.executionId} did not settle within 60 seconds`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const response = await fetch(
+      new URL(`/v1/executions/${execution.executionId}`, baseUrl),
+      { headers: { 'x-tenant-id': tenantId } }
+    );
+    if (!response.ok) {
+      throw new Error(`execution poll returned HTTP ${response.status}: ${await response.text()}`);
+    }
+    execution = await response.json();
+  }
+
+  return execution;
+}
 
 function assertEqual(actual, expected, label) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`);

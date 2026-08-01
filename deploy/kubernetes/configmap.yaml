@@ -15,6 +15,13 @@ data:
   ModelGateway__Transport: Buffered
   Workflow__QueueCapacity: "16"
   Workflow__MaxParallelSteps: "4"
+  Workflow__RetryBaseDelayMilliseconds: "100"
+  Workflow__RetryMaxDelayMilliseconds: "5000"
+  Workflow__RetryJitterRatio: "0.2"
+  ExecutionWorker__PollInterval: 00:00:00.250
+  ExecutionWorker__LeaseDuration: 00:00:30
+  ExecutionWorker__HeartbeatInterval: 00:00:05
+  ExecutionWorker__AbandonDelay: 00:00:01
   Identity__Mode: Jwt
   Identity__Authority: https://identity.example.invalid
   Identity__Audience: iroute

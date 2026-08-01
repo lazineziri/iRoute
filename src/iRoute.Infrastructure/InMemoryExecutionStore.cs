@@ -7,6 +7,7 @@ namespace iRoute.Infrastructure;
 
 public sealed class InMemoryExecutionStore : IExecutionStore
 {
+    private readonly object _statusGate = new();
     private readonly ConcurrentDictionary<Guid, ExecutionSnapshot> _executions = new();
     private readonly ConcurrentDictionary<string, Guid> _idempotencyKeys = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, ConcurrentQueue<ExecutionEvent>> _events = new();
@@ -96,6 +97,48 @@ public sealed class InMemoryExecutionStore : IExecutionStore
 
     internal IReadOnlyList<ExecutionEvent> ObservabilityEvents(Guid executionId) =>
         _events.TryGetValue(executionId, out var queue) ? queue.ToArray() : [];
+
+    internal ExecutionSnapshot Queue(Guid executionId, ExecutionStatus expectedStatus, DateTimeOffset queuedAt)
+    {
+        lock (_statusGate)
+        {
+            if (!_executions.TryGetValue(executionId, out var current))
+            {
+                throw new KeyNotFoundException($"Execution '{executionId}' was not found.");
+            }
+
+            if (current.Status != expectedStatus)
+            {
+                throw new InvalidOperationException(
+                    $"Execution '{executionId}' cannot be queued from {current.Status}; expected {expectedStatus}.");
+            }
+
+            var queued = current with { Status = ExecutionStatus.Queued, UpdatedAt = queuedAt };
+            _executions[executionId] = queued;
+            return queued;
+        }
+    }
+
+    internal bool CancelQueued(Guid executionId, DateTimeOffset cancelledAt, Problem problem)
+    {
+        lock (_statusGate)
+        {
+            if (!_executions.TryGetValue(executionId, out var current) ||
+                current.Status != ExecutionStatus.Queued)
+            {
+                return false;
+            }
+
+            _executions[executionId] = current with
+            {
+                Status = ExecutionStatus.Cancelled,
+                UpdatedAt = cancelledAt,
+                CancellationRequestedAt = current.CancellationRequestedAt ?? cancelledAt,
+                Error = problem
+            };
+            return true;
+        }
+    }
 
     private static string CreateIdempotencyKey(string tenantId, string key) => $"{tenantId}\u001f{key}";
 }

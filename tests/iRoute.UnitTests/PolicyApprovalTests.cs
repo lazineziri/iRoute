@@ -179,6 +179,71 @@ public sealed class PolicyApprovalTests
     }
 
     [Fact]
+    public async Task ApprovedActionIsQueuedAndOnlyOneWorkerPerformsTheSideEffect()
+    {
+        var executions = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        var approvals = new InMemoryApprovalStore();
+        var actions = new InMemoryExternalActionStore();
+        var executor = new CountingExternalActionExecutor();
+        var work = new InMemoryExecutionWorkStore(executions);
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            executions,
+            artifacts,
+            checkpoints,
+            approvals,
+            actions,
+            cancellations,
+            executor,
+            executionWork: work);
+        var waiting = await orchestrator.SubmitAsync(
+            CreateSendRequest(["email:send"]),
+            TestContext.Current.CancellationToken);
+
+        var approved = await orchestrator.SubmitApprovalForQueueAsync(
+            waiting.ExecutionId,
+            new ApprovalDecision("execute", true, "Approved for durable execution."),
+            "tenant-a",
+            "approver",
+            ["email:send", TaskPolicyEngine.ApprovalPermissionScope],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Queued, approved.Execution.Status);
+        Assert.Equal(0, executor.InvocationCount);
+        var claims = await Task.WhenAll(
+            work.TryClaimAsync(
+                "action-worker-a",
+                DateTimeOffset.UtcNow,
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken),
+            work.TryClaimAsync(
+                "action-worker-b",
+                DateTimeOffset.UtcNow,
+                TimeSpan.FromSeconds(30),
+                TestContext.Current.CancellationToken));
+        var lease = Assert.IsType<ExecutionLease>(Assert.Single(claims, claim => claim is not null));
+        var completed = await orchestrator.ProcessQueuedAsync(
+            waiting.ExecutionId,
+            TestContext.Current.CancellationToken);
+        Assert.True(await work.CompleteAsync(
+            lease,
+            DateTimeOffset.UtcNow,
+            TestContext.Current.CancellationToken));
+        var replayed = await orchestrator.ProcessQueuedAsync(
+            waiting.ExecutionId,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, completed.Status);
+        Assert.Equal(completed, replayed);
+        Assert.Equal(1, executor.InvocationCount);
+        Assert.Single(
+            await ReadEventsAsync(executions, waiting.ExecutionId),
+            item => item.Type == ExecutionEventTypes.ExternalActionCompleted);
+    }
+
+    [Fact]
     public async Task DeniedApprovalTerminatesWithoutExecutingAction()
     {
         using var fixture = CreateFixture();
@@ -345,7 +410,8 @@ public sealed class PolicyApprovalTests
         IExternalActionStore actions,
         ExecutionCancellationRegistry cancellations,
         IExternalActionExecutor executor,
-        ITaskRouter? taskRouter = null)
+        ITaskRouter? taskRouter = null,
+        IExecutionWorkStore? executionWork = null)
     {
         var definitions = new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
@@ -384,7 +450,8 @@ public sealed class PolicyApprovalTests
             ],
             fingerprint,
             cancellations,
-            clock);
+            clock,
+            executionWork: executionWork);
     }
 
     private static NormalizedCapabilityExecutor CreateCapabilityExecutor(IClock clock) =>

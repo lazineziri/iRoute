@@ -14,6 +14,7 @@
     "retryable": { "type": "boolean" },
     "statusCode": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
     "gatewayId": { "type": ["string", "null"], "maxLength": 200 },
-    "correlationId": { "type": ["string", "null"], "maxLength": 200 }
+    "correlationId": { "type": ["string", "null"], "maxLength": 200 },
+    "retryAfterMilliseconds": { "type": ["integer", "null"], "minimum": 0 }
   }
 }

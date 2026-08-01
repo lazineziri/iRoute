@@ -9,7 +9,12 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ### Added
 
-- Nothing yet.
+- Durable asynchronous execution submission with HTTP `202`, PostgreSQL/SQLite
+  work persistence, fenced leases, heartbeats, crash takeover, checkpoint
+  recovery, and distributed cancellation.
+- Approval requeueing, scalable execution-worker deployments, ordered
+  queue/lease events, and retry policies with timeouts, bounded exponential
+  backoff, jitter, and `Retry-After` support.
 
 ## [0.1.0-alpha.1] - 2026-08-01
 

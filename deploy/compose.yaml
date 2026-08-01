@@ -17,6 +17,9 @@ services:
       ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
       Workflow__QueueCapacity: ${IROUTE_WORKFLOW_QUEUE_CAPACITY:-16}
       Workflow__MaxParallelSteps: ${IROUTE_WORKFLOW_MAX_PARALLEL_STEPS:-4}
+      Workflow__RetryBaseDelayMilliseconds: ${IROUTE_RETRY_BASE_DELAY_MS:-100}
+      Workflow__RetryMaxDelayMilliseconds: ${IROUTE_RETRY_MAX_DELAY_MS:-5000}
+      Workflow__RetryJitterRatio: ${IROUTE_RETRY_JITTER_RATIO:-0.2}
       Identity__Mode: ${IROUTE_IDENTITY_MODE:-DevelopmentHeaders}
       Identity__Authority: ${IROUTE_IDENTITY_AUTHORITY:-}
       Identity__Audience: ${IROUTE_IDENTITY_AUDIENCE:-}
@@ -56,6 +59,18 @@ services:
       Storage__Provider: Postgres
       Storage__AutoInitialize: "false"
       ConnectionStrings__iRoute: Host=postgres;Port=5432;Database=iroute;Username=iroute;Password=${IROUTE_DB_PASSWORD:-local-development-only}
+      ModelGateway__Mode: ${IROUTE_MODEL_GATEWAY_MODE:-Deterministic}
+      ModelGateway__BaseUrl: ${IROUTE_MODEL_GATEWAY_URL:-}
+      ModelGateway__ApiKey: ${IROUTE_MODEL_GATEWAY_KEY:-}
+      ModelGateway__GatewayId: ${IROUTE_MODEL_GATEWAY_ID:-external}
+      ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
+      Workflow__QueueCapacity: ${IROUTE_WORKFLOW_QUEUE_CAPACITY:-16}
+      Workflow__MaxParallelSteps: ${IROUTE_WORKFLOW_MAX_PARALLEL_STEPS:-4}
+      Workflow__RetryBaseDelayMilliseconds: ${IROUTE_RETRY_BASE_DELAY_MS:-100}
+      Workflow__RetryMaxDelayMilliseconds: ${IROUTE_RETRY_MAX_DELAY_MS:-5000}
+      Workflow__RetryJitterRatio: ${IROUTE_RETRY_JITTER_RATIO:-0.2}
+      ExecutionWorker__Enabled: "true"
+      Lifecycle__Enabled: "true"
       Lifecycle__SweepInterval: ${IROUTE_LIFECYCLE_SWEEP_INTERVAL:-00:05:00}
       Lifecycle__DefaultArtifactTimeToLive: ${IROUTE_ARTIFACT_TTL:-30.00:00:00}
       Lifecycle__DefaultMemoryTimeToLive: ${IROUTE_MEMORY_TTL:-90.00:00:00}

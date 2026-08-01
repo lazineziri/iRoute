@@ -15,7 +15,7 @@
       "required": ["status"],
       "properties": {
         "status": {
-          "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"]
+          "enum": ["Accepted", "Resolving", "Planning", "Queued", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"]
         },
         "resolutionLevel": {
           "enum": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"]

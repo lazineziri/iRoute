@@ -8,7 +8,7 @@ local secret files from another environment.
 
 - .NET SDK `10.0.100` or newer on the .NET 10 line
 - Node.js `24.18.1` for the complete contract/SDK toolchain
-- Docker with Compose v2 for the one-container path
+- Docker with Compose v2 for the local container path
 - Git for a source checkout
 
 Python, Java, PHP, and Rust are required only when developing their respective
@@ -39,7 +39,7 @@ the official CI jobs cover every supported language before release.
 
 ## Smallest runnable deployment
 
-Start one durable SQLite API container with no provider credentials:
+Start durable SQLite API and worker containers with no provider credentials:
 
 ```bash
 docker compose --file deploy/compose.sqlite.yaml up --build --wait
@@ -58,7 +58,7 @@ curl --request POST http://localhost:8080/v1/executions \
   --data @examples/email-draft.json
 ```
 
-The execution must reach `Succeeded`. Shut down without deleting the named
+Submission returns HTTP `202`; poll the execution URL or reconnect to its SSE stream until it reaches `Succeeded`. Shut down without deleting the named
 SQLite volume:
 
 ```bash
@@ -78,6 +78,7 @@ using them. In particular:
 - use an external backed-up PostgreSQL service;
 - run the release-matched migration job before workloads;
 - keep exactly one lifecycle worker per database;
+- run at least two execution workers for takeover capacity;
 - configure TLS ingress, secret management, and the external model gateway.
 
 ## Installation failures

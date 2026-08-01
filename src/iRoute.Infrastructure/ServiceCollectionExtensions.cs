@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<InMemoryExecutionStore>();
             services.AddSingleton<IExecutionStore>(provider =>
                 provider.GetRequiredService<InMemoryExecutionStore>());
+            services.AddSingleton<IExecutionWorkStore, InMemoryExecutionWorkStore>();
             services.AddSingleton<IWorkflowCheckpointStore, InMemoryWorkflowCheckpointStore>();
             services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
             services.AddSingleton<IExternalActionStore, InMemoryExternalActionStore>();
@@ -61,6 +62,7 @@ public static class ServiceCollectionExtensions
                 }
             });
             services.AddSingleton<IExecutionStore, EfExecutionStore>();
+            services.AddSingleton<IExecutionWorkStore, EfExecutionWorkStore>();
             services.AddSingleton<IWorkflowCheckpointStore, EfWorkflowCheckpointStore>();
             services.AddSingleton<IApprovalStore, EfApprovalStore>();
             services.AddSingleton<IExternalActionStore, EfExternalActionStore>();

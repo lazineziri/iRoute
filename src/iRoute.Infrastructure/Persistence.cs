@@ -20,6 +20,7 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
 {
     public DbSet<ExecutionEntity> Executions => Set<ExecutionEntity>();
     public DbSet<ExecutionEventEntity> ExecutionEvents => Set<ExecutionEventEntity>();
+    public DbSet<ExecutionWorkItemEntity> ExecutionWorkItems => Set<ExecutionWorkItemEntity>();
     public DbSet<WorkflowPlanEntity> WorkflowPlans => Set<WorkflowPlanEntity>();
     public DbSet<WorkflowStepEntity> WorkflowSteps => Set<WorkflowStepEntity>();
     public DbSet<ApprovalEntity> Approvals => Set<ApprovalEntity>();
@@ -47,6 +48,18 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
         executionEvent.HasKey(x => new { x.ExecutionId, x.Sequence });
         executionEvent.Property(x => x.EventType).HasMaxLength(120);
         executionEvent.HasIndex(x => new { x.ExecutionId, x.OccurredAtUnixMilliseconds });
+
+        var executionWork = modelBuilder.Entity<ExecutionWorkItemEntity>();
+        executionWork.ToTable("ExecutionWorkItems");
+        executionWork.HasKey(x => x.ExecutionId);
+        executionWork.Property(x => x.State).HasConversion<string>().HasMaxLength(40);
+        executionWork.Property(x => x.LeaseOwner).HasMaxLength(200);
+        executionWork.HasIndex(x => new { x.State, x.AvailableAtUnixMilliseconds });
+        executionWork.HasIndex(x => x.LeaseExpiresAtUnixMilliseconds);
+        executionWork.HasOne<ExecutionEntity>()
+            .WithOne()
+            .HasForeignKey<ExecutionWorkItemEntity>(x => x.ExecutionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var workflowPlan = modelBuilder.Entity<WorkflowPlanEntity>();
         workflowPlan.ToTable("WorkflowPlans");
@@ -213,6 +226,19 @@ public sealed class ExecutionEventEntity
     public string DataJson { get; set; } = null!;
 }
 
+public sealed class ExecutionWorkItemEntity
+{
+    public Guid ExecutionId { get; set; }
+    public ExecutionWorkState State { get; set; }
+    public long AvailableAtUnixMilliseconds { get; set; }
+    public int DeliveryAttempt { get; set; }
+    public string? LeaseOwner { get; set; }
+    public Guid? LeaseToken { get; set; }
+    public long? LeaseExpiresAtUnixMilliseconds { get; set; }
+    public long? HeartbeatAtUnixMilliseconds { get; set; }
+    public long? CompletedAtUnixMilliseconds { get; set; }
+}
+
 public sealed class WorkflowPlanEntity
 {
     public Guid ExecutionId { get; set; }
@@ -329,24 +355,54 @@ public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextF
         JsonElement data,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var previousSequence = await context.ExecutionEvents
-            .Where(x => x.ExecutionId == executionId)
-            .MaxAsync(x => (long?)x.Sequence, cancellationToken) ?? 0;
-        var executionEvent = new ExecutionEvent(
-            checked(previousSequence + 1),
-            executionId,
-            eventType,
-            occurredAt,
-            data.Clone());
-        context.ExecutionEvents.Add(PersistenceMapping.ToEntity(executionEvent));
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return executionEvent;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+                var isPostgres = context.Database.ProviderName?.Contains(
+                    "Npgsql",
+                    StringComparison.Ordinal) is true;
+                await using var transaction = await context.Database.BeginTransactionAsync(
+                    isPostgres ? IsolationLevel.ReadCommitted : IsolationLevel.Serializable,
+                    cancellationToken);
+                if (isPostgres)
+                {
+                    _ = await context.Executions
+                        .FromSqlInterpolated(
+                            $"SELECT * FROM \"Executions\" WHERE \"ExecutionId\" = {executionId} FOR UPDATE")
+                        .AsNoTracking()
+                        .SingleAsync(cancellationToken);
+                }
+
+                var previousSequence = await context.ExecutionEvents
+                    .Where(x => x.ExecutionId == executionId)
+                    .MaxAsync(x => (long?)x.Sequence, cancellationToken) ?? 0;
+                var executionEvent = new ExecutionEvent(
+                    checked(previousSequence + 1),
+                    executionId,
+                    eventType,
+                    occurredAt,
+                    data.Clone());
+                context.ExecutionEvents.Add(PersistenceMapping.ToEntity(executionEvent));
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return executionEvent;
+            }
+            catch (Exception exception) when (attempt < 5 && IsEventSequenceContention(exception))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(attempt * 5), cancellationToken);
+            }
+        }
     }
+
+    private static bool IsEventSequenceContention(Exception exception) => exception switch
+    {
+        DbUpdateException { InnerException: Npgsql.PostgresException { SqlState: "23505" or "40001" } } => true,
+        Npgsql.PostgresException { SqlState: "23505" or "40001" } => true,
+        Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 5 or 6 or 19 } => true,
+        _ => false
+    };
 }
 
 public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext> contextFactory)

@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import YAML from 'yaml';
 
-test('SQLite Compose is a persistent single-container quick start', async () => {
+test('SQLite Compose persists API and execution worker state on one volume', async () => {
   const compose = YAML.parse(await read('deploy/compose.sqlite.yaml'));
-  assert.deepEqual(Object.keys(compose.services), ['api']);
+  assert.deepEqual(Object.keys(compose.services), ['api', 'worker']);
   const api = compose.services.api;
   assert.equal(api.build.target, 'api');
   assert.equal(api.environment.Storage__Provider, 'Sqlite');
@@ -14,6 +14,9 @@ test('SQLite Compose is a persistent single-container quick start', async () => 
   assert.ok(api.volumes.includes('sqlite-data:/var/lib/iroute'));
   assert.equal(api.read_only, true);
   assert.ok(api.healthcheck.test.includes('http://127.0.0.1:8080/health/ready'));
+  assert.equal(compose.services.worker.build.target, 'worker');
+  assert.equal(compose.services.worker.environment.ExecutionWorker__Enabled, 'true');
+  assert.ok(compose.services.worker.volumes.includes('sqlite-data:/var/lib/iroute'));
 });
 
 test('PostgreSQL Compose migrates once before API and worker startup', async () => {
@@ -26,6 +29,7 @@ test('PostgreSQL Compose migrates once before API and worker startup', async () 
   assert.deepEqual(compose.services.migrate.command, ['up']);
   assert.equal(compose.services.api.environment.Storage__AutoInitialize, 'false');
   assert.equal(compose.services.worker.environment.Storage__AutoInitialize, 'false');
+  assert.equal(compose.services.worker.environment.Workflow__RetryMaxDelayMilliseconds, '${IROUTE_RETRY_MAX_DELAY_MS:-5000}');
   assert.equal(
     compose.services.api.depends_on.migrate.condition,
     'service_completed_successfully'
@@ -36,7 +40,7 @@ test('PostgreSQL Compose migrates once before API and worker startup', async () 
   );
 });
 
-test('Kubernetes reference separates migrations and horizontally scales only the API', async () => {
+test('Kubernetes reference separates migrations, scalable execution, and singleton lifecycle work', async () => {
   const resources = await kubernetesResources([
     'deploy/kubernetes/namespace.yaml',
     'deploy/kubernetes/configmap.yaml',
@@ -48,15 +52,18 @@ test('Kubernetes reference separates migrations and horizontally scales only the
     'deploy/kubernetes/kustomization.yaml'
   ]);
   const api = resource(resources, 'Deployment', 'iroute-api');
-  const worker = resource(resources, 'Deployment', 'iroute-worker');
+  const worker = resource(resources, 'Deployment', 'iroute-execution-worker');
+  const lifecycle = resource(resources, 'Deployment', 'iroute-lifecycle-worker');
   const autoscaler = resource(resources, 'HorizontalPodAutoscaler', 'iroute-api');
   const config = resource(resources, 'ConfigMap', 'iroute-config');
   const migration = resources.find(item => item.kind === 'Job');
 
   assert.equal(api.spec.replicas, 2);
   assert.equal(api.spec.strategy.rollingUpdate.maxUnavailable, 0);
-  assert.equal(worker.spec.replicas, 1);
-  assert.equal(worker.spec.strategy.type, 'Recreate');
+  assert.equal(worker.spec.replicas, 2);
+  assert.equal(worker.spec.strategy.type, 'RollingUpdate');
+  assert.equal(lifecycle.spec.replicas, 1);
+  assert.equal(lifecycle.spec.strategy.type, 'Recreate');
   assert.equal(autoscaler.spec.minReplicas, 2);
   assert.ok(autoscaler.spec.maxReplicas > autoscaler.spec.minReplicas);
   assert.equal(config.data.Storage__Provider, 'Postgres');

@@ -9,8 +9,9 @@ public static class ExecutionStateMachine
         {
             [ExecutionStatus.Accepted] = [ExecutionStatus.Resolving, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Resolving] = [ExecutionStatus.Planning, ExecutionStatus.Validating, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
-            [ExecutionStatus.Planning] = [ExecutionStatus.WaitingForApproval, ExecutionStatus.Running, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
-            [ExecutionStatus.WaitingForApproval] = [ExecutionStatus.Running, ExecutionStatus.Cancelled, ExecutionStatus.Failed, ExecutionStatus.TimedOut],
+            [ExecutionStatus.Planning] = [ExecutionStatus.Queued, ExecutionStatus.WaitingForApproval, ExecutionStatus.Running, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
+            [ExecutionStatus.Queued] = [ExecutionStatus.Running, ExecutionStatus.Cancelled, ExecutionStatus.Failed, ExecutionStatus.TimedOut],
+            [ExecutionStatus.WaitingForApproval] = [ExecutionStatus.Queued, ExecutionStatus.Running, ExecutionStatus.Cancelled, ExecutionStatus.Failed, ExecutionStatus.TimedOut],
             [ExecutionStatus.Running] = [ExecutionStatus.Validating, ExecutionStatus.Compensating, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Validating] = [ExecutionStatus.Materializing, ExecutionStatus.Compensating, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Materializing] = [ExecutionStatus.Succeeded, ExecutionStatus.Compensating, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],

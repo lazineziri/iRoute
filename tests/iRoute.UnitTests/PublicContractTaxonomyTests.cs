@@ -10,6 +10,10 @@ public sealed class PublicContractTaxonomyTests
         string[] expected =
         [
             "execution.created",
+            "execution.queued",
+            "execution.lease_claimed",
+            "execution.lease_renewed",
+            "execution.lease_released",
             "execution.status_changed",
             "resolution.considered",
             "routing.decided",

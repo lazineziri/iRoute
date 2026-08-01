@@ -4,13 +4,13 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, M2, and M3 are complete through W16**. The
+Formal backlog status: **M0, M1, M2, and M3 are complete through W16; W17 durable asynchronous execution is complete**. The
 first adoption-ready source baseline is `0.1.0-alpha.1`. See [the workstream
 status](docs/workstream-status.md) and [release notes](docs/releases/0.1.0-alpha.1.md).
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
-- synchronous task execution through ASP.NET Core
+- `202 Accepted` submission through ASP.NET Core with durable asynchronous execution workers
 - tenant-scoped idempotency and artifact reuse
 - bounded context compilation with a context manifest
 - deterministic development gateway or configurable buffered/streaming HTTP model gateway
@@ -18,6 +18,8 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - durable SQLite and PostgreSQL stores for executions, ordered events, versioned artifacts, facts, decisions, and dependency edges
 - cancellation requests, deadlines, health checks, and SSE event replay
 - bounded dependency scheduling with durable per-step checkpoints and restart-safe resume
+- PostgreSQL-backed work claims, fenced leases, heartbeats, crash takeover, distributed cancellation, and approval requeueing
+- bounded classified retries with exponential backoff, deterministic jitter, timeouts, and `Retry-After` support
 - optional JWT authentication with claim-derived tenant and actor identity
 - capability allow lists and authenticated permission-scope enforcement
 - durable external-action approvals, restart-safe resumption, and idempotent action results
@@ -40,7 +42,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
 - Apache-2.0 community governance, private security reporting, explicit compatibility windows, and reproducible checksummed release artifacts
 
-This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. Run one lifecycle worker per database until leasing is implemented. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
+This is a development milestone, not a production release. Durable execution leasing is implemented, but distributed action reconciliation, tenant quotas, provider failover/circuit breaking, and production transport adapters are still ahead. Run one lifecycle worker per database; execution workers may scale horizontally. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
 ## Quick start
 
@@ -54,6 +56,12 @@ dotnet build iRoute.slnx --no-restore
 dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
 ```
 
+In a second terminal, start the execution and lifecycle host:
+
+```bash
+dotnet run --project src/iRoute.Worker
+```
+
 The default developer profile creates `iroute.db` and uses the deterministic gateway, so it needs no provider credential. In another terminal:
 
 ```bash
@@ -65,7 +73,7 @@ curl --request POST http://localhost:8080/v1/executions \
   --data @examples/email-draft.json
 ```
 
-The first request returns a validated `SmallModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
+The first request returns HTTP `202` with a durable execution ID, normally in `Queued`; poll `GET /v1/executions/{executionId}` or reconnect to its SSE stream until it is terminal. Send the same input with a new idempotency key and the no-model fast path can return `ExactArtifact` immediately with zero model calls and no worker-queue entry.
 
 The CLI uses the same local defaults and delegates to the .NET SDK:
 
@@ -78,15 +86,15 @@ See the [SDK quick starts](examples/sdks/README.md) for runnable .NET, Node.js, 
 
 Open `http://localhost:8080/dashboard/` to inspect the request timeline and compare quality, cost, latency, token usage, and memory hits. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
 
-Run the lifecycle host in another terminal to enforce TTL, quota, archival, and deletion policies asynchronously:
+The worker host processes durable executions and also enforces TTL, quota, archival, and deletion policies asynchronously:
 
 ```bash
 dotnet run --project src/iRoute.Worker
 ```
 
-For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, lifecycle worker, and database together.
+For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, execution/lifecycle worker, migration job, and database together.
 
-The smallest container quick start runs one durable SQLite API container:
+The smallest container quick start runs a durable SQLite API and worker sharing one volume:
 
 ```bash
 docker compose -f deploy/compose.sqlite.yaml up --build --wait
@@ -144,6 +152,11 @@ Use environment variables or standard ASP.NET Core configuration.
 | `ModelGateway__ApiKey` | Generic HTTP gateway bearer credential | unset |
 | `Workflow__QueueCapacity` | Maximum queued ready steps per scheduling round | `16` |
 | `Workflow__MaxParallelSteps` | Runtime ceiling on parallel steps per execution | `4` |
+| `Workflow__RetryBaseDelayMilliseconds` | Initial classified-retry delay | `100` |
+| `Workflow__RetryMaxDelayMilliseconds` | Maximum retry and `Retry-After` delay | `5,000` |
+| `Workflow__RetryJitterRatio` | Deterministic retry jitter ratio | `0.2` |
+| `ExecutionWorker__LeaseDuration` | Distributed execution lease duration | `30 seconds` |
+| `ExecutionWorker__HeartbeatInterval` | Lease renewal and cancellation polling interval | `5 seconds` |
 | `Lifecycle__SweepInterval` | Delay between lifecycle worker sweeps | `5 minutes` |
 | `Lifecycle__DefaultArtifactTimeToLive` | Default lifetime assigned to new artifacts | `30 days` |
 | `Lifecycle__DefaultMemoryTimeToLive` | Default lifetime assigned to new memory records | `90 days` |

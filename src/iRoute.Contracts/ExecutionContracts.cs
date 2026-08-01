@@ -160,7 +160,8 @@ public sealed record ModelGatewayFailure(
     bool Retryable,
     int? StatusCode = null,
     string? GatewayId = null,
-    string? CorrelationId = null);
+    string? CorrelationId = null,
+    int? RetryAfterMilliseconds = null);
 
 public sealed record UsageSummary(
     int InputTokens = 0,
@@ -347,6 +348,7 @@ public enum ExecutionStatus
     Accepted,
     Resolving,
     Planning,
+    Queued,
     WaitingForApproval,
     Running,
     Validating,
@@ -483,6 +485,10 @@ public enum MemoryLifecycleStatus
 public static class ExecutionEventTypes
 {
     public const string Created = "execution.created";
+    public const string Queued = "execution.queued";
+    public const string LeaseClaimed = "execution.lease_claimed";
+    public const string LeaseRenewed = "execution.lease_renewed";
+    public const string LeaseReleased = "execution.lease_released";
     public const string StatusChanged = "execution.status_changed";
     public const string ResolutionConsidered = "resolution.considered";
     public const string RoutingDecided = "routing.decided";
@@ -524,6 +530,10 @@ public static class ExecutionEventTypes
     public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         Created,
+        Queued,
+        LeaseClaimed,
+        LeaseRenewed,
+        LeaseReleased,
         StatusChanged,
         ResolutionConsidered,
         RoutingDecided,

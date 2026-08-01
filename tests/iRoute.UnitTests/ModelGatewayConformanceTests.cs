@@ -276,6 +276,32 @@ public sealed class ModelGatewayConformanceTests
     }
 
     [Fact]
+    public async Task HttpGatewayPreservesRetryAfterForTheBoundedScheduler()
+    {
+        using var client = new HttpClient(new DelegateHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(
+                TimeSpan.FromSeconds(7));
+            return Task.FromResult(response);
+        }))
+        {
+            BaseAddress = new Uri("https://gateway.test/")
+        };
+        var gateway = new GenericHttpModelGateway(
+            client,
+            Options.Create(new ModelGatewayOptions { BaseUrl = "https://gateway.test/" }));
+
+        var exception = await Assert.ThrowsAsync<ModelGatewayException>(() =>
+            gateway.ExecuteAsync(
+                GatewayRequest("retry-after"),
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(TimeSpan.FromSeconds(7), exception.RetryAfter);
+        Assert.Equal(7_000, exception.ToFailure().RetryAfterMilliseconds);
+    }
+
+    [Fact]
     public async Task CallerCancellationPropagatesToTheExternalGatewayTransport()
     {
         var transportCancelled = false;

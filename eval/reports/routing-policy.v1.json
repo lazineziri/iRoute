@@ -3,7 +3,7 @@
   "datasetId": "builtin-tasks.v1",
   "datasetVersion": 1,
   "datasetRecordedAt": "2026-08-01T10:00:00Z",
-  "datasetFingerprint": "sha256:08add87b577b44a62d7fbd65092b3258fb36151ca6eb75d7749a0119999205a7",
+  "datasetFingerprint": "sha256:97f8b97b5e7144a74500641246795fa40e3076d276b8083023e68ac0dfa0fe7d",
   "gate": {
     "passed": true,
     "requiredCategories": [
@@ -227,7 +227,7 @@
     {
       "policyId": "task-aware.v1",
       "role": "candidate",
-      "sourceFingerprint": "sha256:71b13d203a5ba383f8058f96e3389fb57a2417155c5e7a6952c8931af17afc79",
+      "sourceFingerprint": "sha256:c22e65db5a09c053cbd0dcf3dd0dd4f3b9922ef1c80a09a61a07f62735621275",
       "aggregate": {
         "evaluatedCases": 42,
         "completedTasks": 42,

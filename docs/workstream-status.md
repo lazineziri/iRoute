@@ -262,7 +262,7 @@ Acceptance evidence:
 Deliverables:
 
 - One multi-stage, non-root Dockerfile with independently publishable API, lifecycle-worker, and schema-migration targets, immutable-version metadata, read-only runtime compatibility, and API readiness health checks.
-- A persistent one-container SQLite quick start plus a PostgreSQL Compose profile that runs one migration service before starting the API and single lifecycle worker.
+- A persistent SQLite quick start plus a PostgreSQL Compose profile that runs one migration service before starting API and worker roles.
 - Liveness isolated from dependencies and readiness strengthened to require a reachable, schema-current durable store.
 - A dedicated migration executable with status, forward-only upgrade, targeted upgrade, unknown-schema detection, and explicit confirmed rollback over the shared SQLite/PostgreSQL migrations.
 - Kubernetes reference manifests for external PostgreSQL, a generated one-shot migration Job, two API replicas, rolling updates, HPA, PodDisruptionBudget, topology spreading, bounded resources, probes, and non-root/read-only containers.
@@ -270,9 +270,9 @@ Deliverables:
 
 Acceptance evidence:
 
-- The container smoke runner builds the API image, starts exactly one SQLite container with a named volume, waits for schema-aware readiness, executes `email.draft`, verifies success, and removes only its isolated test stack.
-- Migration tests start from an empty SQLite database, apply all six migrations, reject an unconfirmed downgrade, roll back to an explicit target, reapply the latest migration, and prove readiness changes from unhealthy to healthy.
-- Deployment tests parse both Compose profiles and every Kubernetes YAML document, enforce migration-before-workload ordering, and prove only the API scales horizontally while the non-leased lifecycle worker remains one replica.
+- The container smoke runner builds the API and worker images, starts the SQLite profile with a named volume, waits for schema-aware readiness, executes `email.draft`, verifies success, and removes only its isolated test stack.
+- Migration tests start from an empty SQLite database, apply every checked-in migration, reject an unconfirmed downgrade, roll back to an explicit target, reapply the latest migration, and prove readiness changes from unhealthy to healthy.
+- Deployment tests parse both Compose profiles and every Kubernetes YAML document, enforce migration-before-workload ordering, and prove execution workers scale independently while the lifecycle worker remains one replica.
 - The PostgreSQL Compose and Kubernetes profiles set `Storage:AutoInitialize=false`; production migrations run once through the release-matched migration image instead of racing between replicas.
 - The operations guide documents immutable image rollout, expand-and-contract sequencing, backup/restore gates, schema-current readiness, zero-unavailable API rolling updates, application-first rollback, and guarded destructive schema rollback.
 
@@ -317,8 +317,28 @@ Acceptance evidence:
   deprecation, tag immutability, artifact integrity, and rollback rules are
   explicit and cross-linked from the root documentation.
 
-## Formal project-definition backlog complete
+### W17 — Durable asynchronous execution: complete
 
-All W01-W16 workstreams are implemented. Future work proceeds through public
-issues, ADRs, compatibility-preserving releases, and measured roadmap decisions
-rather than an undocumented W17.
+Deliverables:
+
+- `POST /v1/executions` persists the execution and returns HTTP `202` with a stable execution ID; model and tool plans enter a durable queue while successful no-model resolution stays inline.
+- SQLite and PostgreSQL work stores with atomic enqueue, one-owner claims, expiring leases, heartbeats, delivery attempts, and fencing tokens that reject stale completion or abandonment.
+- A separately scalable execution-worker role that resumes persisted workflow checkpoints after shutdown, lease loss, or process crash; completed step outputs remain authoritative.
+- Persisted cancellation polling, approval-to-queue resumption, and external-action idempotency that prevent duplicate side effects under concurrent workers.
+- Ordered queue/lease lifecycle events and existing sequence-backed SSE replay using `after` or `Last-Event-ID` reconnect cursors.
+- Classified retries bounded by step call budgets and the absolute queued-execution deadline, with per-step timeouts, exponential backoff, deterministic jitter, and bounded `Retry-After` support.
+- A seventh provider-aware schema migration, API/worker local Compose profile, two-replica Kubernetes execution-worker Deployment, and a separate singleton lifecycle-worker Deployment.
+
+Acceptance evidence:
+
+- Strict Release build and 111 unit tests cover immediate queueing before gateway invocation, no-model queue bypass, running cancellation, approval requeue, concurrent single claim, stale-token fencing, lease expiry, crash takeover, checkpoint recovery, retry classification, jitter, timeouts, and `Retry-After`.
+- The PostgreSQL integration test runs two independent claimers against a real server and proves exactly one lease, worker interruption, expired-lease takeover, stale-owner rejection, automatic checkpoint recovery, heartbeat cancellation, and terminal completion.
+- The live container smoke starts separate SQLite API and worker containers, observes HTTP `202`, polls the persisted execution across the host boundary, verifies `Succeeded`, and removes its isolated stack.
+- Contract and deployment tests validate the additive `Queued` status, queue/lease events, `202` response, retry metadata, migration ordering, shared local volume, two scalable execution workers, and one lifecycle worker.
+
+## Extended backlog status
+
+All W01-W17 workstreams are implemented. The result is a credible durable alpha,
+not a production declaration. The next measured work should cover provider
+resilience, tenant quotas, real connectors, semantic memory, and production
+deployment validation.

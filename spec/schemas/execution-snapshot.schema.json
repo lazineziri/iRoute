@@ -9,7 +9,7 @@
     "executionId": { "type": "string", "format": "uuid" },
     "taskType": { "type": "string" },
     "status": {
-      "enum": ["Accepted", "Resolving", "Planning", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"]
+      "enum": ["Accepted", "Resolving", "Planning", "Queued", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"]
     },
     "createdAt": { "type": "string", "format": "date-time" },
     "updatedAt": { "type": "string", "format": "date-time" },

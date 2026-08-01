@@ -16,7 +16,7 @@ paths:
     post:
       operationId: createExecution
       tags: [Executions]
-      summary: Resolve and execute one typed task.
+      summary: Persist and submit one typed task for execution.
       parameters:
         - $ref: '#/components/parameters/TenantId'
         - $ref: '#/components/parameters/ActorId'
@@ -29,8 +29,8 @@ paths:
             schema:
               $ref: '#/components/schemas/TaskRequest'
       responses:
-        '200':
-          description: The execution reached a terminal state or paused in `WaitingForApproval`.
+        '202':
+          description: The execution was persisted and is queued, resolved by the no-model fast path, or paused in `WaitingForApproval`.
           content:
             application/json:
               schema:
@@ -463,6 +463,7 @@ components:
         - Accepted
         - Resolving
         - Planning
+        - Queued
         - WaitingForApproval
         - Running
         - Validating
@@ -925,6 +926,10 @@ components:
       enum:
         - execution.created
         - execution.status_changed
+        - execution.queued
+        - execution.lease_claimed
+        - execution.lease_renewed
+        - execution.lease_released
         - resolution.considered
         - routing.decided
         - routing.escalated

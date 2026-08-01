@@ -152,6 +152,88 @@ public sealed class BoundedDependencySchedulerTests
     }
 
     [Fact]
+    public async Task RetryableFailureUsesBoundedBackoffAndRetryAfter()
+    {
+        var executions = new InMemoryExecutionStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        using var scheduler = new BoundedDependencyScheduler(
+            checkpoints,
+            executions,
+            new SystemClock(),
+            new WorkflowSchedulerOptions
+            {
+                RetryBaseDelayMilliseconds = 1,
+                RetryMaxDelayMilliseconds = 50,
+                RetryJitterRatio = 0
+            });
+        var executionId = Guid.CreateVersion7();
+        var attempts = 0;
+        var plan = CreatePlan([Step("retry") with { MaxAttempts = 3 }]);
+
+        var result = await scheduler.ExecuteAsync(
+            executionId,
+            CreateRequest(),
+            plan,
+            Routing(plan),
+            (_, _, _) =>
+            {
+                var attempt = Interlocked.Increment(ref attempts);
+                if (attempt < 3)
+                {
+                    throw new ModelGatewayException(
+                        ErrorCodes.ModelGatewayHttpError,
+                        "Temporarily unavailable.",
+                        true,
+                        429,
+                        failureKind: ModelGatewayFailureKind.RateLimited,
+                        retryAfter: TimeSpan.FromMilliseconds(25));
+                }
+
+                return Task.FromResult(JsonSerializer.SerializeToElement(new { value = "recovered" }));
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, attempts);
+        Assert.Equal("recovered", result.Outputs["retry"].GetProperty("value").GetString());
+        var events = await ReadEventsAsync(executions, executionId);
+        var retries = events.Where(item => item.Type == ExecutionEventTypes.StepRetryScheduled).ToArray();
+        Assert.Equal(2, retries.Length);
+        Assert.All(retries, item =>
+            Assert.Equal(25, item.Data.GetProperty("delayMilliseconds").GetInt32()));
+    }
+
+    [Fact]
+    public async Task NonRetryableFailureDoesNotConsumeAdditionalAttempts()
+    {
+        var executions = new InMemoryExecutionStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        using var scheduler = CreateScheduler(checkpoints, executions);
+        var executionId = Guid.CreateVersion7();
+        var attempts = 0;
+        var plan = CreatePlan([Step("invalid") with { MaxAttempts = 3 }]);
+
+        await Assert.ThrowsAsync<ModelGatewayException>(() => scheduler.ExecuteAsync(
+            executionId,
+            CreateRequest(),
+            plan,
+            Routing(plan),
+            (_, _, _) =>
+            {
+                Interlocked.Increment(ref attempts);
+                throw new ModelGatewayException(
+                    ErrorCodes.ModelGatewayInvalidResponse,
+                    "Invalid provider response.",
+                    false,
+                    failureKind: ModelGatewayFailureKind.InvalidResponse);
+            },
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, attempts);
+        var events = await ReadEventsAsync(executions, executionId);
+        Assert.DoesNotContain(events, item => item.Type == ExecutionEventTypes.StepRetryScheduled);
+    }
+
+    [Fact]
     public async Task SqliteRestartResumesInterruptedStepWithoutRepeatingCompletedStep()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"iroute-workflow-{Guid.NewGuid():N}.db");
@@ -312,6 +394,22 @@ public sealed class BoundedDependencySchedulerTests
         false,
         null,
         []);
+
+    private static async Task<IReadOnlyList<ExecutionEvent>> ReadEventsAsync(
+        InMemoryExecutionStore store,
+        Guid executionId)
+    {
+        var events = new List<ExecutionEvent>();
+        await foreach (var item in store.ReadEventsAsync(
+                           executionId,
+                           0,
+                           TestContext.Current.CancellationToken))
+        {
+            events.Add(item);
+        }
+
+        return events;
+    }
 
     private static void UpdateMaximum(ref int target, int candidate)
     {
