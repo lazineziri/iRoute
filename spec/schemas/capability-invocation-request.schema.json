@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/capability-invocation-request.schema.json",
+  "title": "CapabilityInvocationRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "capability",
+    "version",
+    "input",
+    "tenantId",
+    "actorId",
+    "projectId",
+    "permissionScopes",
+    "policyVersion",
+    "sideEffectClass",
+    "deadlineMilliseconds",
+    "maximumOutputBytes",
+    "correlationId"
+  ],
+  "properties": {
+    "capability": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]+$", "maxLength": 200 },
+    "version": { "type": "integer", "minimum": 1 },
+    "input": true,
+    "tenantId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "actorId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "projectId": { "type": ["string", "null"], "maxLength": 200 },
+    "permissionScopes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "policyVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "sideEffectClass": { "enum": ["None", "ReadOnly", "ReversibleWrite", "IrreversibleWrite"] },
+    "deadlineMilliseconds": { "type": "integer", "minimum": 1, "maximum": 900000 },
+    "maximumOutputBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+    "correlationId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "idempotencyReference": { "type": ["string", "null"], "maxLength": 200 }
+  }
+}

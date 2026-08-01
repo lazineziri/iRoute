@@ -490,6 +490,9 @@ public static class ExecutionEventTypes
     public const string PlanValidated = "plan.validated";
     public const string PolicyEvaluated = "policy.evaluated";
     public const string CapabilityDenied = "capability.denied";
+    public const string CapabilityStarted = "capability.started";
+    public const string CapabilityCompleted = "capability.completed";
+    public const string CapabilityFailed = "capability.failed";
     public const string ApprovalRequired = "approval.required";
     public const string ApprovalDecided = "approval.decided";
     public const string WorkflowCheckpointed = "workflow.checkpointed";
@@ -528,6 +531,9 @@ public static class ExecutionEventTypes
         PlanValidated,
         PolicyEvaluated,
         CapabilityDenied,
+        CapabilityStarted,
+        CapabilityCompleted,
+        CapabilityFailed,
         ApprovalRequired,
         ApprovalDecided,
         WorkflowCheckpointed,
@@ -576,6 +582,12 @@ public static class ErrorCodes
     public const string ExecutionFailed = "execution_failed";
     public const string ExternalWriteNotAllowed = "external_write_not_allowed";
     public const string CapabilityNotAllowed = "capability_not_allowed";
+    public const string CapabilityNotRegistered = "capability_not_registered";
+    public const string CapabilityContractMismatch = "capability_contract_mismatch";
+    public const string CapabilityInvocationFailed = "capability_invocation_failed";
+    public const string CapabilityResultInvalid = "capability_result_invalid";
+    public const string CapabilityOutputLimitExceeded = "capability_output_limit_exceeded";
+    public const string CapabilityDeadlineExceeded = "capability_deadline_exceeded";
     public const string PermissionScopeDenied = "permission_scope_denied";
     public const string ApprovalNotFound = "approval_not_found";
     public const string ApprovalAlreadyDecided = "approval_already_decided";
@@ -610,6 +622,12 @@ public static class ErrorCodes
         ExecutionFailed,
         ExternalWriteNotAllowed,
         CapabilityNotAllowed,
+        CapabilityNotRegistered,
+        CapabilityContractMismatch,
+        CapabilityInvocationFailed,
+        CapabilityResultInvalid,
+        CapabilityOutputLimitExceeded,
+        CapabilityDeadlineExceeded,
         PermissionScopeDenied,
         ApprovalNotFound,
         ApprovalAlreadyDecided,

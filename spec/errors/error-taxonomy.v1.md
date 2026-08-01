@@ -20,6 +20,12 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `execution_failed` | execution | no | An unclassified internal execution failure occurred. |
 | `external_write_not_allowed` | execution | no | The task requires external-write permission. |
 | `capability_not_allowed` | execution | no | The compiled capability is outside the task definition's allow list. |
+| `capability_not_registered` | execution | no | The capability version has no unique registered connector. |
+| `capability_contract_mismatch` | execution | no | The invocation side-effect class conflicts with the registered capability definition. |
+| `capability_invocation_failed` | execution | no | A connector failed outside a more specific classified failure. |
+| `capability_result_invalid` | execution | no | A connector returned an invalid normalized output or confidence value. |
+| `capability_output_limit_exceeded` | execution | no | The projected connector output exceeded the invocation byte limit. |
+| `capability_deadline_exceeded` | execution | yes | A connector exceeded its normalized invocation deadline. |
 | `permission_scope_denied` | execution / HTTP 403 | no | The authenticated actor lacks a required action or approval scope. |
 | `approval_not_found` | HTTP 404 | no | No tenant-visible pending or decided approval matches the action. |
 | `approval_already_decided` | HTTP 409 | no | A conflicting decision was submitted for an approval or the execution is no longer waiting. |

@@ -151,7 +151,14 @@ public sealed record ExternalActionRequest(
     string ActionId,
     string Capability,
     JsonElement Input,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    string TenantId = "local",
+    string ActorId = "local",
+    string? ProjectId = null,
+    IReadOnlyList<string>? PermissionScopes = null,
+    string PolicyVersion = "policy.unspecified",
+    SideEffectClass SideEffectClass = SideEffectClass.IrreversibleWrite,
+    int DeadlineMilliseconds = 30000);
 
 public interface IExternalActionExecutor
 {

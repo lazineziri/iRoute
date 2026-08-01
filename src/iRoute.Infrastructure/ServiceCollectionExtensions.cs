@@ -56,7 +56,15 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<ITaskDefinitionRegistry, BuiltInTaskDefinitionRegistry>();
         services.AddSingleton<IModelProfileRegistry, BuiltInModelProfileRegistry>();
-        services.AddSingleton<IExternalActionExecutor, DevelopmentExternalActionExecutor>();
+        services.AddSingleton<ICapabilityDefinitionRegistry, BuiltInCapabilityDefinitionRegistry>();
+        services.AddSingleton<ICapabilityConnector, ReferenceEmailConnector>();
+        services.AddSingleton<ICapabilityConnector, ReferenceCalendarConnector>();
+        services.AddSingleton<ICapabilityConnector, ReferenceDatabaseConnector>();
+        services.AddSingleton<ICapabilityConnector, ReferenceOpenApiConnector>();
+        services.AddSingleton<ICapabilityConnector, ReferenceMcpConnector>();
+        services.AddSingleton<ICapabilityConnector, ReferenceAgentResultConnector>();
+        services.AddSingleton<ICapabilityExecutor, NormalizedCapabilityExecutor>();
+        services.AddSingleton<IExternalActionExecutor, CapabilityExternalActionExecutor>();
         services.AddSingleton<DeterministicModelGateway>();
         services.AddHttpClient<GenericHttpModelGateway>((provider, client) =>
         {

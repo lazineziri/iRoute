@@ -1,0 +1,37 @@
+{
+  "output": {
+    "query": "project status",
+    "messages": [
+      {
+        "messageId": "msg-reference-001",
+        "from": "ada@example.com",
+        "subject": "Project status",
+        "receivedAt": "2026-07-31T09:00:00Z",
+        "snippet": "The milestone is ready for review."
+      }
+    ],
+    "count": 1
+  },
+  "usage": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cost": 0,
+    "durationMilliseconds": 4,
+    "modelCalls": 0,
+    "toolCalls": 1
+  },
+  "confidence": 1,
+  "evidence": [
+    { "kind": "email-message", "reference": "msg-reference-001" }
+  ],
+  "metadata": {
+    "capability": "email.read",
+    "version": 1,
+    "connectorId": "reference-email-v1",
+    "kind": "Tool",
+    "trustLevel": "Registered",
+    "transport": "email",
+    "projected": true,
+    "outputReference": "b6296094a683276eeace4877e68f086b85af11c53c9777b42b0f6368f84e4514"
+  }
+}

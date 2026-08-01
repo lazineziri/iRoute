@@ -18,6 +18,7 @@ public sealed class ExecutionOrchestrator(
     IApprovalStore approvals,
     IExternalActionStore externalActions,
     BoundedDependencyScheduler scheduler,
+    ICapabilityExecutor capabilityExecutor,
     IModelGateway modelGateway,
     IExternalActionExecutor externalActionExecutor,
     IContextCompiler contextCompiler,
@@ -375,6 +376,14 @@ public sealed class ExecutionOrchestrator(
                     metadata),
                 CancellationToken.None);
         }
+        catch (CapabilityInvocationException exception)
+        {
+            return await TerminalAsync(
+                snapshot,
+                ExecutionStatus.Failed,
+                CapabilityProblem(exception),
+                CancellationToken.None);
+        }
         catch (ExternalActionExecutionException exception)
         {
             return await TerminalAsync(
@@ -614,7 +623,7 @@ public sealed class ExecutionOrchestrator(
             request,
             plan,
             routing,
-            async (step, _, stepCancellationToken) =>
+            async (step, dependencyOutputs, stepCancellationToken) =>
             {
                 var result = step.Kind switch
                 {
@@ -624,7 +633,15 @@ public sealed class ExecutionOrchestrator(
                         definition,
                         context,
                         step,
+                        dependencyOutputs,
                         stepCancellationToken),
+                    ExecutionStepKind.Tool when step.SideEffectClass < SideEffectClass.ReversibleWrite =>
+                        await ExecuteCapabilityStepAsync(
+                            snapshot,
+                            request,
+                            definition,
+                            step,
+                            stepCancellationToken),
                     ExecutionStepKind.Tool when step.SideEffectClass >= SideEffectClass.ReversibleWrite =>
                         await ExecuteExternalActionAsync(
                             snapshot,
@@ -786,13 +803,19 @@ public sealed class ExecutionOrchestrator(
         TaskDefinition definition,
         CompiledContext context,
         ExecutionPlanStep step,
+        IReadOnlyDictionary<string, JsonElement> dependencyOutputs,
         CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
+        var modelContext = AddProjectedCapabilityOutputs(
+            request,
+            definition,
+            context,
+            dependencyOutputs);
         var gatewayRequest = new ModelGatewayRequest(
             step.Capability,
             context.ProjectedInput,
-            context.Content,
+            modelContext,
             request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
             executionId.ToString(),
             step.ProfileId,
@@ -800,10 +823,10 @@ public sealed class ExecutionOrchestrator(
         await AppendEventAsync(
             executionId,
             ExecutionEventTypes.GatewayStarted,
-            new
-            {
-                stepId = step.Id,
-                step.Capability,
+                new
+                {
+                    stepId = step.Id,
+                    capability = step.Capability,
                 step.ProfileId,
                 gatewayId = modelGateway.GatewayId,
                 deadlineMilliseconds = step.TimeoutMilliseconds
@@ -894,6 +917,32 @@ public sealed class ExecutionOrchestrator(
                 ModelCalls = Math.Max(1, result.Usage.ModelCalls)
             }
         };
+        var dependencyResults = dependencyOutputs.Values
+            .Select(value => value.Deserialize<ModelGatewayResult>(ContractJsonOptions)
+                ?? throw new WorkflowStepExecutionException(
+                    step.Id,
+                    $"A dependency of step '{step.Id}' has an invalid normalized result envelope."))
+            .ToArray();
+        if (dependencyResults.Length > 0)
+        {
+            normalized = normalized with
+            {
+                Usage = normalized.Usage with
+                {
+                    Cost = normalized.Usage.Cost + dependencyResults.Sum(item => item.Usage.Cost),
+                    DurationMilliseconds = normalized.Usage.DurationMilliseconds +
+                        dependencyResults.Sum(item => item.Usage.DurationMilliseconds),
+                    ModelCalls = normalized.Usage.ModelCalls +
+                        dependencyResults.Sum(item => item.Usage.ModelCalls),
+                    ToolCalls = normalized.Usage.ToolCalls +
+                        dependencyResults.Sum(item => item.Usage.ToolCalls)
+                },
+                Evidence = normalized.Evidence
+                    .Concat(dependencyResults.SelectMany(item => item.Evidence))
+                    .DistinctBy(item => (item.Kind, item.Reference, item.ContentHash))
+                    .ToArray()
+            };
+        }
         if (normalized.Transport == ModelGatewayTransport.Streaming)
         {
             await AppendEventAsync(
@@ -912,6 +961,150 @@ public sealed class ExecutionOrchestrator(
         }
 
         return normalized;
+    }
+
+    private async Task<ModelGatewayResult> ExecuteCapabilityStepAsync(
+        ExecutionSnapshot snapshot,
+        TaskRequest request,
+        TaskDefinition definition,
+        ExecutionPlanStep step,
+        CancellationToken cancellationToken)
+    {
+        await AppendEventAsync(
+            snapshot.ExecutionId,
+            ExecutionEventTypes.CapabilityStarted,
+            new
+            {
+                stepId = step.Id,
+                step.Capability,
+                version = 1,
+                sideEffectClass = step.SideEffectClass,
+                deadlineMilliseconds = step.TimeoutMilliseconds
+            },
+            cancellationToken);
+        try
+        {
+            var result = await capabilityExecutor.ExecuteAsync(
+                new CapabilityInvocationRequest(
+                    step.Capability,
+                    1,
+                    request.Input,
+                    snapshot.TenantId,
+                    snapshot.ActorId,
+                    request.ProjectId,
+                    request.PermissionScopes ?? [],
+                    TaskPolicyEngine.CurrentPolicyVersion,
+                    step.SideEffectClass,
+                    step.TimeoutMilliseconds,
+                    MaximumCapabilityOutputBytes(request, definition),
+                    snapshot.ExecutionId.ToString()),
+                cancellationToken);
+            await AppendEventAsync(
+                snapshot.ExecutionId,
+                ExecutionEventTypes.CapabilityCompleted,
+                new
+                {
+                    stepId = step.Id,
+                    capability = result.Metadata.Capability,
+                    version = result.Metadata.Version,
+                    connectorId = result.Metadata.ConnectorId,
+                    kind = result.Metadata.Kind,
+                    trustLevel = result.Metadata.TrustLevel,
+                    transport = result.Metadata.Transport,
+                    projected = result.Metadata.Projected,
+                    outputReference = result.Metadata.OutputReference,
+                    durationMilliseconds = result.Usage.DurationMilliseconds,
+                    toolCalls = result.Usage.ToolCalls
+                },
+                CancellationToken.None);
+            return new ModelGatewayResult(
+                result.Output,
+                result.Usage,
+                result.Confidence,
+                result.Evidence);
+        }
+        catch (CapabilityInvocationException exception)
+        {
+            var failure = exception.ToFailure();
+            await AppendEventAsync(
+                snapshot.ExecutionId,
+                ExecutionEventTypes.CapabilityFailed,
+                new
+                {
+                    stepId = step.Id,
+                    code = failure.Code,
+                    kind = failure.Kind,
+                    retryable = failure.Retryable,
+                    capability = failure.Capability,
+                    connectorId = failure.ConnectorId
+                },
+                CancellationToken.None);
+            throw;
+        }
+    }
+
+    private static JsonElement AddProjectedCapabilityOutputs(
+        TaskRequest request,
+        TaskDefinition definition,
+        CompiledContext context,
+        IReadOnlyDictionary<string, JsonElement> dependencyOutputs)
+    {
+        if (dependencyOutputs.Count == 0)
+        {
+            return context.Content;
+        }
+
+        var projected = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var dependency in dependencyOutputs)
+        {
+            var result = dependency.Value.Deserialize<ModelGatewayResult>(ContractJsonOptions)
+                ?? throw new WorkflowStepExecutionException(
+                    dependency.Key,
+                    $"Dependency '{dependency.Key}' has an invalid normalized result envelope.");
+            if (result.Usage.ToolCalls > 0)
+            {
+                projected[dependency.Key] = result.Output.Clone();
+            }
+        }
+
+        if (projected.Count == 0)
+        {
+            return context.Content;
+        }
+
+        var combined = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (context.Content.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in context.Content.EnumerateObject())
+            {
+                combined[property.Name] = property.Value.Clone();
+            }
+        }
+
+        combined["capabilityOutputs"] = JsonSerializer.SerializeToElement(projected, ContractJsonOptions);
+        var serialized = JsonSerializer.SerializeToElement(combined, ContractJsonOptions);
+        var budget = Math.Max(1, request.Constraints?.MaxInputTokens ?? definition.DefaultMaxInputTokens);
+        var estimated = TokenEstimator.Estimate(context.ProjectedInput) + TokenEstimator.Estimate(serialized);
+        if (estimated > budget)
+        {
+            throw new ContextCompilationException(
+                ErrorCodes.ContextBudgetExceeded,
+                "Capability context budget exceeded",
+                $"Projected capability output would require {estimated} estimated tokens, above the task limit of {budget}.");
+        }
+
+        return serialized;
+    }
+
+    private static int MaximumCapabilityOutputBytes(
+        TaskRequest request,
+        TaskDefinition definition)
+    {
+        var tokenLimit = Math.Clamp(
+            request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
+            256,
+            16 * 1024);
+        return tokenLimit * 4;
     }
 
     private async Task AppendGatewayFailureAsync(
@@ -1043,7 +1236,14 @@ public sealed class ExecutionOrchestrator(
                     step.Id,
                     step.Capability,
                     request.Input,
-                    idempotencyReference),
+                    idempotencyReference,
+                    snapshot.TenantId,
+                    snapshot.ActorId,
+                    request.ProjectId,
+                    request.PermissionScopes,
+                    TaskPolicyEngine.CurrentPolicyVersion,
+                    step.SideEffectClass,
+                    step.TimeoutMilliseconds),
                 cancellationToken);
             stopwatch.Stop();
             await externalActions.CompleteAsync(
@@ -1207,6 +1407,9 @@ public sealed class ExecutionOrchestrator(
             ExternalActionExecutionException action => (
                 ExecutionStatus.Failed,
                 new Problem(action.Code, action.Title, action.Message, action.Retryable)),
+            CapabilityInvocationException capability => (
+                ExecutionStatus.Failed,
+                CapabilityProblem(capability)),
             WorkflowStepTimedOutException step => (
                 ExecutionStatus.TimedOut,
                 new Problem(
@@ -1230,6 +1433,30 @@ public sealed class ExecutionOrchestrator(
                 new Problem(ErrorCodes.ExecutionFailed, "Execution failed", exception.Message))
         };
         return await TerminalAsync(snapshot, status, problem, CancellationToken.None);
+    }
+
+    private static Problem CapabilityProblem(CapabilityInvocationException exception)
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["capabilityFailureKind"] = exception.FailureKind.ToString()
+        };
+        if (!string.IsNullOrWhiteSpace(exception.Capability))
+        {
+            metadata["capability"] = exception.Capability;
+        }
+
+        if (!string.IsNullOrWhiteSpace(exception.ConnectorId))
+        {
+            metadata["connectorId"] = exception.ConnectorId;
+        }
+
+        return new Problem(
+            exception.Code,
+            "Capability invocation failed",
+            exception.Message,
+            exception.Retryable,
+            metadata);
     }
 
     private async Task<IReadOnlyList<MemoryRecord>> MaterializeProjectMemoryAsync(

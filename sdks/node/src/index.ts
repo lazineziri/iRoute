@@ -229,6 +229,92 @@ export interface ModelGatewayHealth {
   message?: string | null;
 }
 
+export type CapabilityKind = 'Deterministic' | 'Model' | 'Tool' | 'Api' | 'Mcp' | 'Agent';
+export type CapabilityCacheability = 'Never' | 'Scoped' | 'Public';
+export type CapabilityDataSensitivity = 'Public' | 'Internal' | 'Confidential' | 'Restricted';
+export type CapabilityTrustLevel = 'Internal' | 'Registered' | 'ExternalUntrusted';
+export type CapabilityIsolation = 'InProcess' | 'Process' | 'Container' | 'Remote';
+export type CapabilityFailureKind =
+  | 'InvalidRequest'
+  | 'PermissionDenied'
+  | 'NotRegistered'
+  | 'Timeout'
+  | 'Unavailable'
+  | 'InvalidResponse'
+  | 'OutputLimitExceeded'
+  | 'Cancelled'
+  | 'Internal';
+
+export interface CapabilityDefinition {
+  capability: string;
+  version: number;
+  kind: CapabilityKind;
+  description: string;
+  inputSchema: Readonly<Record<string, unknown>>;
+  outputSchema: Readonly<Record<string, unknown>>;
+  sideEffectClass: 'None' | 'ReadOnly' | 'ReversibleWrite' | 'IrreversibleWrite';
+  authenticationScopes: readonly string[];
+  permissionScopes: readonly string[];
+  idempotency: { supported: boolean; requiredForWrites: boolean };
+  retry: { maxAttempts: number; retryableFailureClasses: readonly string[] };
+  serviceProfile: {
+    expectedLatencyMilliseconds: number;
+    estimatedCost: number;
+    availability: number;
+    reliability: number;
+  };
+  cacheability: CapabilityCacheability;
+  freshnessSeconds: number | null;
+  dataSensitivity: CapabilityDataSensitivity;
+  trustLevel: CapabilityTrustLevel;
+  isolation: CapabilityIsolation;
+}
+
+export interface CapabilityInvocationRequest {
+  capability: string;
+  version: number;
+  input: unknown;
+  tenantId: string;
+  actorId: string;
+  projectId: string | null;
+  permissionScopes: readonly string[];
+  policyVersion: string;
+  sideEffectClass: 'None' | 'ReadOnly' | 'ReversibleWrite' | 'IrreversibleWrite';
+  deadlineMilliseconds: number;
+  maximumOutputBytes: number;
+  correlationId: string;
+  idempotencyReference?: string | null;
+}
+
+export interface CapabilityExecutionMetadata {
+  capability: string;
+  version: number;
+  connectorId: string;
+  kind: CapabilityKind;
+  trustLevel: CapabilityTrustLevel;
+  transport: string;
+  projected: true;
+  outputReference: string;
+}
+
+export interface CapabilityInvocationResult {
+  output: unknown;
+  usage: UsageSummary;
+  confidence: number;
+  evidence: readonly EvidenceReference[];
+  metadata: CapabilityExecutionMetadata;
+}
+
+export interface CapabilityFailure {
+  code: string;
+  kind: CapabilityFailureKind;
+  message: string;
+  retryable: boolean;
+  capability?: string | null;
+  connectorId?: string | null;
+  correlationId?: string | null;
+}
+
 export interface TaskOutcome {
   output: unknown;
   resolutionLevel: ResolutionLevel;

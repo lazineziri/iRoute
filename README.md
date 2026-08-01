@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, and M2 are complete through W10**. See [the workstream status](docs/workstream-status.md). M3 starts with W11.
+Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W11**. See [the workstream status](docs/workstream-status.md). W12 is next.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -25,10 +25,12 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
 - provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
 - versioned golden evaluation across every built-in task, task-specific quality/safety scoring, cost/latency benchmarks, and a source-bound routing regression gate
+- one normalized capability contract with reference email, calendar, read-only database, registered OpenAPI, registered MCP, and typed agent-result connectors
+- connector projection before model context, bounded outputs/deadlines, classified failures, and write reuse through the approval/idempotency boundary
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
-This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and real connector execution are still ahead. The current `email.send` executor is deterministic and development-only.
+This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
 ## Quick start
 
@@ -80,7 +82,7 @@ node tools/run-evaluation.mjs
 
 The offline W10 gate needs no API or provider. `npm run test:regression` validates 42 candidate cases across all built-in tasks, compares the task-aware policy with the full-history single-strong reference, and verifies the checked reports under `eval/reports`. See [the evaluation guide](eval/README.md).
 
-To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. Set `ModelGateway__Transport=Streaming` to use bounded NDJSON streaming. `node tools/check-gateway-contract.mjs` verifies an external endpoint directly; run it against separate buffered and streaming gateways to prove contract parity. Gateway request/result, stream, health, and failure schemas are under `spec/schemas`.
+To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. Set `ModelGateway__Transport=Streaming` to use bounded NDJSON streaming. `node tools/check-gateway-contract.mjs` verifies an external endpoint directly; run it against separate buffered and streaming gateways to prove contract parity. Gateway and normalized capability request/result/failure schemas are under `spec/schemas`.
 
 ## Configuration
 

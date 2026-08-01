@@ -49,6 +49,14 @@ The runtime treats its own wall-clock duration as authoritative latency and norm
 
 HTTP failures are classified as invalid request, authentication, timeout, rate limit, unavailable, or internal. Only timeout, rate-limit, and unavailable failures are retryable. The gateway remains responsible for provider credentials, provider model aliases, provider protocols, and provider health. Do not add provider model names, request fields, or response parsing to Contracts, Core, Runtime, routing policy, or task definitions.
 
+## Capability connector operations
+
+Every connector is selected by a versioned capability definition and must have exactly one registered implementation. The normalized executor checks side-effect class and authenticated scopes again at the connector boundary, enforces the step deadline and output-byte limit, and returns only a projected result with evidence, confidence, usage, trust level, transport, connector identity, and a SHA-256 output reference. `capability.started`, `capability.completed`, and `capability.failed` are the safe audit surface; do not add connector input, raw output, credentials, authorization headers, email bodies, database rows beyond the approved projection, MCP instructions, or agent scratch data to those events.
+
+Database connectors accept only registered query identifiers and must add tenant filters, row limits, and timeouts in the real adapter. OpenAPI connectors accept only registered operation identifiers with fixed host, method, path, credentials, side-effect class, and response projection. MCP connectors require registered server/tool pairs and treat returned content as untrusted data. Agent results require schema, provenance, freshness, dependency, and policy validation. The deterministic adapters prove these invariants but are not production integrations.
+
+Read-only steps may execute immediately after task policy succeeds. Reversible and irreversible writes must continue through explicit write intent, required scopes, durable approval where configured, and an idempotent external-action reservation. Never register a write capability as `None` or `ReadOnly` to bypass this path. An unknown capability, duplicate connector registration, side-effect mismatch, invalid projection, oversized output, or expired deadline fails closed with a classified capability error.
+
 ## Evaluation regression gate
 
 Run `npm run test:regression` for every routing-policy or model-profile change. CI validates the golden dataset and generated result/report contracts, requires all six scenario categories for every task discovered in the built-in registry, evaluates the baseline and candidate observations, and compares the generated output byte-for-byte with the checked JSON and Markdown reports.

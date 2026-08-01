@@ -1,0 +1,14 @@
+{
+  "capability": "email.read",
+  "version": 1,
+  "input": { "query": "project status" },
+  "tenantId": "tenant-a",
+  "actorId": "user-42",
+  "projectId": "project-1",
+  "permissionScopes": ["email:read"],
+  "policyVersion": "w04.v1",
+  "sideEffectClass": "ReadOnly",
+  "deadlineMilliseconds": 5000,
+  "maximumOutputBytes": 65536,
+  "correlationId": "019fb8dc-91c3-7b21-b59b-927dc327f246"
+}

@@ -29,6 +29,9 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `plan.validated` | A typed plan passed graph and budget validation. |
 | `policy.evaluated` | The versioned capability, side-effect, scope, and approval policy produced a decision. |
 | `capability.denied` | Policy denied a capability before its executor could run. |
+| `capability.started` | A normalized connector invocation began with a registered capability version and deadline. |
+| `capability.completed` | A connector returned a projected result; data contains safe identity, trust, transport, usage, and output-reference metadata. |
+| `capability.failed` | A connector failed with a normalized code, kind, retryability, and safe connector identity. |
 | `approval.required` | A durable pending approval was created for an external action. |
 | `approval.decided` | An authorized actor durably approved or denied the action. |
 | `workflow.checkpointed` | The validated plan and initial step states were persisted. |
@@ -74,3 +77,7 @@ Every `routing.decided` event contains the routing policy version, direct/workfl
 ## Model gateway data
 
 `gateway.started` records only the step, capability, selected profile, and effective deadline. For streaming transports, `gateway.streamed` reports aggregate stream counts without persisting deltas. `gateway.completed` uses camel-case normalized usage fields and records `gatewayId`, `transport`, and `finishReason`. `gateway.failed` records the normalized failure kind and never copies a provider response body, credential, prompt, context, or generated output into the event stream.
+
+## Capability connector data
+
+`capability.started` records the step, capability version, side-effect class, and deadline. `capability.completed` records connector identity, capability kind, trust level, transport, normalized tool usage, the mandatory `projected=true` assertion, and a SHA-256 output reference. `capability.failed` records only normalized failure fields. Connector inputs, projected outputs, raw transport responses, MCP instructions, agent scratch data, credentials, and authorization material are never event data.

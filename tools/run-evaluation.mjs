@@ -528,6 +528,76 @@ try {
   console.error(`FAIL w05-w07-state-context: ${error.message}`);
 }
 
+try {
+  const cases = [
+    {
+      id: 'calendar',
+      taskType: 'calendar.find_slots',
+      permissionScope: 'calendar:read',
+      input: { timezone: 'Europe/Tirane' },
+      outputField: 'slots'
+    },
+    {
+      id: 'database',
+      taskType: 'database.answer',
+      permissionScope: 'database:read',
+      input: { queryId: 'project-status' },
+      outputField: 'answer'
+    }
+  ];
+
+  for (const item of cases) {
+    const response = await fetch(new URL('/v1/executions', baseUrl), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-tenant-id': 'evaluation',
+        'x-actor-id': 'evaluation-runner',
+        'x-permission-scopes': item.permissionScope,
+        'idempotency-key': `w11-${item.id}-${evaluationRunId}`
+      },
+      body: JSON.stringify({
+        taskType: item.taskType,
+        projectId: `evaluation-w11-${evaluationRunId}`,
+        input: item.input,
+        constraints: { maxModelCalls: 0, maxToolCalls: 1, deadlineMilliseconds: 20000 }
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`${item.id} execution returned HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    const execution = await response.json();
+    assertEqual(execution.status, 'Succeeded', `W11 ${item.id} status`);
+    assertEqual(execution.outcome?.resolutionLevel, 'DeterministicCapability', `W11 ${item.id} resolution`);
+    assertEqual(execution.outcome?.usage?.modelCalls, 0, `W11 ${item.id} model calls`);
+    assertEqual(execution.outcome?.usage?.toolCalls, 1, `W11 ${item.id} tool calls`);
+    if (execution.outcome?.output?.[item.outputField] === undefined) {
+      throw new Error(`W11 ${item.id} output omitted ${item.outputField}`);
+    }
+
+    const eventResponse = await fetch(
+      new URL(`/v1/executions/${execution.executionId}/events?after=0`, baseUrl),
+      { headers: { accept: 'text/event-stream', 'x-tenant-id': 'evaluation' } }
+    );
+    if (!eventResponse.ok) throw new Error(`W11 ${item.id} event replay returned HTTP ${eventResponse.status}`);
+    const events = parseSseEvents(await eventResponse.text());
+    if (!events.some(event => event.type === 'capability.started')) {
+      throw new Error(`W11 ${item.id} event replay omitted capability.started`);
+    }
+    const completed = events.find(event => event.type === 'capability.completed');
+    if (!completed) throw new Error(`W11 ${item.id} event replay omitted capability.completed`);
+    assertEqual(completed.data?.projected, true, `W11 ${item.id} projection flag`);
+    if (!completed.data?.connectorId || !completed.data?.outputReference) {
+      throw new Error(`W11 ${item.id} completion omitted connector metadata`);
+    }
+  }
+  console.log('PASS w11-capability-connectors');
+} catch (error) {
+  failed++;
+  console.error(`FAIL w11-capability-connectors: ${error.message}`);
+}
+
 if (failed > 0) process.exitCode = 1;
 
 function assertEqual(actual, expected, label) {

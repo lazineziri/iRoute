@@ -144,6 +144,139 @@ public sealed class ExecutionOrchestratorTests
     }
 
     [Fact]
+    public async Task ReadOnlyConnectorsCompleteThroughTheTaskOrchestrator()
+    {
+        var cases = new[]
+        {
+            new
+            {
+                TaskType = "calendar.find_slots",
+                Scope = "calendar:read",
+                Input = JsonSerializer.SerializeToElement(new { timezone = "Europe/Tirane" }),
+                ExpectedProperty = "slots"
+            },
+            new
+            {
+                TaskType = "database.answer",
+                Scope = "database:read",
+                Input = JsonSerializer.SerializeToElement(new { queryId = "project-status" }),
+                ExpectedProperty = "answer"
+            }
+        };
+
+        foreach (var item in cases)
+        {
+            var store = new InMemoryExecutionStore();
+            using var cancellations = new ExecutionCancellationRegistry();
+            var orchestrator = CreateOrchestrator(store, new InMemoryArtifactStore(), cancellations);
+            var result = await orchestrator.ExecuteAsync(
+                new TaskRequest(
+                    item.TaskType,
+                    item.Input,
+                    ProjectId: "project-1",
+                    IdempotencyKey: $"{item.TaskType}-connector",
+                    Constraints: new TaskConstraints(MaxModelCalls: 0, MaxToolCalls: 1),
+                    TenantId: "tenant-a",
+                    ActorId: "test-runner",
+                    PermissionScopes: [item.Scope]),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+            var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
+            Assert.Equal(ResolutionLevel.DeterministicCapability, outcome.ResolutionLevel);
+            Assert.Equal(0, outcome.Usage.ModelCalls);
+            Assert.Equal(1, outcome.Usage.ToolCalls);
+            Assert.True(outcome.Output.TryGetProperty(item.ExpectedProperty, out _));
+            Assert.NotEmpty(outcome.Evidence);
+            var events = await ReadEventsAsync(store, result.ExecutionId);
+            Assert.Contains(events, entry => entry.Type == ExecutionEventTypes.CapabilityStarted);
+            var completed = Assert.Single(events, entry => entry.Type == ExecutionEventTypes.CapabilityCompleted);
+            Assert.True(completed.Data.GetProperty("projected").GetBoolean());
+            Assert.False(string.IsNullOrWhiteSpace(
+                completed.Data.GetProperty("connectorId").GetString()));
+        }
+    }
+
+    [Fact]
+    public async Task OnlyProjectedConnectorOutputEntersDependentModelContext()
+    {
+        var definition = new TaskDefinition(
+            "email.read_then_summarize",
+            1,
+            "text.generation",
+            800,
+            0.8m,
+            true,
+            SideEffectClass.ReadOnly,
+            "email.summary",
+            DefaultMaxInputTokens: 4000,
+            DefaultDeadlineMilliseconds: 30000,
+            DefaultMaxModelCalls: 1,
+            AllowedCapabilities: ["email.read", "text.generation"],
+            PermissionScopes: ["email:read"],
+            RequiredCapabilities: ["email.read", "text.generation"],
+            DefaultMaxToolCalls: 1,
+            DefaultMaxTaskDepth: 2);
+        var plan = new ExecutionPlan(
+            "email.read_then_summarize@1:test",
+            1,
+            definition.TaskType,
+            definition.Version,
+            [
+                new ExecutionPlanStep(
+                    "read-email",
+                    ExecutionStepKind.Tool,
+                    "email.read",
+                    [],
+                    SideEffectClass.ReadOnly,
+                    5000),
+                new ExecutionPlanStep(
+                    "execute",
+                    ExecutionStepKind.Model,
+                    "text.generation",
+                    ["read-email"],
+                    SideEffectClass.None,
+                    5000,
+                    ProfileId: "text.generation.small.eval-v1")
+            ],
+            new ExecutionPlanBudget(2, 1, 1, 1, 2, 30000, 4000, 800));
+        var gateway = new CapturingModelGateway();
+        var store = new InMemoryExecutionStore();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            new InMemoryArtifactStore(),
+            cancellations,
+            gateway,
+            new FixedTaskRouter(plan),
+            taskDefinitions: new SingleTaskDefinitionRegistry(definition));
+
+        var result = await orchestrator.ExecuteAsync(
+            new TaskRequest(
+                definition.TaskType,
+                JsonSerializer.SerializeToElement(new { query = "project status" }),
+                ProjectId: "project-1",
+                IdempotencyKey: "read-and-summarize",
+                Constraints: new TaskConstraints(MaxModelCalls: 1, MaxToolCalls: 1, MaxTaskDepth: 2),
+                TenantId: "tenant-a",
+                ActorId: "test-runner",
+                PermissionScopes: ["email:read"]),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var gatewayRequest = Assert.IsType<ModelGatewayRequest>(gateway.LastRequest);
+        var capabilityOutput = gatewayRequest.Context
+            .GetProperty("capabilityOutputs")
+            .GetProperty("read-email");
+        var message = capabilityOutput.GetProperty("messages")[0];
+        Assert.True(message.TryGetProperty("snippet", out _));
+        Assert.False(message.TryGetProperty("body", out _));
+        Assert.False(message.TryGetProperty("headers", out _));
+        Assert.False(capabilityOutput.TryGetProperty("metadata", out _));
+        Assert.DoesNotContain("IGNORE", gatewayRequest.Context.GetRawText(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task OversizedEssentialInputFailsBeforeTheModelGateway()
     {
         var store = new InMemoryExecutionStore();
@@ -717,9 +850,10 @@ public sealed class ExecutionOrchestratorTests
         IExternalActionStore? externalActions = null,
         IExternalActionExecutor? externalActionExecutor = null,
         IMemoryStore? memories = null,
-        IEnumerable<IDeterministicTaskHandler>? deterministicHandlers = null)
+        IEnumerable<IDeterministicTaskHandler>? deterministicHandlers = null,
+        ITaskDefinitionRegistry? taskDefinitions = null)
     {
-        var definitions = new BuiltInTaskDefinitionRegistry();
+        ITaskDefinitionRegistry definitions = taskDefinitions ?? new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
         var clock = new SystemClock();
         checkpoints ??= new InMemoryWorkflowCheckpointStore();
@@ -749,6 +883,7 @@ public sealed class ExecutionOrchestratorTests
             approvals,
             externalActions,
             scheduler,
+            CreateCapabilityExecutor(clock),
             modelGateway ?? new DeterministicModelGateway(),
             externalActionExecutor ?? new DevelopmentExternalActionExecutor(),
             new BoundedContextCompiler(memories, artifacts, clock),
@@ -757,6 +892,18 @@ public sealed class ExecutionOrchestratorTests
             cancellations,
             clock);
     }
+
+    private static NormalizedCapabilityExecutor CreateCapabilityExecutor(IClock clock) =>
+        new NormalizedCapabilityExecutor(
+            new BuiltInCapabilityDefinitionRegistry(),
+            [
+                new ReferenceEmailConnector(),
+                new ReferenceCalendarConnector(),
+                new ReferenceDatabaseConnector(),
+                new ReferenceOpenApiConnector(),
+                new ReferenceMcpConnector(),
+                new ReferenceAgentResultConnector(clock)
+            ]);
 
     private static TaskRequest CreateRequest(string tenantId, string idempotencyKey) => new(
         "email.draft",
@@ -880,6 +1027,18 @@ public sealed class ExecutionOrchestratorTests
             TaskDefinition definition,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RoutingResult(plan, RoutingFor(plan)));
+    }
+
+    private sealed class SingleTaskDefinitionRegistry(TaskDefinition definition) : ITaskDefinitionRegistry
+    {
+        public Task<TaskDefinition?> FindAsync(string taskType, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<TaskDefinition?>(
+                string.Equals(taskType, definition.TaskType, StringComparison.Ordinal)
+                    ? definition
+                    : null);
+        }
     }
 
     private static RoutingDecision RoutingFor(ExecutionPlan plan) => new(

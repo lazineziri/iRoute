@@ -180,4 +180,25 @@ Acceptance evidence:
 - The checked comparison reports show the task-aware policy against the full-history single-strong reference and reject any per-task cost or latency increase without the configured justified quality gain.
 - CI runs `npm run test:regression`; routing/model-profile changes invalidate the recorded source fingerprint, while dataset changes invalidate the report fingerprint and snapshot.
 
-## Next: M3 / W11 — Capability connectors
+## M3 — Capability ecosystem: in progress
+
+### W11 — Capability connectors: complete
+
+Deliverables:
+
+- Versioned `CapabilityDefinition`, invocation, result, execution-metadata, and classified-failure contracts shared by .NET, JSON Schema, examples, and the Node SDK.
+- One normalized executor that resolves exactly one registered connector and enforces capability version, side-effect class, authenticated permission scopes, write idempotency, deadline, confidence, projection, and output-size limits.
+- Deterministic reference connectors for email read/draft/send, calendar read/find slots, tenant-scoped allow-listed database reads, registered OpenAPI operations, registered MCP tools, and typed agent-result ingestion.
+- Raw transport data is projected inside each connector. Only the projected `Output` member—not connector metadata, transport instructions, credentials, raw email bodies, or provider payloads—is admitted to dependent model context.
+- Read-only tool steps run through orchestration with `capability.started`, `capability.completed`, and `capability.failed` events. Approved writes reuse the same normalized executor behind the durable external-action reservation boundary.
+- Agent results require a supported schema version, provenance, bounded freshness, and dependencies. Database, OpenAPI, and MCP adapters reject arbitrary query text, destinations, servers, and tools.
+
+Acceptance evidence:
+
+- Connector conformance tests exercise every W11 transport and trust profile through the same request/result envelope and verify projected metadata, normalized usage, evidence, output hashes, permission enforcement, idempotency, and output bounds.
+- Adversarial tests reject raw SQL, arbitrary OpenAPI destinations, unknown MCP tools, stale agent results, side-effect mismatches, missing scopes, and write invocations without an idempotency reference.
+- Orchestrator tests complete `calendar.find_slots` and `database.answer` without model calls and prove a connector-to-model workflow contains only projected email fields.
+- Existing approval tests continue to prove writes cannot execute without explicit intent, scope, authorized approval, and a durable idempotency reservation.
+- The live evaluation exercises calendar and database connectors through the REST/SSE boundary and checks normalized usage plus connector lifecycle metadata.
+
+## Next: M3 / W12 — Capability lifecycle and health

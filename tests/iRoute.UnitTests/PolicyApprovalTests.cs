@@ -373,6 +373,7 @@ public sealed class PolicyApprovalTests
                 executions,
                 clock,
                 new WorkflowSchedulerOptions()),
+            CreateCapabilityExecutor(clock),
             new DeterministicModelGateway(),
             executor,
             new BoundedContextCompiler(memories, artifacts, clock),
@@ -385,6 +386,18 @@ public sealed class PolicyApprovalTests
             cancellations,
             clock);
     }
+
+    private static NormalizedCapabilityExecutor CreateCapabilityExecutor(IClock clock) =>
+        new NormalizedCapabilityExecutor(
+            new BuiltInCapabilityDefinitionRegistry(),
+            [
+                new ReferenceEmailConnector(),
+                new ReferenceCalendarConnector(),
+                new ReferenceDatabaseConnector(),
+                new ReferenceOpenApiConnector(),
+                new ReferenceMcpConnector(),
+                new ReferenceAgentResultConnector(clock)
+            ]);
 
     private static TaskRequest CreateSendRequest(IReadOnlyList<string> permissionScopes) => new(
         "email.send",

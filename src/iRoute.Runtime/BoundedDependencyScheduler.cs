@@ -394,6 +394,11 @@ public sealed class BoundedDependencyScheduler(
                         actionException.Title,
                         actionException.Message,
                         actionException.Retryable),
+                    CapabilityInvocationException capabilityException => new Problem(
+                        capabilityException.Code,
+                        "Capability invocation failed",
+                        capabilityException.Message,
+                        capabilityException.Retryable),
                     _ => new Problem(
                         ErrorCodes.WorkflowStepFailed,
                         "Workflow step failed",
@@ -406,7 +411,7 @@ public sealed class BoundedDependencyScheduler(
                     problem,
                     CancellationToken.None);
                 states[step.Id] = WorkflowStepStatus.Failed;
-                if (exception is ModelGatewayException or ExternalActionExecutionException)
+                if (exception is ModelGatewayException or ExternalActionExecutionException or CapabilityInvocationException)
                 {
                     throw;
                 }

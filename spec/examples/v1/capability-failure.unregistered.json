@@ -1,0 +1,9 @@
+{
+  "code": "capability_not_registered",
+  "kind": "NotRegistered",
+  "message": "Capability 'unknown.read' version 1 is not registered.",
+  "retryable": false,
+  "capability": "unknown.read",
+  "connectorId": null,
+  "correlationId": "019fb8dc-91c3-7b21-b59b-927dc327f246"
+}

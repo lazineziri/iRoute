@@ -152,6 +152,28 @@ flowchart LR
 
 The offline evaluator discovers the built-in task list independently from Infrastructure and requires a registered evaluator plus all six fixture categories for each task. It computes quality, evidence precision/coverage, unsupported-claim rate, external-action safety, tokens, calls, cost, and latency per completed task. Candidate policy sources are hashed into the dataset and checked report, so a routing or model-profile edit invalidates CI until fresh observations are recorded. The gate rejects quality below the task floor, safety failures, and cost or latency increases without a configured quality gain.
 
+W11 gives every non-model transport one normalized execution boundary:
+
+```mermaid
+flowchart LR
+    A["Typed plan step"] --> B["Policy-approved capability invocation"]
+    B --> C{"Registered connector"}
+    C --> D["Email / calendar"]
+    C --> E["Read-only database / OpenAPI"]
+    C --> F["MCP / agent result"]
+    D --> G["Connector-owned projection"]
+    E --> G
+    F --> G
+    G --> H["Normalized result, evidence, usage, metadata"]
+    H --> I["Task validation and artifact"]
+    H --> J["Projected output only"]
+    J --> K["Dependent model context"]
+    L["Write capability"] --> M["Approval and durable idempotency"]
+    M --> B
+```
+
+Core owns the connector registry/executor ports and Contracts owns the transport-neutral envelopes. Infrastructure owns transport registration, input restrictions, response projection, and reference adapters. Runtime never receives a raw transport response: it sees a projected `JsonElement`, evidence, confidence, normalized usage, and safe connector metadata. Model dependencies are deserialized from the normalized checkpoint envelope and only their projected output is added under `capabilityOutputs`; connector identity and other metadata remain in audit events. Writes stay on the approval and durable external-action path before reaching the same normalized executor.
+
 ## Code dependency topology
 
 ```mermaid
