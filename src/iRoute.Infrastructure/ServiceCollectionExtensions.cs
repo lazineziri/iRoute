@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IMemoryStore, EfMemoryStore>();
             services.AddSingleton<ILifecycleStore, EfLifecycleStore>();
             services.AddSingleton<IObservabilityStore, EfObservabilityStore>();
+            services.AddSingleton<SchemaMigrationManager>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);
         }

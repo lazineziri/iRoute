@@ -84,3 +84,4 @@ vendor/
 # Local source brief (the canonical specification is maintained in Markdown)
 /Task-Aware-LLM-Router-Project-Definition.docx
 /docs/reference/Task-Aware-LLM-Router-Project-Definition.docx
+/deploy/kubernetes/secret.yaml

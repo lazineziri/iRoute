@@ -30,6 +30,7 @@ jobs:
       - run: npm ci
       - run: npx --yes @redocly/cli@latest lint spec/openapi/iroute.v1.yaml
       - run: npm run test:contracts
+      - run: npm run test:deployment
       - run: npm run test:regression
       - run: npm ci --prefix sdks/node
       - run: npm run check --prefix sdks/node
@@ -66,3 +67,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: cargo test --manifest-path sdks/rust/Cargo.toml
       - run: cargo check --manifest-path sdks/rust/Cargo.toml --example execute
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: node tools/container-smoke.mjs
+      - run: docker build --file deploy/Dockerfile --target migrate --tag iroute-migrations:test .

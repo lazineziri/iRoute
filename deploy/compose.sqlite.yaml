@@ -1,0 +1,34 @@
+name: iroute-local
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Storage__Provider: Sqlite
+      Storage__AutoInitialize: "true"
+      ConnectionStrings__iRoute: Data Source=/var/lib/iroute/iroute.db
+      ModelGateway__Mode: Deterministic
+      Identity__Mode: DevelopmentHeaders
+      Observability__PayloadMode: MetadataOnly
+    ports:
+      - "8080:8080"
+    volumes:
+      - sqlite-data:/var/lib/iroute
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  sqlite-data:

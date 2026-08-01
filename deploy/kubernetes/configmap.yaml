@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iroute-config
+  namespace: iroute
+  labels:
+    app.kubernetes.io/name: iroute
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  Storage__Provider: Postgres
+  Storage__AutoInitialize: "false"
+  ModelGateway__Mode: Http
+  ModelGateway__BaseUrl: https://model-gateway.example.invalid
+  ModelGateway__GatewayId: production-gateway
+  ModelGateway__Transport: Buffered
+  Workflow__QueueCapacity: "16"
+  Workflow__MaxParallelSteps: "4"
+  Identity__Mode: Jwt
+  Identity__Authority: https://identity.example.invalid
+  Identity__Audience: iroute
+  Identity__PermissionClaim: scope
+  Observability__PayloadMode: MetadataOnly
+  Observability__MaxQueryDays: "90"
+  Observability__MaxExecutions: "1000"
+  Observability__MaxTimelineEvents: "1000"
+  Observability__MaxEventValueCharacters: "1000"
+  Observability__MaxRecentExecutions: "25"
+  Lifecycle__SweepInterval: 00:05:00
+  Lifecycle__DefaultArtifactTimeToLive: 30.00:00:00
+  Lifecycle__DefaultMemoryTimeToLive: 90.00:00:00
+  Lifecycle__ArchiveAfterInactive: 7.00:00:00
+  Lifecycle__DeleteAfterArchive: 7.00:00:00
+  Lifecycle__ArchiveRetention: 30.00:00:00
+  Lifecycle__MaxArtifactVersionsPerLineage: "5"
+  Lifecycle__MaxMemoryVersionsPerLineage: "5"
+  Lifecycle__MaxArtifactsPerTenant: "10000"
+  Lifecycle__MaxMemoryRecordsPerTenant: "10000"
+  Lifecycle__MaxArchivesPerTenant: "20000"
+  Lifecycle__BatchSize: "500"

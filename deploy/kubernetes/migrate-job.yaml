@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: iroute-migrate-
+  namespace: iroute
+  labels:
+    app.kubernetes.io/name: iroute
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: iroute
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: iroute-migrate
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: ghcr.io/your-org/iroute-migrations:0.1.0-alpha.1
+          imagePullPolicy: IfNotPresent
+          args: ["up"]
+          envFrom:
+            - configMapRef:
+                name: iroute-config
+          env:
+            - name: ConnectionStrings__iRoute
+              valueFrom:
+                secretKeyRef:
+                  name: iroute-secrets
+                  key: ConnectionStrings__iRoute
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

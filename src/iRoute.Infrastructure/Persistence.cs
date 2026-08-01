@@ -858,9 +858,17 @@ public sealed class DurableStorageHealthCheck(
         try
         {
             await using var database = await contextFactory.CreateDbContextAsync(cancellationToken);
-            return await database.Database.CanConnectAsync(cancellationToken)
-                ? HealthCheckResult.Healthy("The durable store is reachable.")
-                : HealthCheckResult.Unhealthy("The durable store is not reachable.");
+            if (!await database.Database.CanConnectAsync(cancellationToken))
+            {
+                return HealthCheckResult.Unhealthy("The durable store is not reachable.");
+            }
+
+            var pendingMigrations = await database.Database
+                .GetPendingMigrationsAsync(cancellationToken);
+            return pendingMigrations.Any()
+                ? HealthCheckResult.Unhealthy(
+                    "The durable store is reachable but requires schema migrations.")
+                : HealthCheckResult.Healthy("The durable store is reachable and schema-current.");
         }
         catch (Exception exception)
         {

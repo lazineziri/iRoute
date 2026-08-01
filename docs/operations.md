@@ -9,7 +9,9 @@
 
 ## Storage profiles
 
-The local API defaults to SQLite at `Data Source=iroute.db`. The Compose profile uses PostgreSQL. `Storage:AutoInitialize=true` applies checked-in migrations at startup. Disable automatic initialization where migrations are run as a separate deployment job. Every future migration requires upgrade, rollback, and mixed-version tests.
+The local API defaults to SQLite at `Data Source=iroute.db`. The single-container profile persists SQLite under `/var/lib/iroute`; the production-shaped Compose and Kubernetes profiles use PostgreSQL. `Storage:AutoInitialize=true` is a local convenience only. Production API and worker processes set it to `false` and rely on the dedicated migration process. Every future migration requires upgrade, rollback, and mixed-version tests.
+
+Readiness requires both a reachable durable store and no pending migration known to the running binary. A production pod therefore remains outside service until the migration job has completed. Liveness never probes the database and must not be used as readiness.
 
 Workflow plans, their routing decisions, and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`; cold lifecycle payloads are stored in `LifecycleArchives`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs, the selected route/profile, and active project state remain authoritative inputs for downstream work, while completed archives preserve recoverable provenance.
 
@@ -83,7 +85,9 @@ A completed external action is replayed from its durable result. A conflicting r
 
 ## Scaling
 
-The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. The lifecycle host is asynchronous but does not yet own a distributed lease. Cross-replica leasing, renewal, automatic recovery scans, external-action reconciliation, and distributed cancellation remain required before horizontal execution scaling.
+The PostgreSQL API is horizontally scalable for independent synchronous requests, persisted result/event reads, observability queries, and dashboard traffic. The Kubernetes reference starts two replicas, spreads them across nodes when possible, rolls with zero unavailable replicas, and exposes an HPA range of two to ten pods. All replicas use the same external PostgreSQL schema and run with `Storage:AutoInitialize=false`.
+
+An in-flight execution still belongs to the API process serving that request; process-local cancellation cannot interrupt work running in another replica. The lifecycle host does not yet own a distributed lease and therefore remains a single `Recreate` replica. Do not scale the worker. Cross-replica execution leasing, renewal, recovery scans, distributed cancellation, and external-action reconciliation remain future requirements. These limits do not prevent scaling independent API traffic, but they do prevent treating a running execution as transparently movable between nodes.
 
 ## Observability and telemetry
 
@@ -102,3 +106,68 @@ Production requires PostgreSQL point-in-time recovery, object-store versioning w
 ## Upgrade and privacy
 
 Schema changes must use expand-and-contract migrations. API and worker versions must overlap during rolling upgrades. Retention, deletion, and export must remain tenant-scoped and eventually cover indexes, artifacts, memory, and evaluation samples.
+
+## Container quick starts
+
+### One container with SQLite
+
+```bash
+docker compose -f deploy/compose.sqlite.yaml up --build --wait
+curl --fail http://localhost:8080/health/live
+curl --fail http://localhost:8080/health/ready
+```
+
+This is the smallest durable profile: one non-root, read-only API container, one named SQLite volume, the deterministic gateway, and development identity headers. It does not run lifecycle cleanup continuously. Run the worker separately when local TTL/quota sweeps are required. `docker compose ... down` preserves the named volume; use `down --volumes` only for an intentional reset.
+
+### PostgreSQL with migration and worker
+
+```bash
+cp .env.example .env
+docker compose -f deploy/compose.yaml up --build --wait
+docker compose -f deploy/compose.yaml run --rm migrate status
+```
+
+The `migrate` service must complete successfully before either API or worker starts. The API and worker never race to initialize the production schema. Replace the default password and development identity mode before using this profile outside a trusted local environment.
+
+## Schema migration commands
+
+The migration executable reads standard .NET configuration and supports status, forward upgrade, and explicit rollback:
+
+```bash
+dotnet run --project src/iRoute.Migrations -- status
+dotnet run --project src/iRoute.Migrations -- up
+dotnet run --project src/iRoute.Migrations -- up 20260801030000_LifecycleCleanup
+dotnet run --project src/iRoute.Migrations -- down 20260801010000_RoutingDecisionCheckpoint --confirm
+```
+
+Set `Storage__Provider` and `ConnectionStrings__iRoute` for the target database. `status` reports the provider, current migration, applied migrations, pending migrations, unknown applied migrations, and whether the binary and database are current. `up` refuses to move backward. `down` refuses to run without both an explicit target and `--confirm` because reverse migrations may destroy data.
+
+## Production upgrade procedure
+
+1. Build and publish immutable, scanned API, worker, and migration images from the same commit. Never deploy a floating `latest` tag.
+2. Confirm PostgreSQL backup/PITR health and record a restore point. Test restoration according to the service recovery objective.
+3. Run contract, regression, deployment, migration, and provider-specific persistence tests for the release.
+4. Apply only expand-phase schema changes. Run `iRoute.Migrations status`, then `up`, as a one-shot job using the release migration image.
+5. Require a successful migration job and a schema-current `/health/ready` before allowing new API pods into service.
+6. Roll API replicas with `maxUnavailable: 0`; verify liveness, readiness, an execution, SSE replay, and observability before completing the rollout.
+7. Replace the single worker only after API health is stable. Confirm one worker replica and a successful lifecycle sweep.
+8. Leave contract-phase column/table removal to a later release after all old binaries and rollback windows have expired.
+
+## Rollback procedure
+
+Application rollback is the default: stop the rollout and restore the previous API/worker images while leaving the additive schema in place. Expand-and-contract compatibility exists specifically so the previous application can overlap with the new schema.
+
+Run a schema `down` only when all application traffic and workers are drained, the previous binary cannot operate with the additive schema, a tested backup/restore point exists, and the migration's reverse data loss has been reviewed. Execute the exact previous migration target with `--confirm`, verify `status`, then deploy the matching binaries. If a failed migration partially changed external systems or data semantics, restore the database instead of improvising a reverse migration.
+
+## Kubernetes reference deployment
+
+The reference manifests assume an external highly available PostgreSQL service, a cluster metrics server for HPA, an ingress/TLS layer supplied by the operator, and images already published to a registry.
+
+1. Replace the image registry/tags and every `example.invalid` value in `deploy/kubernetes`.
+2. Apply `namespace.yaml`, `configmap.yaml`, and `serviceaccounts.yaml`.
+3. Create `iroute-secrets` from the platform secret manager. `secret.example.yaml` documents required keys but must never receive real values in Git; local `secret.yaml` is ignored.
+4. Create a unique migration job with `kubectl create -f deploy/kubernetes/migrate-job.yaml`, then wait for its generated Job name to complete and inspect its status output.
+5. Apply the workloads with `kubectl apply -k deploy/kubernetes` and wait for both `deployment/iroute-api` and `deployment/iroute-worker` rollouts.
+6. Verify `/health/live`, `/health/ready`, authenticated execution, event replay, and the dashboard through the operator-managed Service/Ingress.
+
+The API Deployment starts with two replicas and can scale to ten on measured CPU. Resource requests make HPA input meaningful; a PodDisruptionBudget keeps one API replica available; topology spreading reduces single-node concentration. The worker remains fixed at one replica until distributed leasing is implemented. The migration Job is never part of the steady-state Deployment and uses a generated name so every release has an auditable run.

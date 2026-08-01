@@ -257,4 +257,23 @@ Acceptance evidence:
 - SDK implementations contain protocol serialization, HTTP transport, streaming, and error mapping only; routing, planning, model selection, prompts, memory, quality scoring, provider choice, and retry policy remain server-side.
 - The CLI and six reference programs connect to `http://localhost:8080` with local tenant/actor defaults; the deterministic development runtime needs no provider credentials.
 
-## Next: M3 / W15 — Packaging and operations
+### W15 — Packaging and operations: complete
+
+Deliverables:
+
+- One multi-stage, non-root Dockerfile with independently publishable API, lifecycle-worker, and schema-migration targets, immutable-version metadata, read-only runtime compatibility, and API readiness health checks.
+- A persistent one-container SQLite quick start plus a PostgreSQL Compose profile that runs one migration service before starting the API and single lifecycle worker.
+- Liveness isolated from dependencies and readiness strengthened to require a reachable, schema-current durable store.
+- A dedicated migration executable with status, forward-only upgrade, targeted upgrade, unknown-schema detection, and explicit confirmed rollback over the shared SQLite/PostgreSQL migrations.
+- Kubernetes reference manifests for external PostgreSQL, a generated one-shot migration Job, two API replicas, rolling updates, HPA, PodDisruptionBudget, topology spreading, bounded resources, probes, and non-root/read-only containers.
+- Production upgrade, application rollback, exceptional schema rollback, backup, secret, health, and horizontal-scaling procedures.
+
+Acceptance evidence:
+
+- The container smoke runner builds the API image, starts exactly one SQLite container with a named volume, waits for schema-aware readiness, executes `email.draft`, verifies success, and removes only its isolated test stack.
+- Migration tests start from an empty SQLite database, apply all six migrations, reject an unconfirmed downgrade, roll back to an explicit target, reapply the latest migration, and prove readiness changes from unhealthy to healthy.
+- Deployment tests parse both Compose profiles and every Kubernetes YAML document, enforce migration-before-workload ordering, and prove only the API scales horizontally while the non-leased lifecycle worker remains one replica.
+- The PostgreSQL Compose and Kubernetes profiles set `Storage:AutoInitialize=false`; production migrations run once through the release-matched migration image instead of racing between replicas.
+- The operations guide documents immutable image rollout, expand-and-contract sequencing, backup/restore gates, schema-current readiness, zero-unavailable API rolling updates, application-first rollback, and guarded destructive schema rollback.
+
+## Next: M3 / W16 — Open-source release

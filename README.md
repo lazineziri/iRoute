@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W14**. See [the workstream status](docs/workstream-status.md). W15 is next.
+Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W15**. See [the workstream status](docs/workstream-status.md). W16 is next.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -35,6 +35,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET, Node.js, Python, Java, PHP, and Rust clients with shared conformance fixtures
 - a thin `iroute` CLI and runnable quick starts for every official SDK
+- non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
 
 This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. Run one lifecycle worker per database until leasing is implemented. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
@@ -80,6 +81,14 @@ dotnet run --project src/iRoute.Worker
 
 For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, lifecycle worker, and database together.
 
+The smallest container quick start runs one durable SQLite API container:
+
+```bash
+docker compose -f deploy/compose.sqlite.yaml up --build --wait
+```
+
+Production-shaped packaging, migration, Kubernetes, upgrade, and rollback guidance is in the [deployment guide](deploy/README.md) and [operations guide](docs/operations.md).
+
 Useful endpoints:
 
 - `GET /v1/executions/{executionId}`
@@ -98,6 +107,7 @@ Useful endpoints:
 dotnet run --project tests/iRoute.UnitTests --no-build -- -reporter quiet
 dotnet run --project tests/iRoute.ArchitectureTests --no-build -- -reporter quiet
 npm run test:contracts
+npm run test:deployment
 npm run test:regression
 npm run test:sdks
 ```

@@ -11,6 +11,7 @@ The canonical, reviewable project documentation is maintained as Markdown.
 - [Evaluation and regression guide](../eval/README.md)
 - [Official SDKs](../sdks/README.md)
 - [SDK and CLI quick starts](../examples/sdks/README.md)
+- [Container and Kubernetes profiles](../deploy/README.md)
 - [Architecture decision records](adr/)
 
 Public protocol definitions live under [`spec/`](../spec/), including OpenAPI,
