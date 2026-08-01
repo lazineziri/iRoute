@@ -6,10 +6,19 @@ on:
 permissions:
   contents: read
 jobs:
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/dependency-review-action@v5
   dotnet:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
@@ -22,8 +31,8 @@ jobs:
   contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24.18.1
           cache: npm
@@ -40,14 +49,14 @@ jobs:
     runs-on: ubuntu-latest
     container: python:3.14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: PYTHONPATH=sdks/python/src python -m unittest discover -s sdks/python/tests -v
       - run: python -m compileall -q sdks/python/src sdks/python/tests examples/sdks/python
   sdk-java:
     runs-on: ubuntu-latest
     container: eclipse-temurin:25-jdk
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: ./run-conformance.sh
         working-directory: sdks/java
       - run: javac --release 25 -Xlint:all -Werror -cp target/conformance-classes -d target/example-classes ../../examples/sdks/java/ExecuteExample.java
@@ -56,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     container: php:8.5-cli
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: find sdks/php/src sdks/php/tests examples/sdks/php -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: php tests/conformance.php
         working-directory: sdks/php
@@ -64,15 +73,42 @@ jobs:
     runs-on: ubuntu-latest
     container: rust:1.97.1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: cargo test --manifest-path sdks/rust/Cargo.toml
       - run: cargo check --manifest-path sdks/rust/Cargo.toml --example execute
   container:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24.18.1
       - run: node tools/container-smoke.mjs
       - run: docker build --file deploy/Dockerfile --target migrate --tag iroute-migrations:test .
+  release-readiness:
+    needs: [dotnet, contracts, sdk-python, sdk-java, sdk-php, sdk-rust, container]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.1
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix sdks/node
+      - run: dotnet restore iRoute.slnx
+      - run: npm run test:release
+      - run: node tools/build-release.mjs --output artifacts/release --require-clean
+      - uses: actions/upload-artifact@v7
+        with:
+          name: iroute-release-candidate-${{ github.sha }}
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 7

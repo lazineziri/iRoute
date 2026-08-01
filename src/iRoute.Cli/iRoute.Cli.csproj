@@ -8,10 +8,13 @@
     <PackageId>iRoute.Cli</PackageId>
     <Version>0.1.0-alpha.1</Version>
     <Description>Command-line client for the iRoute runtime.</Description>
-    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageTags>ai;llm;router;cli;dotnet-tool</PackageTags>
+    <PackageReleaseNotes>First alpha release of the iRoute command-line client.</PackageReleaseNotes>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../iRoute.Sdk.DotNet/iRoute.Sdk.DotNet.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>

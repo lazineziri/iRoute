@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose an improvement to iRoute behavior, contracts, or operations
+title: "[Feature]: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the adopter or operator problem without prescribing an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Explain how success would be measured.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and tradeoffs
+      description: Include compatibility, security, privacy, cost, latency, migration, and provider-boundary impact.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues, pull requests, and ADRs.
+          required: true
+        - label: I have not included confidential information or credentials.
+          required: true

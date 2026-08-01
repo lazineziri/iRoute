@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible defect in a supported iRoute release
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report vulnerabilities here. Use the private process in SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: iRoute version
+      description: Use a tag or full commit SHA.
+      placeholder: 0.1.0-alpha.1
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment profile
+      options:
+        - Local source
+        - SQLite container
+        - PostgreSQL Compose
+        - Kubernetes
+        - SDK or CLI only
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, .NET/Node version, and storage provider as relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Remove credentials, customer data, prompts, outputs, databases, and private traces.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Safe diagnostics
+      description: Include redacted errors or logs only when they contain no secrets or payloads.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+        - label: I removed credentials, personal data, customer payloads, and unredacted traces.
+          required: true

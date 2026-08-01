@@ -1,5 +1,8 @@
 # Public contract versioning
 
+The adopter-facing support window, SDK, stored-state, configuration, and
+deployment guarantees are defined in [compatibility.md](compatibility.md).
+
 OpenAPI 3.1 and JSON Schema 2020-12 under `spec/` are the language-neutral public contract. The current public API major is `v1`; task definitions, capabilities, plans, and artifacts carry their own integer versions.
 
 ## Compatibility rules

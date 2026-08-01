@@ -1,7 +1,10 @@
 {
   "name": "iroute/sdk",
   "description": "Thin PHP client for the iRoute runtime",
+  "type": "library",
   "license": "Apache-2.0",
+  "keywords": ["ai", "llm", "router", "sdk", "task-aware"],
+  "authors": [{ "name": "iRoute contributors" }],
   "require": { "php": ">=8.3", "ext-curl": "*" },
   "autoload": { "psr-4": { "IRoute\\": "src/" } }
 }

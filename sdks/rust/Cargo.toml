@@ -5,5 +5,8 @@ edition = "2024"
 rust-version = "1.97.1"
 license = "Apache-2.0"
 description = "Thin Rust client for the iRoute runtime"
+readme = "README.md"
+keywords = ["ai", "llm", "router", "sdk"]
+categories = ["api-bindings", "web-programming::http-client"]
 
 [dependencies]

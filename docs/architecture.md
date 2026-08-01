@@ -297,3 +297,31 @@ The API has two explicit identity profiles. `DevelopmentHeaders` accepts local t
 - New storage profiles implement state ports and must pass the same isolation and consistency suite.
 - New SDKs are derived from the versioned OpenAPI contract and wrapped idiomatically.
 - New adaptive policies require offline evaluation and rollback.
+
+## Adopter and contributor entry points
+
+The public adoption boundary is the v1 OpenAPI/JSON Schema surface, official
+SDKs, CLI, documented configuration, health endpoints, and release artifacts.
+An adopter does not need Core, Runtime, Infrastructure, or provider internals to
+execute and observe a task. The clean path is:
+
+```mermaid
+flowchart LR
+    A["Verified release and checksum"] --> B["SQLite quick start or PostgreSQL migration"]
+    B --> C["API readiness"]
+    C --> D["v1 SDK or CLI"]
+    D --> E["Typed execution and SSE"]
+    E --> F["Artifact and observability reads"]
+```
+
+Contributors should enter at the narrowest owning module: wire shape in
+Contracts/specification, invariants and ports in Core, orchestration in Runtime,
+adapters and persistence in Infrastructure, composition in hosts, and transport
+ergonomics in SDKs. A change that crosses these ownership lines needs an
+explicit explanation and, for a durable boundary decision, an ADR.
+
+Release tooling is outside the runtime dependency graph. `release.json` is the
+canonical release coordinate; the release gate checks package/image alignment,
+community policies, clean-install documentation, ignored private references,
+and tag-gated publication. It cannot weaken runtime, contract, migration, SDK,
+or evaluation gates.

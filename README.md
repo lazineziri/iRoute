@@ -4,7 +4,9 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W15**. See [the workstream status](docs/workstream-status.md). W16 is next.
+Formal backlog status: **M0, M1, M2, and M3 are complete through W16**. The
+first adoption-ready source baseline is `0.1.0-alpha.1`. See [the workstream
+status](docs/workstream-status.md) and [release notes](docs/releases/0.1.0-alpha.1.md).
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -36,10 +38,13 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - working .NET, Node.js, Python, Java, PHP, and Rust clients with shared conformance fixtures
 - a thin `iroute` CLI and runnable quick starts for every official SDK
 - non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
+- Apache-2.0 community governance, private security reporting, explicit compatibility windows, and reproducible checksummed release artifacts
 
 This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. Run one lifecycle worker per database until leasing is implemented. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
 ## Quick start
+
+For a clean clone or source archive, follow the [installation guide](docs/installation.md).
 
 Prerequisite: .NET SDK `10.0.100` or newer on the .NET 10 line. The repository is currently verified with SDK `10.0.102`.
 
@@ -110,6 +115,7 @@ npm run test:contracts
 npm run test:deployment
 npm run test:regression
 npm run test:sdks
+npm run test:release
 ```
 
 With the API running, execute the initial behavioral evaluation fixture:
@@ -172,4 +178,4 @@ Use the deterministic gateway only for local development and repeatable tests. B
 
 The dependency rule is `Contracts <- Core <- Runtime <- Infrastructure <- Hosts`; SDKs depend only on the public protocol. See [the architecture guide](docs/architecture.md), [operations guide](docs/operations.md), [contract versioning rules](docs/contract-versioning.md), [SSE event contract](spec/events/sse-v1.md), [error taxonomy](spec/errors/error-taxonomy.v1.md), and [canonical product/engineering specification](docs/iRoute-Product-Engineering-Specification.md).
 
-Public language-neutral contracts live in [OpenAPI](spec/openapi/iroute.v1.yaml) and [JSON Schema](spec/schemas). The [documentation map](docs/README.md) links the canonical Markdown sources. iRoute Core, contracts, official SDKs, and self-hosting remain Apache 2.0.
+Public language-neutral contracts live in [OpenAPI](spec/openapi/iroute.v1.yaml) and [JSON Schema](spec/schemas). The [documentation map](docs/README.md) links the canonical Markdown sources. Adoption and maintenance are governed by the [compatibility promise](docs/compatibility.md), [contributor guide](CONTRIBUTING.md), [security policy](SECURITY.md), and [release process](docs/releasing.md). iRoute Core, contracts, official SDKs, and self-hosting remain Apache 2.0.

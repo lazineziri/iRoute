@@ -3,6 +3,20 @@
   <groupId>dev.iroute</groupId>
   <artifactId>iroute-sdk</artifactId>
   <version>0.1.0-alpha.1</version>
+  <name>iRoute Java SDK</name>
+  <description>Thin Java client for the iRoute task-aware runtime</description>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>iRoute contributors</name>
+    </developer>
+  </developers>
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

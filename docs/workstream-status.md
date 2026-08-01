@@ -180,7 +180,7 @@ Acceptance evidence:
 - The checked comparison reports show the task-aware policy against the full-history single-strong reference and reject any per-task cost or latency increase without the configured justified quality gain.
 - CI runs `npm run test:regression`; routing/model-profile changes invalidate the recorded source fingerprint, while dataset changes invalidate the report fingerprint and snapshot.
 
-## M3 — Capability ecosystem: in progress
+## M3 — Capability ecosystem: complete
 
 ### W11 — Capability connectors: complete
 
@@ -276,4 +276,49 @@ Acceptance evidence:
 - The PostgreSQL Compose and Kubernetes profiles set `Storage:AutoInitialize=false`; production migrations run once through the release-matched migration image instead of racing between replicas.
 - The operations guide documents immutable image rollout, expand-and-contract sequencing, backup/restore gates, schema-current readiness, zero-unavailable API rolling updates, application-first rollback, and guarded destructive schema rollback.
 
-## Next: M3 / W16 — Open-source release
+### W16 — Open-source release: complete
+
+Deliverables:
+
+- Apache-2.0 source licensing and NOTICE attribution propagated into .NET,
+  Node.js, Python, Java, PHP, and Rust package metadata.
+- A contributor guide with clean setup, architectural boundaries, change-type
+  evidence, compatibility/versioning rules, pull-request expectations,
+  contribution terms, and Conventional Commit guidance.
+- A private-advisory security policy with supported versions, reporting content,
+  response expectations, scope, coordinated disclosure, and safe-research rules.
+- Governance, support, Code of Conduct, structured bug/feature forms, and a pull
+  request template that separates security reports from public collaboration.
+- An explicit compatibility promise across the v1 wire contract, SDKs, stored
+  state/migrations, configuration, deployment, deprecation, and stable support
+  windows.
+- Canonical `0.1.0-alpha.1` release metadata, changelog, release notes, clean
+  installation guide, maintainer release procedure, and contributor-oriented
+  architecture entry points.
+- A reproducible release builder for source, NuGet, .NET tool, and npm artifacts
+  with a machine-readable manifest and SHA-256 checksum file.
+- Tag-gated GitHub prerelease automation plus a manual dry-run path; package
+  registry and container publication remain explicit maintainer actions rather
+  than guessed external side effects.
+
+Acceptance evidence:
+
+- Release-readiness tests align every package, Docker, Kubernetes, changelog,
+  and release-note version with `release.json`; parse community/workflow YAML;
+  and reject tracked private DOCX, local secret, or generated-state inputs.
+- CI rebuilds the checksummed release candidate from a clean checkout only after
+  .NET, contract, deployment, regression, six native SDK, and live container
+  jobs pass.
+- The installation guide follows the same restore, strict build, test, Compose
+  startup, health, and real `email.draft` path exercised by CI.
+- The security policy defines the private GitHub advisory channel and identifies
+  the supported alpha version without promising an unavailable SLA.
+- Contribution, compatibility, semantic versioning, changelog, migration,
+  deprecation, tag immutability, artifact integrity, and rollback rules are
+  explicit and cross-linked from the root documentation.
+
+## Formal project-definition backlog complete
+
+All W01-W16 workstreams are implemented. Future work proceeds through public
+issues, ADRs, compatibility-preserving releases, and measured roadmap decisions
+rather than an undocumented W17.

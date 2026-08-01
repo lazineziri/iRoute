@@ -1,0 +1,99 @@
+# Release process
+
+Releases are immutable, version-aligned, and built from reviewed commits. The
+canonical release metadata is [release.json](../release.json); package manifests,
+container labels, Kubernetes tags, changelog entries, and release notes must
+agree with it.
+
+## Release artifacts
+
+The prerelease builder produces:
+
+- source archive;
+- `iRoute.Contracts` NuGet package;
+- `iRoute.Sdk` NuGet package;
+- `iRoute.Cli` .NET tool package;
+- `@iroute/sdk` npm package tarball;
+- release notes;
+- machine-readable release manifest with sizes and SHA-256 digests;
+- `SHA256SUMS` covering every distributed file.
+
+The Python, Java, PHP, and Rust SDKs are included in the source archive and
+validated in native CI jobs. Registry publication for any SDK is a separate,
+explicit maintainer action after package ownership and credentials are
+configured; the GitHub release workflow does not guess or claim registry names.
+
+Container images are built from the same commit using the `api`, `worker`, and
+`migrate` Dockerfile targets. Operators must publish immutable tags to their
+controlled registry and replace the registry placeholders in the Kubernetes
+reference before production use.
+
+## Prepare
+
+1. Choose a SemVer version and channel. Update `release.json` first.
+2. Align every package version and immutable image tag.
+3. Move user-visible `Unreleased` entries into the versioned changelog section.
+4. Add `docs/releases/<version>.md` with capabilities, known limits, upgrade,
+   rollback, and checksum guidance.
+5. Run dependency, secret, license, contract, migration, and compatibility
+   review. Resolve every unexplained change.
+6. Confirm the security advisory channel is enabled and a maintainer can receive
+   private reports.
+
+## Verify from a clean checkout
+
+Run the full installation path in [installation.md](installation.md), followed
+by the release builder in a new empty directory:
+
+```bash
+npm run test:release
+node tools/build-release.mjs --output /tmp/iroute-release
+node tools/verify-release.mjs --input /tmp/iroute-release
+node tools/package-install-smoke.mjs --input /tmp/iroute-release
+```
+
+Inspect `release-manifest.json` and verify every line in `SHA256SUMS`. Build the
+three Docker targets, run the SQLite container smoke test, render the Kubernetes
+base with `kubectl kustomize`, and test the PostgreSQL migration/rollback path
+against a disposable database.
+
+No release may proceed with a dirty worktree, a failing required check, a
+tracked credential/reference document, an unexplained compatibility snapshot
+change, a floating image tag, or an unreviewed migration.
+
+## Tag and publish
+
+1. Merge the release commit to the default branch.
+2. Create a signed annotated tag `v<version>` on that exact commit.
+3. Push the commit and tag. The tag-triggered `release.yml` workflow reruns the
+   release gate and artifact build.
+4. The workflow creates a GitHub prerelease from the checked release notes and
+   attaches the checksummed artifacts. It never publishes on a manual dry run.
+5. Download the published assets, recompute SHA-256 digests independently, and
+   compare them with `SHA256SUMS`.
+6. Publish immutable container and language-registry packages only after the
+   GitHub artifacts are verified. Record their digests in the release notes or
+   an attestation before announcing availability.
+
+Never move or recreate a published tag. If a release is incorrect, preserve it,
+mark it superseded when necessary, and publish a new patch/prerelease version.
+
+## Post-release
+
+- Verify the documented clean install using only published source/assets.
+- Verify API liveness/readiness, one deterministic execution, SSE replay, and
+  observability.
+- Confirm the changelog and support table identify the released version.
+- Open the next `Unreleased` section and record follow-up issues.
+- Monitor private security advisories and installation reports.
+
+## Rollback and failed publication
+
+Before a GitHub release is public, stop the workflow, delete incomplete draft
+artifacts, fix the release commit, and use a new tag. After publication, do not
+replace assets under the same version. Publish a correcting version and follow
+the application-first rollback procedure in [operations.md](operations.md).
+
+A registry artifact whose checksum does not match is treated as a supply-chain
+incident: stop distribution, preserve evidence, rotate affected credentials,
+and use the private security process.
