@@ -4,6 +4,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      target: api
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       Storage__Provider: Postgres
@@ -20,8 +21,39 @@ services:
       Identity__Authority: ${IROUTE_IDENTITY_AUTHORITY:-}
       Identity__Audience: ${IROUTE_IDENTITY_AUDIENCE:-}
       Identity__PermissionClaim: ${IROUTE_IDENTITY_PERMISSION_CLAIM:-scope}
+      Lifecycle__DefaultArtifactTimeToLive: ${IROUTE_ARTIFACT_TTL:-30.00:00:00}
+      Lifecycle__DefaultMemoryTimeToLive: ${IROUTE_MEMORY_TTL:-90.00:00:00}
     ports:
       - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: worker
+    environment:
+      Storage__Provider: Postgres
+      Storage__AutoInitialize: "true"
+      ConnectionStrings__iRoute: Host=postgres;Port=5432;Database=iroute;Username=iroute;Password=${IROUTE_DB_PASSWORD:-local-development-only}
+      Lifecycle__SweepInterval: ${IROUTE_LIFECYCLE_SWEEP_INTERVAL:-00:05:00}
+      Lifecycle__DefaultArtifactTimeToLive: ${IROUTE_ARTIFACT_TTL:-30.00:00:00}
+      Lifecycle__DefaultMemoryTimeToLive: ${IROUTE_MEMORY_TTL:-90.00:00:00}
+      Lifecycle__ArchiveAfterInactive: ${IROUTE_ARCHIVE_AFTER_INACTIVE:-7.00:00:00}
+      Lifecycle__DeleteAfterArchive: ${IROUTE_DELETE_AFTER_ARCHIVE:-7.00:00:00}
+      Lifecycle__ArchiveRetention: ${IROUTE_ARCHIVE_RETENTION:-30.00:00:00}
+      Lifecycle__MaxArtifactVersionsPerLineage: ${IROUTE_MAX_ARTIFACT_VERSIONS:-5}
+      Lifecycle__MaxMemoryVersionsPerLineage: ${IROUTE_MAX_MEMORY_VERSIONS:-5}
+      Lifecycle__MaxArtifactsPerTenant: ${IROUTE_MAX_ARTIFACTS_PER_TENANT:-10000}
+      Lifecycle__MaxMemoryRecordsPerTenant: ${IROUTE_MAX_MEMORY_PER_TENANT:-10000}
+      Lifecycle__MaxArchivesPerTenant: ${IROUTE_MAX_ARCHIVES_PER_TENANT:-20000}
+      Lifecycle__BatchSize: ${IROUTE_LIFECYCLE_BATCH_SIZE:-500}
     depends_on:
       postgres:
         condition: service_healthy

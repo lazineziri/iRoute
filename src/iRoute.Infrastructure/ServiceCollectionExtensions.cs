@@ -13,6 +13,10 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<ModelGatewayOptions>(configuration.GetSection("ModelGateway"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
+        var lifecyclePolicy = configuration.GetSection("Lifecycle").Get<LifecyclePolicy>()
+            ?? new LifecyclePolicy();
+        lifecyclePolicy.EnsureValid();
+        services.AddSingleton(lifecyclePolicy);
         services.AddSingleton<IClock, SystemClock>();
         var storageProvider = configuration["Storage:Provider"] ?? "Sqlite";
         if (string.Equals(storageProvider, "Memory", StringComparison.OrdinalIgnoreCase))
@@ -21,8 +25,13 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IWorkflowCheckpointStore, InMemoryWorkflowCheckpointStore>();
             services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
             services.AddSingleton<IExternalActionStore, InMemoryExternalActionStore>();
-            services.AddSingleton<IArtifactStore, InMemoryArtifactStore>();
-            services.AddSingleton<IMemoryStore, InMemoryMemoryStore>();
+            services.AddSingleton<InMemoryArtifactStore>();
+            services.AddSingleton<IArtifactStore>(provider =>
+                provider.GetRequiredService<InMemoryArtifactStore>());
+            services.AddSingleton<InMemoryMemoryStore>();
+            services.AddSingleton<IMemoryStore>(provider =>
+                provider.GetRequiredService<InMemoryMemoryStore>());
+            services.AddSingleton<ILifecycleStore, InMemoryLifecycleStore>();
         }
         else
         {
@@ -50,6 +59,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IExternalActionStore, EfExternalActionStore>();
             services.AddSingleton<IArtifactStore, EfArtifactStore>();
             services.AddSingleton<IMemoryStore, EfMemoryStore>();
+            services.AddSingleton<ILifecycleStore, EfLifecycleStore>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);
         }

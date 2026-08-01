@@ -4,10 +4,11 @@ using iRoute.Core;
 
 namespace iRoute.Infrastructure;
 
-public sealed class InMemoryMemoryStore : IMemoryStore
+public sealed class InMemoryMemoryStore(LifecyclePolicy? lifecyclePolicy = null) : IMemoryStore
 {
     private readonly ConcurrentDictionary<Guid, MemoryRecord> _records = new();
     private readonly object _sync = new();
+    private readonly LifecyclePolicy _lifecyclePolicy = lifecyclePolicy ?? new LifecyclePolicy();
 
     public Task<MemoryWriteResult> UpsertAsync(
         MemoryRecord record,
@@ -44,6 +45,8 @@ public sealed class InMemoryMemoryStore : IMemoryStore
                 SupersededByMemoryId = null,
                 InvalidatedAt = null,
                 InvalidationReason = null,
+                ExpiresAt = record.ExpiresAt ??
+                    record.CreatedAt.Add(_lifecyclePolicy.DefaultMemoryTimeToLive),
                 Dependencies = record.Dependencies
                     .DistinctBy(item => (item.Kind, item.Reference))
                     .OrderBy(item => item.Kind, StringComparer.Ordinal)
@@ -64,6 +67,36 @@ public sealed class InMemoryMemoryStore : IMemoryStore
                 versioned,
                 previous is null ? null : _records[previous.MemoryId],
                 true));
+        }
+    }
+
+    internal IReadOnlyList<MemoryRecord> LifecycleSnapshot()
+    {
+        lock (_sync)
+        {
+            return _records.Values.ToArray();
+        }
+    }
+
+    internal bool LifecycleUpdate(MemoryRecord record)
+    {
+        lock (_sync)
+        {
+            if (!_records.ContainsKey(record.MemoryId))
+            {
+                return false;
+            }
+
+            _records[record.MemoryId] = record;
+            return true;
+        }
+    }
+
+    internal bool LifecycleRemove(Guid memoryId)
+    {
+        lock (_sync)
+        {
+            return _records.TryRemove(memoryId, out _);
         }
     }
 

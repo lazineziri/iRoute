@@ -36,9 +36,22 @@ public sealed class DependencyEdgeEntity
     public string? TargetContentHash { get; set; }
 }
 
-public sealed class EfMemoryStore(IDbContextFactory<IRouteDbContext> contextFactory) : IMemoryStore
+public sealed class LifecycleArchiveEntity
+{
+    public LifecycleResourceKind ResourceKind { get; set; }
+    public Guid ResourceId { get; set; }
+    public string TenantId { get; set; } = null!;
+    public string ContentHash { get; set; } = null!;
+    public string PayloadJson { get; set; } = null!;
+    public long ArchivedAtUnixMilliseconds { get; set; }
+}
+
+public sealed class EfMemoryStore(
+    IDbContextFactory<IRouteDbContext> contextFactory,
+    LifecyclePolicy? lifecyclePolicy = null) : IMemoryStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly LifecyclePolicy _lifecyclePolicy = lifecyclePolicy ?? new LifecyclePolicy();
 
     public async Task<MemoryWriteResult> UpsertAsync(
         MemoryRecord record,
@@ -78,6 +91,8 @@ public sealed class EfMemoryStore(IDbContextFactory<IRouteDbContext> contextFact
             SupersededByMemoryId = null,
             InvalidatedAt = null,
             InvalidationReason = null,
+            ExpiresAt = record.ExpiresAt ??
+                record.CreatedAt.Add(_lifecyclePolicy.DefaultMemoryTimeToLive),
             Dependencies = NormalizeDependencies(record.Dependencies)
         };
         if (active is not null)

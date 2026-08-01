@@ -11,13 +11,19 @@
 
 The local API defaults to SQLite at `Data Source=iroute.db`. The Compose profile uses PostgreSQL. `Storage:AutoInitialize=true` applies checked-in migrations at startup. Disable automatic initialization where migrations are run as a separate deployment job. Every future migration requires upgrade, rollback, and mixed-version tests.
 
-Workflow plans, their routing decisions, and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs, the selected route/profile, and active project state remain authoritative inputs for downstream steps.
+Workflow plans, their routing decisions, and step checkpoints are stored in `WorkflowPlans` and `WorkflowSteps`. Approvals and idempotent external-action reservations are stored in `Approvals` and `ExternalActions`. Versioned project facts/decisions are stored in `MemoryRecords`; artifact and memory provenance is normalized in `DependencyEdges`; cold lifecycle payloads are stored in `LifecycleArchives`. A restart resets only interrupted workflow steps to `Pending`; completed step outputs, the selected route/profile, and active project state remain authoritative inputs for downstream work, while completed archives preserve recoverable provenance.
 
 ## Artifact and memory lifecycle
 
 Artifact and memory lineages have exactly one active version. Materializing identical content returns that version; changed content creates the next version and marks the prior version superseded. When a referenced memory/source version changes or disappears, targeted invalidation marks active dependents invalid and follows artifact-to-artifact edges recursively. Operators can inspect lifecycle metadata and hashes without loading request, memory, or artifact payloads into events or telemetry.
 
-All direct reads and invalidation queries require a tenant scope at the persistence boundary. Never implement an administrative cleanup or repair job with an unscoped artifact, memory, or dependency query. PostgreSQL serializable transactions protect version allocation; retry serialization conflicts at the job boundary rather than inventing a version.
+New records without an explicit expiry receive `Lifecycle:DefaultArtifactTimeToLive` or `Lifecycle:DefaultMemoryTimeToLive`. Each sweep expires due active records first and propagates invalidation before selecting cold records. Candidates come from inactive age, per-lineage overflow, and tenant overflow. `BatchSize` bounds each stage. A record with an active artifact or memory dependent is protected even when it exceeds a quota.
+
+Archival and deletion are deliberately separate phases. A sweep first writes a tenant-scoped archive containing the source entity, dependency references, and content hash. Only an archive that existed before the current sweep and is older than `DeleteAfterArchive` can authorize physical source deletion. Deletion removes incoming and outgoing dependency edges and repairs supersession pointers. The archive remains until the source is gone and either `ArchiveRetention` elapses or the tenant archive quota requires oldest-first removal. `DanglingDependencyEdgeCount` must remain zero after every sweep.
+
+Run `src/iRoute.Worker` continuously for durable profiles; the Compose profile starts it beside the API. Until distributed worker leasing is implemented, run one lifecycle worker per database. Sweep completion logs expose only counts—expired, archived, deleted, protected, purged, remaining records, and dangling edges—not archived payloads. A failed sweep rolls back its durable transaction and is retried on the next interval.
+
+All direct reads, archives, deletions, and invalidation queries require a tenant scope at the persistence boundary. Never implement an administrative cleanup or repair job with an unscoped artifact, memory, archive, or dependency query. PostgreSQL serializable transactions protect version allocation and lifecycle mutation; treat serialization conflicts as retryable job failures rather than inventing a version. Keep API TTL values aligned with worker values so newly written expiry timestamps match the operating policy.
 
 ## No-model resolution audit
 
@@ -77,7 +83,7 @@ A completed external action is replayed from its durable result. A conflicting r
 
 ## Scaling
 
-The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. Cross-replica leasing, renewal, automatic recovery scans, external-action reconciliation, and distributed cancellation remain required before horizontal execution scaling.
+The current HTTP profile executes synchronously. The dependency scheduler persists every attempt and can resume an interrupted plan without repeating completed steps. API replicas may share PostgreSQL for reads and persisted outcomes, but in-flight cancellation is signalled only inside the process executing the request. The lifecycle host is asynchronous but does not yet own a distributed lease. Cross-replica leasing, renewal, automatic recovery scans, external-action reconciliation, and distributed cancellation remain required before horizontal execution scaling.
 
 ## Telemetry
 

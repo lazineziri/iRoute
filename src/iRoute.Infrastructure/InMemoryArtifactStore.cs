@@ -4,10 +4,11 @@ using iRoute.Core;
 
 namespace iRoute.Infrastructure;
 
-public sealed class InMemoryArtifactStore : IArtifactStore
+public sealed class InMemoryArtifactStore(LifecyclePolicy? lifecyclePolicy = null) : IArtifactStore
 {
     private readonly ConcurrentDictionary<Guid, ArtifactRecord> _artifacts = new();
     private readonly object _sync = new();
+    private readonly LifecyclePolicy _lifecyclePolicy = lifecyclePolicy ?? new LifecyclePolicy();
 
     public Task<ArtifactRecord?> FindReusableAsync(
         ArtifactReuseQuery query,
@@ -117,6 +118,8 @@ public sealed class InMemoryArtifactStore : IArtifactStore
                     .ToArray(),
                 InvalidatedAt = null,
                 InvalidationReason = null,
+                ExpiresAt = artifact.ExpiresAt ??
+                    artifact.CreatedAt.Add(_lifecyclePolicy.DefaultArtifactTimeToLive),
                 Content = artifact.Content.Clone()
             };
             if (active is not null)
@@ -131,6 +134,36 @@ public sealed class InMemoryArtifactStore : IArtifactStore
 
             _artifacts[versioned.ArtifactId] = versioned;
             return Task.FromResult(versioned);
+        }
+    }
+
+    internal IReadOnlyList<ArtifactRecord> LifecycleSnapshot()
+    {
+        lock (_sync)
+        {
+            return _artifacts.Values.ToArray();
+        }
+    }
+
+    internal bool LifecycleUpdate(ArtifactRecord artifact)
+    {
+        lock (_sync)
+        {
+            if (!_artifacts.ContainsKey(artifact.ArtifactId))
+            {
+                return false;
+            }
+
+            _artifacts[artifact.ArtifactId] = artifact;
+            return true;
+        }
+    }
+
+    internal bool LifecycleRemove(Guid artifactId)
+    {
+        lock (_sync)
+        {
+            return _artifacts.TryRemove(artifactId, out _);
         }
     }
 

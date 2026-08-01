@@ -174,6 +174,23 @@ flowchart LR
 
 Core owns the connector registry/executor ports and Contracts owns the transport-neutral envelopes. Infrastructure owns transport registration, input restrictions, response projection, and reference adapters. Runtime never receives a raw transport response: it sees a projected `JsonElement`, evidence, confidence, normalized usage, and safe connector metadata. Model dependencies are deserialized from the normalized checkpoint envelope and only their projected output is added under `capabilityOutputs`; connector identity and other metadata remain in audit events. Writes stay on the approval and durable external-action path before reaching the same normalized executor.
 
+W12 bounds reusable state through an asynchronous, dependency-aware lifecycle:
+
+```mermaid
+flowchart LR
+    A["Artifact and memory state"] --> B["Expire due active records"]
+    B --> C["Recursively invalidate dependents"]
+    C --> D["Select cold and quota-overflow candidates"]
+    D --> E{"Active dependent?"}
+    E -->|"yes"| F["Protect source"]
+    E -->|"no"| G["Write tenant-scoped archive"]
+    G --> H["Later worker sweep"]
+    H --> I["Delete source and repair indexes"]
+    I --> J["Retain bounded provenance archive"]
+```
+
+Core owns lifecycle policy, results, deletion requests, storage snapshots, and the lifecycle-store port. Infrastructure implements equivalent in-memory and EF cleanup engines. The Worker owns cadence and count-only logging. Expiry and explicit deletion both invalidate dependent memory and artifacts before source removal. Archival is idempotent and tenant-scoped; a newly created archive can never authorize deletion in the same sweep. Physical deletion removes dependency edges and broken supersession pointers, while archive retention remains independently bounded.
+
 ## Code dependency topology
 
 ```mermaid
@@ -231,7 +248,7 @@ Every transition is persisted and emits an ordered event. Terminal states are im
 
 ## Persistence profiles
 
-`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, approvals, and external-action reservations through the same ports. Restart tests cover workflow recovery, approval-gated action resumption, routing-decision preservation, and project-state lifecycle parity.
+`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, and external-action reservations through the same ports. Restart tests cover workflow recovery, approval-gated action resumption, routing-decision preservation, project-state lifecycle parity, and two-phase archival/deletion.
 
 `Storage:AutoInitialize` applies checked-in EF migrations. The initial migration contains provider-specific SQL so SQLite uses its native storage representation while PostgreSQL uses native UUID and boolean columns. Future changes must follow expand-and-contract migration rules.
 

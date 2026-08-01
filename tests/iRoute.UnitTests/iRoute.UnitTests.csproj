@@ -13,5 +13,6 @@
     <ProjectReference Include="../../src/iRoute.Api/iRoute.Api.csproj" />
     <ProjectReference Include="../../src/iRoute.Infrastructure/iRoute.Infrastructure.csproj" />
     <ProjectReference Include="../../src/iRoute.Runtime/iRoute.Runtime.csproj" />
+    <ProjectReference Include="../../src/iRoute.Worker/iRoute.Worker.csproj" />
   </ItemGroup>
 </Project>

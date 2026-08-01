@@ -27,6 +27,7 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
     public DbSet<ArtifactEntity> Artifacts => Set<ArtifactEntity>();
     public DbSet<MemoryEntity> MemoryRecords => Set<MemoryEntity>();
     public DbSet<DependencyEdgeEntity> DependencyEdges => Set<DependencyEdgeEntity>();
+    public DbSet<LifecycleArchiveEntity> LifecycleArchives => Set<LifecycleArchiveEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -175,6 +176,14 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
             x.TargetKind,
             x.TargetReference
         });
+
+        var lifecycleArchive = modelBuilder.Entity<LifecycleArchiveEntity>();
+        lifecycleArchive.ToTable("LifecycleArchives");
+        lifecycleArchive.HasKey(x => new { x.TenantId, x.ResourceKind, x.ResourceId });
+        lifecycleArchive.Property(x => x.TenantId).HasMaxLength(200);
+        lifecycleArchive.Property(x => x.ResourceKind).HasConversion<string>().HasMaxLength(40);
+        lifecycleArchive.Property(x => x.ContentHash).HasMaxLength(64);
+        lifecycleArchive.HasIndex(x => new { x.TenantId, x.ArchivedAtUnixMilliseconds });
     }
 }
 
@@ -622,8 +631,12 @@ public sealed class EfWorkflowCheckpointStore(IDbContextFactory<IRouteDbContext>
     }
 }
 
-public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFactory) : IArtifactStore
+public sealed class EfArtifactStore(
+    IDbContextFactory<IRouteDbContext> contextFactory,
+    LifecyclePolicy? lifecyclePolicy = null) : IArtifactStore
 {
+    private readonly LifecyclePolicy _lifecyclePolicy = lifecyclePolicy ?? new LifecyclePolicy();
+
     public async Task<ArtifactRecord?> FindReusableAsync(
         ArtifactReuseQuery query,
         CancellationToken cancellationToken)
@@ -730,7 +743,9 @@ public sealed class EfArtifactStore(IDbContextFactory<IRouteDbContext> contextFa
             SupersededByArtifactId = null,
             Dependencies = EfMemoryStore.NormalizeDependencies(artifact.EffectiveDependencies),
             InvalidatedAt = null,
-            InvalidationReason = null
+            InvalidationReason = null,
+            ExpiresAt = artifact.ExpiresAt ??
+                artifact.CreatedAt.Add(_lifecyclePolicy.DefaultArtifactTimeToLive)
         };
         if (active is not null)
         {

@@ -201,4 +201,23 @@ Acceptance evidence:
 - Existing approval tests continue to prove writes cannot execute without explicit intent, scope, authorized approval, and a durable idempotency reservation.
 - The live evaluation exercises calendar and database connectors through the REST/SSE boundary and checks normalized usage plus connector lifecycle metadata.
 
-## Next: M3 / W12 — Capability lifecycle and health
+### W12 — Lifecycle cleanup: complete
+
+Deliverables:
+
+- Validated lifecycle policy with default artifact and memory TTLs, cold-state delays, per-lineage version limits, tenant storage quotas, archive quotas, batch bounds, and sweep cadence.
+- Default TTL assignment at both in-memory and durable write boundaries while preserving caller-specified expiry.
+- Dependency-safe candidate selection that combines inactivity, lineage overflow, and tenant overflow without archiving or deleting a resource that still has an active dependent.
+- Two-phase archive-then-delete processing with tenant-scoped, content-hashed payload archives, durable SQLite/PostgreSQL persistence, bounded retention, and deduplication through a composite archive identity.
+- TTL and explicit-deletion propagation through memory and artifact dependency graphs, followed by dependency-index cleanup and supersession-pointer repair.
+- A real asynchronous lifecycle worker, shared API/worker policy configuration, and a Compose worker image/profile.
+
+Acceptance evidence:
+
+- Active-dependency tests prove an old memory version remains present when an active artifact still references it.
+- A quota workload creates 20 artifact versions and 10 memory versions, then proves two-phase cleanup converges to the configured two versions per lineage with no dangling dependency state.
+- TTL tests prove an expired memory record invalidates a derived artifact before archival; explicit-deletion tests prove recursive invalidation and index removal in memory and SQLite.
+- A SQLite restart test proves archives survive reconstruction, source deletion occurs only on a later sweep, storage remains bounded, and the lifecycle migration is applied.
+- Worker tests prove cleanup starts asynchronously and respects host cancellation; the full unit, architecture, contract, regression, and SDK verification suites remain green.
+
+## Next: M3 / W13 — Observability and dashboard

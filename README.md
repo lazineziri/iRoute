@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W11**. See [the workstream status](docs/workstream-status.md). W12 is next.
+Formal backlog status: **M0, M1, and M2 are complete; M3 is complete through W12**. See [the workstream status](docs/workstream-status.md). W13 is next.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -27,10 +27,12 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - versioned golden evaluation across every built-in task, task-specific quality/safety scoring, cost/latency benchmarks, and a source-bound routing regression gate
 - one normalized capability contract with reference email, calendar, read-only database, registered OpenAPI, registered MCP, and typed agent-result connectors
 - connector projection before model context, bounded outputs/deadlines, classified failures, and write reuse through the approval/idempotency boundary
+- configurable artifact/memory TTLs, lineage and tenant quotas, dependency-safe cold archival, and bounded archive retention
+- asynchronous lifecycle sweeps with recursive invalidation, deletion propagation, supersession-pointer repair, and dangling-index checks
 - versioned schema migration shared by SQLite and PostgreSQL
 - working .NET and Node.js clients
 
-This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
+This is a development milestone, not a production release. Durable worker leasing, distributed action reconciliation, and production transport adapters are still ahead. Run one lifecycle worker per database until leasing is implemented. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
 ## Quick start
 
@@ -54,6 +56,14 @@ curl --request POST http://localhost:8080/v1/executions \
 ```
 
 The first request returns a validated `SmallModel` outcome and an `email.draft` artifact. Send the same input with a new idempotency key and the runtime returns `ExactArtifact` with zero model calls.
+
+Run the lifecycle host in another terminal to enforce TTL, quota, archival, and deletion policies asynchronously:
+
+```bash
+dotnet run --project src/iRoute.Worker
+```
+
+For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, lifecycle worker, and database together.
 
 Useful endpoints:
 
@@ -100,6 +110,18 @@ Use environment variables or standard ASP.NET Core configuration.
 | `ModelGateway__ApiKey` | Generic HTTP gateway bearer credential | unset |
 | `Workflow__QueueCapacity` | Maximum queued ready steps per scheduling round | `16` |
 | `Workflow__MaxParallelSteps` | Runtime ceiling on parallel steps per execution | `4` |
+| `Lifecycle__SweepInterval` | Delay between lifecycle worker sweeps | `5 minutes` |
+| `Lifecycle__DefaultArtifactTimeToLive` | Default lifetime assigned to new artifacts | `30 days` |
+| `Lifecycle__DefaultMemoryTimeToLive` | Default lifetime assigned to new memory records | `90 days` |
+| `Lifecycle__ArchiveAfterInactive` | Cold period before inactive state becomes archive-eligible | `7 days` |
+| `Lifecycle__DeleteAfterArchive` | Minimum delay between archive and source deletion | `7 days` |
+| `Lifecycle__ArchiveRetention` | Retention after the source has been deleted | `30 days` |
+| `Lifecycle__MaxArtifactVersionsPerLineage` | Retained artifact versions per logical lineage | `5` |
+| `Lifecycle__MaxMemoryVersionsPerLineage` | Retained memory versions per logical lineage | `5` |
+| `Lifecycle__MaxArtifactsPerTenant` | Artifact-record quota used for cold candidate selection | `10,000` |
+| `Lifecycle__MaxMemoryRecordsPerTenant` | Memory-record quota used for cold candidate selection | `10,000` |
+| `Lifecycle__MaxArchivesPerTenant` | Retained archive-record quota | `20,000` |
+| `Lifecycle__BatchSize` | Maximum expiry/archive/delete work per sweep stage | `500` |
 | `Identity__Mode` | `DevelopmentHeaders` or `Jwt` | `DevelopmentHeaders` |
 | `Identity__Authority` | OpenID Connect/JWT issuer | required in JWT mode |
 | `Identity__Audience` | Expected JWT audience | required in JWT mode |
