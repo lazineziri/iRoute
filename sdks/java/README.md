@@ -220,8 +220,12 @@ try {
 ```
 
 `IOException` covers transport failures and `InterruptedException` preserves
-thread interruption. Configure the JDK request timeout with `Options.timeout`.
-The SDK does not retry automatically.
+thread interruption. `Options.timeout` (default 30 seconds) bounds an ordinary
+request, and `Options.streamTimeout` (default 15 minutes) bounds
+`streamEventsJson`, which buffers a replay and stays open until the execution is
+terminal. Both bound the complete exchange, not just the response headers, so a
+stalled stream raises `IOException` instead of blocking forever. The SDK does not
+retry automatically.
 
 ## Custom transport
 

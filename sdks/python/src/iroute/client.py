@@ -11,6 +11,13 @@ JsonObject = dict[str, Any]
 Opener = Callable[..., BinaryIO]
 
 
+class _Unset:
+    """Distinguishes "no timeout argument given" from an explicit ``None`` (wait forever)."""
+
+
+_UNSET = _Unset()
+
+
 class IRouteApiError(RuntimeError):
     def __init__(self, status: int, response_body: str) -> None:
         self.status = status
@@ -35,6 +42,7 @@ class IRouteClient:
         actor_id: str | None = None,
         permission_scopes: Sequence[str] = (),
         timeout: float = 30,
+        stream_timeout: float | None = None,
         opener: Opener = urlopen,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -43,6 +51,10 @@ class IRouteClient:
         self._actor_id = actor_id
         self._permission_scopes = tuple(permission_scopes)
         self._timeout = timeout
+        # urlopen applies its timeout to each read, not to the whole call, so the request timeout
+        # would abort a live event stream that is merely quiet. The contract allows deadlines up to
+        # 15 minutes and defines no heartbeat frame, so streaming waits indefinitely by default.
+        self._stream_timeout = stream_timeout
         self._opener = opener
 
     def execute(
@@ -128,6 +140,7 @@ class IRouteClient:
             "GET",
             f"/v1/executions/{quote(execution_id, safe='')}/events?after={after_sequence}",
             headers={"Accept": "text/event-stream"},
+            timeout=self._stream_timeout,
         )
         if response is None:
             return
@@ -181,6 +194,7 @@ class IRouteClient:
         headers: Mapping[str, str] | None = None,
         not_found: bool = False,
         allowed_statuses: set[int] | None = None,
+        timeout: float | None | _Unset = _UNSET,
     ) -> BinaryIO | None:
         request_headers = self._headers(headers)
         data = None
@@ -194,7 +208,10 @@ class IRouteClient:
             method=method,
         )
         try:
-            response = self._opener(request, timeout=self._timeout)
+            response = self._opener(
+                request,
+                timeout=self._timeout if isinstance(timeout, _Unset) else timeout,
+            )
         except HTTPError as error:
             return self._handle_error(error, not_found, allowed_statuses)
         status = _status(response)
