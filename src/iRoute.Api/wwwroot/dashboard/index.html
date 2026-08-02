@@ -3,27 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>iRoute Observatory</title>
-  <link rel="stylesheet" href="/dashboard/styles.css">
+  <meta name="color-scheme" content="light">
+  <title>iRoute Dashboard</title>
+  <link rel="stylesheet" href="/dashboard/styles.css?v=2">
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
   <header class="topbar">
-    <a class="brand" href="/dashboard/" aria-label="iRoute Observatory home">
+    <a class="brand" href="/dashboard/" aria-label="iRoute Dashboard home">
       <span class="brand-mark" aria-hidden="true">iR</span>
-      <span><strong>iRoute</strong><small>Observatory</small></span>
+      <span><strong>iRoute</strong><small>Dashboard</small></span>
     </a>
-    <div class="privacy-pill"><span></span> Payload controls active</div>
+    <div class="privacy-pill"><span></span> Local data</div>
   </header>
 
   <main>
     <section class="hero">
       <div>
-        <p class="eyebrow">Execution intelligence</p>
-        <h1>See where every request went—and why.</h1>
-        <p class="lede">A local, tenant-scoped view of quality, spend, latency, reuse, and the complete execution timeline.</p>
+        <p class="eyebrow">Overview</p>
+        <h1>Execution dashboard</h1>
+        <p class="lede">Review recent requests, results, cost, reuse, and execution details.</p>
       </div>
       <form id="query-form" class="query-panel">
         <label>Tenant<input id="tenant" value="local" autocomplete="organization"></label>
