@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace iRoute.UnitTests;
 
+[Collection(PostgresIntegrationGroup.Name)]
 public sealed class GatewayCircuitStoreTests
 {
     private static readonly GatewayCircuitPolicy Policy = new(
