@@ -287,13 +287,10 @@ public sealed class ExecutionOrchestratorTests
             submitted.ExecutionId,
             TestContext.Current.CancellationToken));
         var cancellationAt = DateTimeOffset.UtcNow;
-        await store.UpdateAsync(
-            running with
-            {
-                UpdatedAt = cancellationAt,
-                CancellationRequestedAt = cancellationAt
-            },
-            TestContext.Current.CancellationToken);
+        Assert.True(await store.TryRequestCancellationAsync(
+            running.ExecutionId,
+            cancellationAt,
+            TestContext.Current.CancellationToken));
 
         heartbeatCancellation.Cancel();
         var cancelled = await processing;
@@ -421,13 +418,10 @@ public sealed class ExecutionOrchestratorTests
                 TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken));
             var cancellationAt = DateTimeOffset.UtcNow;
-            await store.UpdateAsync(
-                cancellable with
-                {
-                    UpdatedAt = cancellationAt,
-                    CancellationRequestedAt = cancellationAt
-                },
-                TestContext.Current.CancellationToken);
+            Assert.True(await store.TryRequestCancellationAsync(
+                cancellable.ExecutionId,
+                cancellationAt,
+                TestContext.Current.CancellationToken));
             var heartbeat = await work.RenewAsync(
                 cancellationLease,
                 cancellationAt,

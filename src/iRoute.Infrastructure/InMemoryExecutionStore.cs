@@ -55,8 +55,40 @@ public sealed class InMemoryExecutionStore : IExecutionStore
     public Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _executions[execution.ExecutionId] = execution;
+        lock (_statusGate)
+        {
+            // CancellationRequestedAt is store-owned: a transition computed before a cancellation
+            // arrived must not carry the stale null back over it.
+            _executions[execution.ExecutionId] =
+                _executions.TryGetValue(execution.ExecutionId, out var current)
+                    ? execution with { CancellationRequestedAt = current.CancellationRequestedAt }
+                    : execution;
+        }
+
         return Task.CompletedTask;
+    }
+
+    public Task<bool> TryRequestCancellationAsync(
+        Guid executionId,
+        DateTimeOffset requestedAt,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (!_executions.TryGetValue(executionId, out var current) ||
+                ExecutionStateMachine.IsTerminal(current.Status))
+            {
+                return Task.FromResult(false);
+            }
+
+            if (current.CancellationRequestedAt is null)
+            {
+                _executions[executionId] = current with { CancellationRequestedAt = requestedAt };
+            }
+
+            return Task.FromResult(true);
+        }
     }
 
     public async IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(

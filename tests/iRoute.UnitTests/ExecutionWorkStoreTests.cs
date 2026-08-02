@@ -75,13 +75,12 @@ public sealed class ExecutionWorkStoreTests
                 TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken));
             await executions.UpdateAsync(
-                snapshot with
-                {
-                    Status = ExecutionStatus.Queued,
-                    UpdatedAt = now.AddSeconds(1),
-                    CancellationRequestedAt = now.AddSeconds(1)
-                },
+                snapshot with { Status = ExecutionStatus.Queued, UpdatedAt = now.AddSeconds(1) },
                 TestContext.Current.CancellationToken);
+            Assert.True(await executions.TryRequestCancellationAsync(
+                snapshot.ExecutionId,
+                now.AddSeconds(1),
+                TestContext.Current.CancellationToken));
 
             var heartbeat = await restarted.RenewAsync(
                 lease,

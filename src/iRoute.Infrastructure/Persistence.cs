@@ -357,6 +357,40 @@ public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextF
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<bool> TryRequestCancellationAsync(
+        Guid executionId,
+        DateTimeOffset requestedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // Touch only the cancellation column so a concurrent worker transition cannot be reverted
+        // and a recorded outcome cannot be erased.
+        var written = await context.Executions
+            .Where(x => x.ExecutionId == executionId
+                && x.CancellationRequestedAtUnixMilliseconds == null
+                && !ExecutionStateMachine.TerminalStatuses.Contains(x.Status))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    x => x.CancellationRequestedAtUnixMilliseconds,
+                    requestedAt.ToUnixTimeMilliseconds()),
+                cancellationToken);
+
+        if (written > 0)
+        {
+            return true;
+        }
+
+        // Nothing was written: the execution is missing, already terminal, or already cancelled.
+        var status = await context.Executions
+            .AsNoTracking()
+            .Where(x => x.ExecutionId == executionId)
+            .Select(x => (ExecutionStatus?)x.Status)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return status is not null && !ExecutionStateMachine.IsTerminal(status.Value);
+    }
+
     public async IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(
         Guid executionId,
         long afterSequence,
@@ -990,7 +1024,8 @@ internal static class PersistenceMapping
         entity.TaskDefinitionVersion = snapshot.TaskDefinitionVersion;
         entity.Status = snapshot.Status;
         entity.UpdatedAtUnixMilliseconds = snapshot.UpdatedAt.ToUnixTimeMilliseconds();
-        entity.CancellationRequestedAtUnixMilliseconds = snapshot.CancellationRequestedAt?.ToUnixTimeMilliseconds();
+        // CancellationRequestedAt is deliberately not written here: it is owned by
+        // TryRequestCancellationAsync so a stale snapshot cannot erase a cancellation request.
         entity.OutcomeJson = Serialize(snapshot.Outcome);
         entity.ErrorJson = Serialize(snapshot.Error);
     }

@@ -22,6 +22,15 @@ public static class ExecutionStateMachine
             [ExecutionStatus.TimedOut] = []
         };
 
+    /// <summary>
+    /// Statuses from which no further transition is allowed.
+    /// </summary>
+    public static readonly ExecutionStatus[] TerminalStatuses =
+        [.. Allowed.Where(entry => entry.Value.Length == 0).Select(entry => entry.Key)];
+
+    public static bool IsTerminal(ExecutionStatus status) =>
+        Allowed.TryGetValue(status, out var targets) && targets.Length == 0;
+
     public static bool CanTransition(ExecutionStatus from, ExecutionStatus to) =>
         Allowed.TryGetValue(from, out var targets) && targets.Contains(to);
 

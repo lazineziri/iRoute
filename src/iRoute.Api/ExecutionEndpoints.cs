@@ -189,8 +189,17 @@ public static class ExecutionEndpoints
         }
 
         var requestedAt = clock.UtcNow;
-        snapshot = snapshot with { CancellationRequestedAt = requestedAt, UpdatedAt = requestedAt };
-        await store.UpdateAsync(snapshot, cancellationToken);
+        if (!await store.TryRequestCancellationAsync(executionId, requestedAt, cancellationToken))
+        {
+            // The worker reached a terminal state between the read above and this write.
+            var settled = await store.GetAsync(executionId, cancellationToken);
+            return Problem(
+                StatusCodes.Status409Conflict,
+                ErrorCodes.ExecutionAlreadyTerminal,
+                "Execution already terminal",
+                $"Execution '{executionId}' is already {settled?.Status.ToString() ?? "terminal"}.");
+        }
+
         await store.AppendEventAsync(
             executionId,
             ExecutionEventTypes.CancellationRequested,

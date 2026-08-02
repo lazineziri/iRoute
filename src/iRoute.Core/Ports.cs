@@ -12,7 +12,25 @@ public interface IExecutionStore
         CancellationToken cancellationToken);
     Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken);
     Task CreateAsync(ExecutionSnapshot execution, string? idempotencyKey, CancellationToken cancellationToken);
+    /// <summary>
+    /// Persists the mutable execution state. <see cref="ExecutionSnapshot.CancellationRequestedAt"/>
+    /// is owned by the store and is never written from the supplied snapshot, so a transition
+    /// computed before a cancellation arrived cannot erase it.
+    /// </summary>
     Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records a cancellation request without touching any other column.
+    /// </summary>
+    /// <returns>
+    /// <see langword="false"/> when the execution is missing or already terminal, in which case
+    /// nothing is written and the recorded outcome is preserved.
+    /// </returns>
+    Task<bool> TryRequestCancellationAsync(
+        Guid executionId,
+        DateTimeOffset requestedAt,
+        CancellationToken cancellationToken);
+
     IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(Guid executionId, long afterSequence, CancellationToken cancellationToken);
     Task<ExecutionEvent> AppendEventAsync(
         Guid executionId,
