@@ -145,7 +145,11 @@ Execution workers are independently scalable because each work item has one expi
 
 ## Observability and telemetry
 
-`GET /v1/observability/summary` returns tenant-scoped aggregates over a bounded time window and can filter by `taskType` and `policyVersion`. `GET /v1/observability/executions/{executionId}` returns an ordered timeline with its trace ID; a different tenant receives not found. The dashboard at `/dashboard/` calls only these authenticated data endpoints. Static assets are public, but no execution data is embedded in them.
+`GET /v1/observability/summary` returns tenant-scoped aggregates over a bounded time window and can filter by `taskType` and `policyVersion`. `GET /v1/observability/executions/{executionId}` returns an ordered timeline with its trace ID; a different tenant receives not found. The dashboard at `/dashboard/` calls only these authenticated data endpoints and displays execution summaries, redacted timelines, memory diagnostics, and W18 provider-route/circuit observations. Static assets are public, but no execution data is embedded in them.
+
+A successful summary with zero observations means the dashboard is connected but no persisted execution matches the selected tenant, time range, task type, and policy. Confirm that the dashboard tenant matches the execution request before investigating storage or worker health. The connection indicator distinguishes this valid empty result from an authentication or API failure.
+
+The observability `cost` field is the normalized value reported by the configured gateway. It has no currency field in the Core contract and must not be presented as provider-billed cost. All registered gateways in one deployment should report a consistent unit; reconcile financial reporting against provider billing separately.
 
 The default limits are 90 query days, 1,000 sampled executions, 25 recent rows, 1,000 timeline events, and 1,000 characters per retained safe event string. A `truncated` flag identifies bounded results. Increase limits only after measuring database and response costs; the projection reads existing execution/event persistence and intentionally does not maintain a second analytics database.
 

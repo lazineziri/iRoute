@@ -9,7 +9,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, M2, and M3 are complete through W16; W17 durable execution and W18 provider resilience are complete**. The
+Formal backlog status: **W01-W18 are complete; W19 tenant quotas and fairness is next**. The
 first adoption-ready source baseline is `0.1.0-alpha.1`. See [the workstream
 status](docs/workstream-status.md) and [release notes](docs/releases/0.1.0-alpha.1.md).
 
@@ -91,7 +91,9 @@ dotnet run --project src/iRoute.Cli -- \
 
 See the [SDK quick starts](examples/sdks/README.md) for runnable .NET, Node.js, Python, Java, PHP, and Rust examples.
 
-Open `http://localhost:8080/dashboard/` to inspect the request timeline and compare quality, cost, latency, token usage, and memory hits. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
+Open `http://localhost:8080/dashboard/` to inspect persisted executions, provider-route resilience, redacted timelines, quality, reported cost, latency, token usage, and memory hits. A connected empty state means that no execution matches the selected tenant and time range; it does not mean the API is broken. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
+
+Dashboard cost is the normalized value reported by the configured gateway. The Core contract does not assign it a currency, so it is not an Azure invoice or billing reconciliation. Configure gateway cost units consistently and use provider billing data for financial reporting.
 
 The worker host processes durable executions and also enforces TTL, quota, archival, and deletion policies asynchronously:
 

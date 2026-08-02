@@ -4,7 +4,7 @@ const state = { traceId: null, selected: null };
 const format = {
   percent: (value) => `${(Number(value || 0) * 100).toFixed(1)}%`,
   decimal: (value, digits = 3) => Number(value || 0).toFixed(digits),
-  currency: (value) => `$${Number(value || 0).toFixed(4)}`,
+  cost: (value) => Number(value || 0).toFixed(4),
   integer: (value) => new Intl.NumberFormat().format(Number(value || 0)),
   duration: (value) => Number(value || 0) >= 1000
     ? `${(Number(value) / 1000).toFixed(2)}s`
@@ -35,6 +35,9 @@ async function readResponse(response) {
 
 async function loadSummary() {
   setNotice();
+  setConnection('loading', 'Connecting');
+  $('status-message').textContent = 'Loading persisted observability data…';
+  $('refresh').disabled = true;
   const end = new Date();
   const start = new Date(end.getTime() - Number($('window').value) * 60 * 60 * 1000);
   const url = new URL('/v1/observability/summary', window.location.origin);
@@ -42,26 +45,53 @@ async function loadSummary() {
   url.searchParams.set('to', end.toISOString());
   if ($('task').value.trim()) url.searchParams.set('taskType', $('task').value.trim());
   if ($('policy').value.trim()) url.searchParams.set('policyVersion', $('policy').value.trim());
-  const data = await readResponse(await fetch(url, { headers: requestHeaders() }));
-  renderSummary(data);
+  try {
+    const data = await readResponse(await fetch(url, { headers: requestHeaders() }));
+    renderSummary(data);
+    setConnection('connected', 'connected');
+    $('status-message').textContent = `API connected · tenant ${$('tenant').value.trim() || 'unknown'} · ${$('window').selectedOptions[0].text.toLowerCase()}`;
+    $('last-updated').textContent = `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  } catch (error) {
+    setConnection('error', 'disconnected');
+    $('status-message').textContent = 'The observability API could not be read.';
+    $('empty-state').hidden = true;
+    $('observations').hidden = true;
+    throw error;
+  } finally {
+    $('refresh').disabled = false;
+  }
 }
 
 function renderSummary(data) {
   const totals = data.totals;
-  $('completion').textContent = format.percent(totals.completionRate);
-  $('execution-count').textContent = `${format.integer(totals.completed)} completed / ${format.integer(totals.executions)} observed`;
-  $('quality').textContent = format.decimal(totals.averageQuality);
-  $('cost').textContent = format.currency(totals.cost);
-  $('model-calls').textContent = `${format.integer(totals.modelCalls)} model · ${format.integer(totals.toolCalls)} tool calls`;
-  $('latency').textContent = format.duration(totals.averageLatencyMilliseconds);
-  $('tokens').textContent = format.integer(totals.inputTokens + totals.outputTokens);
-  $('token-split').textContent = `${format.integer(totals.inputTokens)} in · ${format.integer(totals.outputTokens)} out`;
-  $('no-model').textContent = format.percent(totals.completed ? totals.noModelResolutions / totals.completed : 0);
-  $('avoided').textContent = `${format.integer(totals.modelCallsAvoided)} model calls avoided`;
+  const hasExecutions = totals.executions > 0;
+  const hasCompleted = totals.completed > 0;
+  $('empty-state').hidden = hasExecutions;
+  $('observations').hidden = !hasExecutions;
+  $('empty-scope').textContent = `tenant “${$('tenant').value.trim() || 'unknown'}” in ${$('window').selectedOptions[0].text.toLowerCase()}`;
+  $('completion').textContent = hasExecutions ? format.percent(totals.completionRate) : '—';
+  $('execution-count').textContent = hasExecutions
+    ? `${format.integer(totals.completed)} completed / ${format.integer(totals.executions)} observed`
+    : 'No observations in this view';
+  $('quality').textContent = hasCompleted ? format.decimal(totals.averageQuality) : '—';
+  $('cost').textContent = hasCompleted ? format.cost(totals.cost) : '—';
+  $('model-calls').textContent = hasCompleted
+    ? `${format.integer(totals.modelCalls)} model · ${format.integer(totals.toolCalls)} tool calls`
+    : 'Gateway-reported units';
+  $('latency').textContent = hasCompleted ? format.duration(totals.averageLatencyMilliseconds) : '—';
+  $('tokens').textContent = hasCompleted ? format.integer(totals.inputTokens + totals.outputTokens) : '—';
+  $('token-split').textContent = hasCompleted
+    ? `${format.integer(totals.inputTokens)} in · ${format.integer(totals.outputTokens)} out`
+    : 'Input + output';
+  $('no-model').textContent = hasCompleted ? format.percent(totals.noModelResolutions / totals.completed) : '—';
+  $('avoided').textContent = hasCompleted
+    ? `${format.integer(totals.modelCallsAvoided)} model calls avoided`
+    : 'Model calls avoided';
   $('sample-badge').textContent = `${format.integer(data.sampledExecutions)} sampled${data.truncated ? ' · bounded' : ''}`;
   renderGroups(data.groups);
   renderMemory(data.memory);
   renderRecent(data.recentExecutions);
+  renderGateways(data.gatewayGroups || []);
 }
 
 function renderGroups(groups) {
@@ -77,7 +107,7 @@ function renderGroups(groups) {
       task,
       cell(format.integer(group.metrics.executions)),
       cell(format.decimal(group.metrics.averageQuality), 'metric-good'),
-      cell(format.currency(group.metrics.cost)),
+      cell(format.cost(group.metrics.cost)),
       cell(format.duration(group.metrics.averageLatencyMilliseconds)),
       cell(format.integer(group.metrics.noModelResolutions))
     );
@@ -85,8 +115,35 @@ function renderGroups(groups) {
   }
 }
 
+function renderGateways(groups) {
+  const body = $('gateway-groups');
+  body.replaceChildren();
+  if (!groups.length) return body.append(emptyRow('No provider route observations in this view.', 7));
+  for (const group of groups) {
+    const row = document.createElement('tr');
+    const deployment = text('td', '', 'route-cell');
+    deployment.append(text('strong', group.deploymentId), text('small', `${group.gatewayId} · ${group.modelVersion}`));
+    const provider = text('td', '', 'route-cell');
+    provider.append(text('strong', group.provider), text('small', group.region));
+    const circuit = text('span', group.circuitState, `circuit-state ${String(group.circuitState).toLowerCase()}`);
+    const circuitCell = document.createElement('td');
+    circuitCell.append(circuit);
+    const failureLabel = group.failureClass ? ` · ${group.failureClass}` : '';
+    row.append(
+      deployment,
+      provider,
+      circuitCell,
+      cell(format.integer(group.metrics.attempts)),
+      cell(`${format.integer(group.metrics.failures)}${failureLabel}`),
+      cell(format.integer(group.metrics.fallbacks)),
+      cell(format.duration(group.metrics.averageLatencyMilliseconds))
+    );
+    body.append(row);
+  }
+}
+
 function renderMemory(memory) {
-  $('hit-rate').textContent = format.percent(memory.hitRate);
+  $('hit-rate').textContent = memory.considered ? format.percent(memory.hitRate) : '—';
   $('memory-accepted').textContent = `${format.integer(memory.accepted)} accepted`;
   $('memory-rejected').textContent = `${format.integer(memory.rejected)} rejected`;
   const root = $('memory-bars');
@@ -118,7 +175,7 @@ function renderRecent(executions) {
     const main = text('span', '', 'recent-main');
     main.append(text('strong', execution.taskType), text('small', `${execution.policyVersion} · ${execution.executionId.slice(0, 12)}`));
     const stats = text('span', '', 'recent-stats');
-    stats.append(text('strong', execution.resolutionLevel || execution.status), text('small', `${format.duration(execution.durationMilliseconds)} · ${format.currency(execution.cost)}`));
+    stats.append(text('strong', execution.resolutionLevel || execution.status), text('small', `${format.duration(execution.durationMilliseconds)} · ${format.cost(execution.cost)} cost`));
     button.append(dot, main, stats);
     button.addEventListener('click', () => loadTimeline(execution.executionId, button));
     root.append(button);
@@ -185,6 +242,11 @@ function setNotice(message) {
   const notice = $('notice');
   notice.hidden = !message;
   notice.textContent = message || '';
+}
+
+function setConnection(status, label) {
+  $('connection').dataset.state = status;
+  $('connection-label').textContent = label;
 }
 
 $('query-form').addEventListener('submit', async (event) => {
