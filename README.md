@@ -7,11 +7,11 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 > security-response SLA. Reference connectors are not production integrations,
 > and checked provider cost/performance figures are not production measurements.
 
-## Current milestone
+## Current release
 
-Formal backlog status: **W01-W18 are complete; W19 tenant quotas and fairness is next**. The
-first adoption-ready source baseline is `0.1.0-alpha.1`. See [the workstream
-status](docs/workstream-status.md) and [release notes](docs/releases/0.1.0-alpha.1.md).
+The first adoption-ready source baseline is `0.1.0-alpha.1`. See the
+[release notes](docs/releases/0.1.0-alpha.1.md) for its verified capabilities,
+known limits, and upgrade guidance.
 
 The first end-to-end P0 slice is operational for `email.draft`:
 
@@ -56,6 +56,11 @@ This is a development milestone, not a production release. Durable execution lea
 For a clean clone or source archive, follow the [installation guide](docs/installation.md).
 
 Prerequisite: .NET SDK `10.0.100` or newer on the .NET 10 line. The repository is currently verified with SDK `10.0.102`.
+
+iRoute has one runtime and two distribution surfaces. The API, execution worker,
+and migration job run as containers. Applications install one thin language SDK
+to call that runtime. Installing an SDK does not embed or start iRoute, and
+self-hosters may call the HTTP API directly without an SDK.
 
 ```bash
 dotnet restore iRoute.slnx

@@ -16,8 +16,8 @@ server-side.
 - Crate name: `iroute-sdk`
 - Runtime dependencies: none
 
-The alpha source release does not imply crates.io publication. Use a path
-dependency until a registry release exists.
+Once published, the public alpha is installed from crates.io as a prerelease
+crate. The source installation below remains available.
 
 ## Start iRoute
 
@@ -28,6 +28,12 @@ docker compose --file deploy/compose.sqlite.yaml up --build --wait
 The default API URL is `http://localhost:8080`. See the shared
 [SDK usage guide](../../docs/sdk-usage.md) for source-run and authentication
 options.
+
+## Install from crates.io
+
+```bash
+cargo add iroute-sdk@0.1.0-alpha.1
+```
 
 ## Install from source
 

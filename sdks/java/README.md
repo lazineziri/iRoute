@@ -15,8 +15,8 @@ remain server-side.
 - Maven coordinates: `dev.iroute:iroute-sdk`
 - Runtime dependencies: JDK only
 
-The alpha source release does not imply Maven Central publication. Install the
-artifact into the local Maven repository or compile it from source.
+Once published, the public alpha is installed from Maven Central as a
+prerelease artifact. The source installation below remains available.
 
 ## Start iRoute
 
@@ -27,6 +27,16 @@ docker compose --file deploy/compose.sqlite.yaml up --build --wait
 The default API URL is `http://localhost:8080`. See the shared
 [SDK usage guide](../../docs/sdk-usage.md) for source-run and authentication
 options.
+
+## Install from Maven Central
+
+```xml
+<dependency>
+  <groupId>dev.iroute</groupId>
+  <artifactId>iroute-sdk</artifactId>
+  <version>0.1.0-alpha.1</version>
+</dependency>
+```
 
 ## Install from source
 

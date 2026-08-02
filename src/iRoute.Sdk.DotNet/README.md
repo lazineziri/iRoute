@@ -15,8 +15,8 @@ remain server-side.
 - Package ID: `iRoute.Sdk`
 - License: Apache-2.0
 
-The alpha source release does not imply NuGet publication. Use a project
-reference or build a local package until a registry release exists.
+Once published, the public alpha is installed from NuGet as a prerelease
+package. The source installation below remains available.
 
 ## Start iRoute
 
@@ -29,6 +29,12 @@ docker compose --file deploy/compose.sqlite.yaml up --build --wait
 The default URL is `http://localhost:8080`. See the shared
 [SDK usage guide](../../docs/sdk-usage.md) for source-run and authentication
 options.
+
+## Install from NuGet
+
+```bash
+dotnet add package iRoute.Sdk --version 0.1.0-alpha.1
+```
 
 ## Install from source
 

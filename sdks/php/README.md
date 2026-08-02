@@ -15,8 +15,8 @@ server-side.
 - Required extension: `ext-curl`
 - Composer package: `iroute/sdk`
 
-The alpha source release does not imply Packagist publication. Use a Composer
-path repository until a registry release exists.
+Once published, the public alpha is installed from Packagist through the
+official PHP mirror. The source installation below remains available.
 
 ## Start iRoute
 
@@ -27,6 +27,12 @@ docker compose --file deploy/compose.sqlite.yaml up --build --wait
 The default API URL is `http://localhost:8080`. See the shared
 [SDK usage guide](../../docs/sdk-usage.md) for source-run and authentication
 options.
+
+## Install from Packagist
+
+```bash
+composer require iroute/sdk:0.1.0-alpha.1
+```
 
 ## Install from source
 

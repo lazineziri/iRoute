@@ -16,8 +16,8 @@ server-side.
 - Runtime dependencies: standard library only
 - Package name: `iroute`
 
-The alpha source release does not imply PyPI publication. Install from the source
-directory until a registry release exists.
+Once published, the public alpha is installed from PyPI as a prerelease
+package. The source installation below remains available.
 
 ## Start iRoute
 
@@ -28,6 +28,12 @@ docker compose --file deploy/compose.sqlite.yaml up --build --wait
 The default API URL is `http://localhost:8080`. See the shared
 [SDK usage guide](../../docs/sdk-usage.md) for source-run and authentication
 options.
+
+## Install from PyPI
+
+```bash
+python -m pip install --pre iroute==0.1.0a1
+```
 
 ## Install from source
 
