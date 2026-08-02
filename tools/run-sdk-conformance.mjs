@@ -1,11 +1,47 @@
 import { spawnSync } from 'node:child_process';
+import { statSync } from 'node:fs';
+
+// The README builds Debug and the installation guide builds Release. Run whichever
+// configuration is actually present so both documented flows work with --no-build.
+function builtConfiguration() {
+  const explicit = process.env.IROUTE_BUILD_CONFIGURATION;
+  if (explicit) return explicit;
+
+  const built = ['Release', 'Debug']
+    .map((configuration) => {
+      try {
+        return {
+          configuration,
+          builtAt: statSync(
+            `tests/iRoute.UnitTests/bin/${configuration}/net10.0/iRoute.UnitTests.dll`
+          ).mtimeMs
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.builtAt - a.builtAt);
+
+  return built.length > 0 ? built[0].configuration : 'Debug';
+}
 
 const runners = [
   {
     name: '.NET',
     executable: 'dotnet',
     command: 'dotnet',
-    args: ['run', '--project', 'tests/iRoute.UnitTests', '--no-build', '--', '-reporter', 'quiet']
+    args: [
+      'run',
+      '--project',
+      'tests/iRoute.UnitTests',
+      '--configuration',
+      builtConfiguration(),
+      '--no-build',
+      '--',
+      '-reporter',
+      'quiet'
+    ]
   },
   {
     name: 'Node.js',
@@ -45,10 +81,28 @@ const runners = [
   }
 ];
 
+// Set IROUTE_REQUIRE_SDKS=all (or a comma-separated subset) so CI fails on a missing
+// toolchain instead of silently reporting success for SDKs that never ran.
+const required = (process.env.IROUTE_REQUIRE_SDKS ?? '')
+  .split(',')
+  .map((name) => name.trim().toLowerCase())
+  .filter(Boolean);
+const requiresAll = required.includes('all');
+const isRequired = (name) => requiresAll || required.includes(name.toLowerCase());
+
 let failures = 0;
+const executed = [];
+const skipped = [];
+
 for (const runner of runners) {
   if (!available(runner.executable)) {
-    console.log(`SKIP ${runner.name}: ${runner.executable} is not installed`);
+    if (isRequired(runner.name)) {
+      console.error(`FAIL ${runner.name}: ${runner.executable} is required but not installed`);
+      failures++;
+    } else {
+      console.log(`SKIP ${runner.name}: ${runner.executable} is not installed`);
+      skipped.push(runner.name);
+    }
     continue;
   }
   console.log(`RUN  ${runner.name}`);
@@ -57,14 +111,23 @@ for (const runner of runners) {
     env: { ...process.env, ...runner.environment },
     stdio: 'inherit'
   });
+  executed.push(runner.name);
   if (result.status !== 0) failures++;
 }
+
+console.log(
+  `\nRan ${executed.length}/${runners.length} SDK conformance runners` +
+    (skipped.length > 0 ? ` (skipped: ${skipped.join(', ')})` : '')
+);
 
 if (failures > 0) {
   console.error(`${failures} SDK conformance runner(s) failed.`);
   process.exitCode = 1;
+} else if (executed.length === 0) {
+  console.error('No SDK conformance runner executed; nothing was verified.');
+  process.exitCode = 1;
 } else {
-  console.log('PASS all locally available SDK conformance runners');
+  console.log(`PASS ${executed.join(', ')}`);
 }
 
 function available(command) {

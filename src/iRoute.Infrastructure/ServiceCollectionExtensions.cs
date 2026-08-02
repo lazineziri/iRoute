@@ -48,8 +48,10 @@ public static class ServiceCollectionExtensions
         }
         else
         {
-            var connectionString = configuration.GetConnectionString("iRoute")
-                ?? throw new InvalidOperationException("ConnectionStrings:iRoute is required for durable storage.");
+            var connectionString = SqliteStoragePath.ResolveForProvider(
+                storageProvider,
+                configuration.GetConnectionString("iRoute")
+                    ?? throw new InvalidOperationException("ConnectionStrings:iRoute is required for durable storage."));
             services.AddPooledDbContextFactory<IRouteDbContext>(options =>
             {
                 if (string.Equals(storageProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))

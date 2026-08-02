@@ -7,7 +7,7 @@ public static class ExecutionStateMachine
     private static readonly Dictionary<ExecutionStatus, ExecutionStatus[]> Allowed =
         new Dictionary<ExecutionStatus, ExecutionStatus[]>
         {
-            [ExecutionStatus.Accepted] = [ExecutionStatus.Resolving, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
+            [ExecutionStatus.Accepted] = [ExecutionStatus.Resolving, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Resolving] = [ExecutionStatus.Planning, ExecutionStatus.Validating, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Planning] = [ExecutionStatus.Queued, ExecutionStatus.WaitingForApproval, ExecutionStatus.Running, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Queued] = [ExecutionStatus.Running, ExecutionStatus.Cancelled, ExecutionStatus.Failed, ExecutionStatus.TimedOut],

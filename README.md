@@ -74,7 +74,7 @@ In a second terminal, start the execution and lifecycle host:
 dotnet run --project src/iRoute.Worker
 ```
 
-The default developer profile creates `iroute.db` and uses the deterministic gateway, so it needs no provider credential. In another terminal:
+The default developer profile uses the deterministic gateway, so it needs no provider credential. A relative SQLite `Data Source` is resolved against one per-user directory (`%LOCALAPPDATA%\iRoute` on Windows, `~/Library/Application Support/iRoute` on macOS, `$XDG_DATA_HOME/iRoute` on Linux) so the API and worker share one database regardless of the directory each host is started from. Set `ConnectionStrings__iRoute` to an absolute path to choose your own location. In another terminal:
 
 ```bash
 curl --request POST http://localhost:8080/v1/executions \
@@ -163,7 +163,7 @@ Use environment variables or standard ASP.NET Core configuration.
 |---|---|---|
 | `Storage__Provider` | `Memory`, `Sqlite`, or `Postgres` | `Sqlite` |
 | `Storage__AutoInitialize` | Create the prototype schema at startup | `true` |
-| `ConnectionStrings__iRoute` | Durable database connection | `Data Source=iroute.db` |
+| `ConnectionStrings__iRoute` | Durable database connection. A relative SQLite path resolves under the shared per-user data directory | `Data Source=iroute.db` |
 | `ModelGateway__Mode` | `Deterministic` or `Http` | `Deterministic` |
 | `ModelGateway__GatewayId` | Stable operator-defined external gateway identity | `external` |
 | `ModelGateway__Transport` | `Buffered` or bounded NDJSON `Streaming` | `Buffered` |

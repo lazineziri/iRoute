@@ -13,8 +13,10 @@ services:
       ModelGateway__Mode: Deterministic
       Identity__Mode: DevelopmentHeaders
       Observability__PayloadMode: MetadataOnly
+    # DevelopmentHeaders trusts X-Tenant-Id/X-Actor-Id/X-Permission-Scopes without
+    # authenticating them, so this profile must never listen beyond the loopback interface.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - sqlite-data:/var/lib/iroute
     healthcheck:
