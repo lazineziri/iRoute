@@ -3,6 +3,13 @@
   "version": "0.1.0-alpha.1",
   "private": false,
   "description": "Thin Node.js client for the iRoute task-aware runtime",
+  "homepage": "https://iroute.dev/docs/sdk/node",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lazineziri/iRoute.git",
+    "directory": "sdks/node"
+  },
+  "bugs": { "url": "https://github.com/lazineziri/iRoute/issues" },
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

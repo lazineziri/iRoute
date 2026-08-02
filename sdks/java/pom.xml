@@ -5,6 +5,7 @@
   <version>0.1.0-alpha.1</version>
   <name>iRoute Java SDK</name>
   <description>Thin Java client for the iRoute task-aware runtime</description>
+  <url>https://iroute.dev/docs/sdk/java</url>
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
@@ -17,6 +18,16 @@
       <name>iRoute contributors</name>
     </developer>
   </developers>
+  <scm>
+    <connection>scm:git:https://github.com/lazineziri/iRoute.git</connection>
+    <developerConnection>scm:git:https://github.com/lazineziri/iRoute.git</developerConnection>
+    <url>https://github.com/lazineziri/iRoute</url>
+    <tag>HEAD</tag>
+  </scm>
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/lazineziri/iRoute/issues</url>
+  </issueManagement>
   <properties>
     <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

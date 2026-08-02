@@ -9,6 +9,7 @@ The canonical, reviewable project documentation is maintained as Markdown.
 - [Compatibility promise](compatibility.md)
 - [Contract versioning](contract-versioning.md)
 - [Release process](releasing.md)
+- [Public package publishing](package-publishing.md)
 - [0.1.0-alpha.1 release notes](releases/0.1.0-alpha.1.md)
 - [Version baseline](version-baseline.md)
 - [Workstream status](workstream-status.md)

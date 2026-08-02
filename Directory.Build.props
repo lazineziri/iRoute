@@ -12,6 +12,8 @@
     <Copyright>Copyright 2026 iRoute contributors</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/lazineziri/iRoute</RepositoryUrl>
+    <PackageProjectUrl>https://iroute.dev</PackageProjectUrl>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 </Project>
