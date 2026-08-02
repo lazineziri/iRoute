@@ -34,7 +34,7 @@ jobs:
           test "${GITHUB_REF_TYPE}" = "tag"
           test "${GITHUB_REF_NAME}" = "v${{ inputs.version }}"
           test "$(node -p "require('./release.json').version")" = "${{ inputs.version }}"
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
@@ -96,7 +96,7 @@ jobs:
         with:
           name: public-sdk-${{ github.sha }}
           path: artifacts
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - uses: NuGet/login@v1
