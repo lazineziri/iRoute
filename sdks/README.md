@@ -2,14 +2,14 @@
 
 Official SDKs are thin protocol clients aligned with `spec/openapi/iroute.v1.yaml` and wrapped with a small idiomatic layer. They own authentication configuration, public contracts, SSE consumption, cancellation, idempotency propagation, and error mapping. They do not own routing, task decomposition, prompts, memory, validation, retry policy, or provider selection.
 
-| SDK | Stable build baseline | Planned package |
-|---|---|---|
-| .NET | .NET 10 / C# 14 | `iRoute.Sdk` |
-| Node.js | Node 24.18.1 LTS / TypeScript 7.0.2 | `@iroute/sdk` |
-| Python | Python 3.14 | `iroute` |
-| Java | Java 25 LTS | `dev.iroute:iroute-sdk` |
-| PHP | PHP 8.5 | `iroute/sdk` |
-| Rust | Rust 1.97.1 / Edition 2024 | `iroute-sdk` |
+| SDK | Stable build baseline | Package identifier | Complete guide |
+|---|---|---|---|
+| .NET | .NET 10 / C# 14 | `iRoute.Sdk` | [Usage](../src/iRoute.Sdk.DotNet/README.md) |
+| Node.js | Node 24.18.1 LTS / TypeScript 7.0.2 | `@iroute/sdk` | [Usage](node/README.md) |
+| Python | Python 3.14 | `iroute` | [Usage](python/README.md) |
+| Java | Java 25 LTS | `dev.iroute:iroute-sdk` | [Usage](java/README.md) |
+| PHP | PHP 8.5 | `iroute/sdk` | [Usage](php/README.md) |
+| Rust | Rust 1.97.1 / Edition 2024 | `iroute-sdk` | [Usage](rust/README.md) |
 
 Each package must pass the same request, response, error, cancellation, streaming, and backward-compatibility fixtures before release.
 
@@ -28,4 +28,11 @@ All six clients implement execution, lookup, cancellation, approval, artifact, m
 npm run test:sdks
 ```
 
-See the runnable [reference quick starts](../examples/sdks/README.md) and the `iroute` CLI in `src/iRoute.Cli`.
+The alpha source release does not imply registry publication. Each language
+guide explains source or local-package installation, all nine client operations,
+identity, durable execution, event replay, approvals, artifacts, observability,
+errors, timeouts, and the transport behavior specific to that language. Shared
+lifecycle and safety rules are in the [SDK usage guide](../docs/sdk-usage.md).
+
+See the runnable [reference quick starts](../examples/sdks/README.md) and the
+`iroute` CLI in `src/iRoute.Cli`.

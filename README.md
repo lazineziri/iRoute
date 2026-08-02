@@ -89,7 +89,10 @@ dotnet run --project src/iRoute.Cli -- \
   execute --request @examples/email-draft.json --idempotency-key cli-example-001
 ```
 
-See the [SDK quick starts](examples/sdks/README.md) for runnable .NET, Node.js, Python, Java, PHP, and Rust examples.
+See the [SDK quick starts](examples/sdks/README.md) for runnable .NET, Node.js,
+Python, Java, PHP, and Rust examples. Complete installation, execution lifecycle,
+streaming, cancellation, approval, artifact, observability, and error guides are
+indexed in [SDK usage](docs/sdk-usage.md).
 
 Open `http://localhost:8080/dashboard/` to inspect persisted executions, provider-route resilience, redacted timelines, quality, reported cost, latency, token usage, and memory hits. A connected empty state means that no execution matches the selected tenant and time range; it does not mean the API is broken. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
 

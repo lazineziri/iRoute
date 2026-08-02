@@ -168,6 +168,39 @@ test('release inputs exclude private references, local secrets, and generated st
   assert.match(ignore, /\/deploy\/kubernetes\/secret\.yaml/);
 });
 
+test('every official SDK has a complete standalone usage guide', async () => {
+  const guides = [
+    'src/iRoute.Sdk.DotNet/README.md',
+    'sdks/node/README.md',
+    'sdks/python/README.md',
+    'sdks/java/README.md',
+    'sdks/php/README.md',
+    'sdks/rust/README.md'
+  ];
+  const requiredSections = [
+    '## Start iRoute',
+    '## Create a client',
+    '## Submit an execution',
+    '## Poll until terminal',
+    '## Cancel an execution',
+    '## Approve or deny an action',
+    '## Retrieve an artifact',
+    '## Health and observability',
+    '## Method reference',
+    '## Run the example and tests'
+  ];
+
+  for (const guide of guides) {
+    const source = await read(guide);
+    assert.ok(source.length > 5_000, `${guide} is unexpectedly thin`);
+    for (const section of requiredSections) {
+      assert.ok(source.includes(section), `${guide} is missing ${section}`);
+    }
+    assert.match(source, /does not\s+(?:automatically\s+)?retry/i, `${guide} must state retry ownership`);
+    assert.match(source, /idempotency key/i, `${guide} must explain idempotency`);
+  }
+});
+
 test('release, adoption, and community documentation has no broken local links', async () => {
   const documents = [
     'README.md',
@@ -180,6 +213,15 @@ test('release, adoption, and community documentation has no broken local links',
     'docs/compatibility.md',
     'docs/installation.md',
     'docs/releasing.md',
+    'docs/sdk-usage.md',
+    'sdks/README.md',
+    'examples/sdks/README.md',
+    'src/iRoute.Sdk.DotNet/README.md',
+    'sdks/node/README.md',
+    'sdks/python/README.md',
+    'sdks/java/README.md',
+    'sdks/php/README.md',
+    'sdks/rust/README.md',
     release.releaseNotes
   ];
 

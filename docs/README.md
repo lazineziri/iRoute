@@ -13,6 +13,7 @@ The canonical, reviewable project documentation is maintained as Markdown.
 - [Version baseline](version-baseline.md)
 - [Workstream status](workstream-status.md)
 - [Evaluation and regression guide](../eval/README.md)
+- [SDK usage and language guide index](sdk-usage.md)
 - [Official SDKs](../sdks/README.md)
 - [SDK and CLI quick starts](../examples/sdks/README.md)
 - [Container and Kubernetes profiles](../deploy/README.md)
