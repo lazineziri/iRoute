@@ -10,6 +10,8 @@ test('SQLite Compose persists API and execution worker state on one volume', asy
   assert.equal(api.build.target, 'api');
   assert.equal(api.environment.Storage__Provider, 'Sqlite');
   assert.equal(api.environment.Storage__AutoInitialize, 'true');
+  assert.equal(api.environment.ASPNETCORE_ENVIRONMENT, 'Development');
+  assert.equal(api.environment.Identity__Mode, 'DevelopmentHeaders');
   assert.match(api.environment.ConnectionStrings__iRoute, /\/var\/lib\/iroute\/iroute\.db/);
   assert.ok(api.volumes.includes('sqlite-data:/var/lib/iroute'));
   assert.equal(api.read_only, true);
@@ -28,6 +30,8 @@ test('PostgreSQL Compose migrates once before API and worker startup', async () 
   assert.equal(compose.services.migrate.build.target, 'migrate');
   assert.deepEqual(compose.services.migrate.command, ['up']);
   assert.equal(compose.services.api.environment.Storage__AutoInitialize, 'false');
+  assert.equal(compose.services.api.environment.ASPNETCORE_ENVIRONMENT, 'Production');
+  assert.equal(compose.services.api.environment.Identity__Mode, '${IROUTE_IDENTITY_MODE:-Jwt}');
   assert.equal(compose.services.worker.environment.Storage__AutoInitialize, 'false');
   assert.equal(compose.services.worker.environment.Workflow__RetryMaxDelayMilliseconds, '${IROUTE_RETRY_MAX_DELAY_MS:-5000}');
   assert.equal(
@@ -80,6 +84,8 @@ test('Kubernetes reference separates migrations, scalable execution, and singlet
   assert.ok(autoscaler.spec.maxReplicas > autoscaler.spec.minReplicas);
   assert.equal(config.data.Storage__Provider, 'Postgres');
   assert.equal(config.data.Storage__AutoInitialize, 'false');
+  assert.equal(config.data.ASPNETCORE_ENVIRONMENT, 'Production');
+  assert.equal(config.data.Identity__Mode, 'Jwt');
   assert.equal(config.data.ModelGateway__Resilience__Enabled, 'true');
   assert.equal(config.data.ModelGateway__Resilience__MaximumAttempts, '3');
   assert.equal(config.data.ModelGateway__Resilience__Circuit__FailureThreshold, '3');

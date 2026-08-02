@@ -11,7 +11,8 @@ iRoute publishes three non-root targets from one Dockerfile:
 ## SQLite API and worker
 
 This profile starts an API and worker, persists their shared SQLite database under `/var/lib/iroute`,
-uses the deterministic gateway, and needs no provider credential:
+uses the deterministic gateway, runs explicitly in the Development environment,
+and needs no provider credential:
 
 ```bash
 docker compose -f deploy/compose.sqlite.yaml up --build --wait
@@ -28,12 +29,14 @@ then starts the API and a combined execution/lifecycle worker:
 
 ```bash
 cp .env.example .env
+# Set IROUTE_IDENTITY_AUTHORITY and IROUTE_IDENTITY_AUDIENCE before startup.
 docker compose -f deploy/compose.yaml up --build --wait
 ```
 
-This remains a local/team profile because its defaults use development identity
-headers and a local database password. Configure JWT identity, managed PostgreSQL,
-TLS ingress, and external secret management before exposing iRoute publicly.
+This profile runs in Production and defaults to JWT. It fails startup until a
+non-empty authority and audience are supplied. The checked database password is
+still only a local placeholder; configure managed PostgreSQL, TLS ingress, and
+external secret management before exposing iRoute publicly.
 
 HTTP model execution can register multiple provider-neutral routes with
 `ModelGateway__Deployments__{index}__...`. Supply the same ordered list to every

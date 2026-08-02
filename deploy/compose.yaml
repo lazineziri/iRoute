@@ -26,7 +26,7 @@ services:
       Workflow__RetryBaseDelayMilliseconds: ${IROUTE_RETRY_BASE_DELAY_MS:-100}
       Workflow__RetryMaxDelayMilliseconds: ${IROUTE_RETRY_MAX_DELAY_MS:-5000}
       Workflow__RetryJitterRatio: ${IROUTE_RETRY_JITTER_RATIO:-0.2}
-      Identity__Mode: ${IROUTE_IDENTITY_MODE:-DevelopmentHeaders}
+      Identity__Mode: ${IROUTE_IDENTITY_MODE:-Jwt}
       Identity__Authority: ${IROUTE_IDENTITY_AUTHORITY:-}
       Identity__Audience: ${IROUTE_IDENTITY_AUDIENCE:-}
       Identity__PermissionClaim: ${IROUTE_IDENTITY_PERMISSION_CLAIM:-scope}

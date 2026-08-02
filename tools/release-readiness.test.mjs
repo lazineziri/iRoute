@@ -124,6 +124,38 @@ test('documented clean install and release workflow are executable and publicati
   }
 });
 
+test('alpha disclosures and development identity defaults fail closed', async () => {
+  const releaseNotes = await read(release.releaseNotes);
+  for (const requiredDisclosure of [
+    /experimental/i,
+    /breaking changes are expected/i,
+    /no production SLA/i,
+    /no security-response.*SLA/i,
+    /not production integrations/i,
+    /not validated production measurements/i,
+    /Self-hosters are responsible/i
+  ]) {
+    assert.match(releaseNotes, requiredDisclosure);
+  }
+
+  const identity = await read('src/iRoute.Api/IdentityConfiguration.cs');
+  assert.match(identity, /Environments\.Development/);
+  assert.match(identity, /DevelopmentHeaders is permitted only/);
+  assert.match(await read('src/iRoute.Api/Program.cs'), /builder\.Environment\.EnvironmentName/);
+
+  const localCompose = YAML.parse(await read('deploy/compose.sqlite.yaml'));
+  assert.equal(localCompose.services.api.environment.ASPNETCORE_ENVIRONMENT, 'Development');
+  assert.equal(localCompose.services.api.environment.Identity__Mode, 'DevelopmentHeaders');
+
+  const productionCompose = YAML.parse(await read('deploy/compose.yaml'));
+  assert.equal(productionCompose.services.api.environment.ASPNETCORE_ENVIRONMENT, 'Production');
+  assert.equal(productionCompose.services.api.environment.Identity__Mode, '${IROUTE_IDENTITY_MODE:-Jwt}');
+
+  const kubernetesConfig = YAML.parse(await read('deploy/kubernetes/configmap.yaml'));
+  assert.equal(kubernetesConfig.data.ASPNETCORE_ENVIRONMENT, 'Production');
+  assert.equal(kubernetesConfig.data.Identity__Mode, 'Jwt');
+});
+
 test('release inputs exclude private references, local secrets, and generated state', () => {
   const trackedDocuments = git('ls-files', '*.docx');
   assert.equal(trackedDocuments, '');

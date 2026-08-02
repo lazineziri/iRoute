@@ -129,7 +129,7 @@ A policy is releasable only when every candidate case reaches a completed termin
 
 ## Identity
 
-`Identity:Mode=DevelopmentHeaders` is intended only for local development. Internet-facing deployments must use `Jwt`, configure an HTTPS authority and audience, and issue tokens containing the configured tenant, actor, and permission claims. The API replaces caller-supplied request scopes with authenticated scopes before policy evaluation. External-action approval requires both the action scope (for example `email:send`) and `approval:grant`.
+`Identity:Mode=DevelopmentHeaders` is accepted only when the host environment is exactly `Development`; the API fails startup closed in every other environment. Internet-facing deployments must use `Jwt`, configure an HTTPS authority and audience, and issue tokens containing the configured tenant, actor, and permission claims. The API replaces caller-supplied request scopes with authenticated scopes before policy evaluation. External-action approval requires both the action scope (for example `email:send`) and `approval:grant`.
 
 ## External-action safety and recovery
 

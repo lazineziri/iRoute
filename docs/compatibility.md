@@ -10,6 +10,10 @@ not listed in public documentation, deterministic reference-adapter behavior,
 and source-level extension points may change between prereleases. Such changes
 are still documented in the changelog and migration notes.
 
+Breaking changes to those unstable alpha surfaces are expected before `1.0`.
+The alpha designation provides no production SLA; the separately maintained
+security policy provides no security-response or remediation SLA.
+
 Alpha status does not weaken the published v1 wire contract. OpenAPI operations,
 JSON Schema identifiers, SSE ordering, existing fields, status values, error
 codes, and enum values follow the compatibility rules below.

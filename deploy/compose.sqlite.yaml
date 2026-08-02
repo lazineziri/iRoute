@@ -6,7 +6,7 @@ services:
       dockerfile: deploy/Dockerfile
       target: api
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       Storage__Provider: Sqlite
       Storage__AutoInitialize: "true"
       ConnectionStrings__iRoute: Data Source=/var/lib/iroute/iroute.db

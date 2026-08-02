@@ -28,9 +28,10 @@ technical vulnerability.
 
 Maintainers will acknowledge a complete report as capacity permits, validate
 the impact privately, coordinate a fix and advisory, and credit the reporter if
-requested and appropriate. This community project does not promise a response
-or remediation SLA. Please allow maintainers to publish a fix before public
-disclosure; coordinated timelines will reflect severity and exploitability.
+requested and appropriate. This community project does not promise a production
+SLA, security-response SLA, or remediation SLA. Please allow maintainers to
+publish a fix before public disclosure; coordinated timelines will reflect
+severity and exploitability.
 
 ## Supported versions
 
@@ -45,7 +46,8 @@ fixes. Upgrading may require following the documented migration procedure.
 ## Security boundary
 
 iRoute does not intentionally export prompts, outputs, credentials, tenant
-identifiers, or telemetry by default. External actions must be capability-
+identifiers, or telemetry by default. `DevelopmentHeaders` is rejected at API
+startup unless the host environment is exactly `Development`. External actions must be capability-
 allow-listed, authenticated, authorized, approval-gated where configured,
 idempotent, and auditable. Development identity headers and deterministic
 connectors are local reference modes, not internet-facing production controls.

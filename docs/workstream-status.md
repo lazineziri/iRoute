@@ -362,8 +362,35 @@ Acceptance evidence:
 - Observability tests group attempted and rejected candidates by gateway, provider, deployment, region, model version, failure class, and circuit state.
 - Adaptive routing and online learning remain deliberately outside W18; deterministic resilience must remain measurable before learned policy is introduced.
 
+### W19 — Tenant quotas and fairness: next
+
+Completion requires:
+
+1. Distributed per-tenant concurrency limits.
+2. Request-rate and queue-depth limits.
+3. Input-token, output-token, and cost budgets.
+4. Token/cost reservation before execution and reconciliation after completion.
+5. Fair scheduling so a busy tenant cannot monopolize workers.
+6. Separate limits for deterministic, connector, and model work.
+7. Atomic enforcement across API and worker replicas.
+8. Standard HTTP `429` responses with bounded `Retry-After` guidance.
+9. Quota decisions recorded in durable traces and low-cardinality metrics.
+10. PostgreSQL integration tests proving fairness across multiple workers while
+    an intentionally abusive tenant is active.
+
+PostgreSQL is the baseline quota implementation so Redis does not become a
+mandatory dependency. A Redis backend may be added later as an optional
+high-throughput implementation after the semantics are proven equivalent.
+
 ## Extended backlog status
 
 All W01-W18 workstreams are implemented. The result is a credible resilient alpha,
-not a production declaration. The next measured work should cover tenant quotas,
-real connectors, semantic memory, and production deployment validation.
+not a production declaration. Release progression is:
+
+- `0.1.0-alpha.1`: public open-source alpha.
+- W19 plus security, provider, and load validation: private beta.
+- Real operational evidence and completed runbooks: production candidate.
+- Sustained successful pilots: `1.0`.
+
+After W19, the next measured work should cover real connectors, semantic memory,
+and production deployment validation.

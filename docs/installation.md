@@ -37,6 +37,10 @@ npm run test:release
 The SDK runner skips a native language locally when its toolchain is absent;
 the official CI jobs cover every supported language before release.
 
+Direct source runs that use `DevelopmentHeaders` must explicitly set
+`ASPNETCORE_ENVIRONMENT=Development`. The API rejects development identity
+headers at startup in every other environment.
+
 ## Smallest runnable deployment
 
 Start durable SQLite API and worker containers with no provider credentials:
@@ -73,7 +77,7 @@ The PostgreSQL Compose and Kubernetes paths require operator configuration. Read
 [deploy/README.md](../deploy/README.md) and [operations.md](operations.md) before
 using them. In particular:
 
-- replace development identity headers with JWT;
+- configure JWT identity; `DevelopmentHeaders` cannot start outside Development;
 - replace all example secret, host, registry, and image values;
 - use an external backed-up PostgreSQL service;
 - run the release-matched migration job before workloads;

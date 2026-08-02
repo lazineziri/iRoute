@@ -14,7 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi("v1");
 builder.Services.AddHealthChecks();
-var identityOptions = builder.Services.AddIRouteIdentity(builder.Configuration);
+var identityOptions = builder.Services.AddIRouteIdentity(
+    builder.Configuration,
+    builder.Environment.EnvironmentName);
 builder.Services.AddIRouteRuntime(
     builder.Configuration.GetSection("Workflow").Get<WorkflowSchedulerOptions>());
 builder.Services.AddIRouteInfrastructure(builder.Configuration);

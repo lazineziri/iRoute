@@ -7,24 +7,23 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ## [Unreleased]
 
-### Added
-
-- Durable asynchronous execution submission with HTTP `202`, PostgreSQL/SQLite
-  work persistence, fenced leases, heartbeats, crash takeover, checkpoint
-  recovery, and distributed cancellation.
-- Approval requeueing, scalable execution-worker deployments, ordered
-  queue/lease events, and retry policies with timeouts, bounded exponential
-  backoff, jitter, and `Retry-After` support.
-- Multiple provider-neutral gateway routes with deterministic quality, cost,
-  deadline, region, residency, profile, and attempt-budget fallback policy.
-- Durable per-deployment closed/open/half-open circuit breakers with fenced
-  probes, Retry-After-aware open intervals, multi-replica coordination,
-  classified exhaustion, trace events, and resilience metrics.
+No changes yet.
 
 ## [0.1.0-alpha.1] - 2026-08-01
 
 ### Added
 
+- Durable asynchronous execution submission with HTTP `202`, PostgreSQL/SQLite
+  work persistence, fenced leases, heartbeats, crash takeover, checkpoint
+  recovery, distributed cancellation, and approval requeueing.
+- Scalable execution-worker deployments, ordered queue/lease events, and retry
+  policies with timeouts, bounded exponential backoff, jitter, and
+  `Retry-After` support.
+- Multiple provider-neutral gateway routes with deterministic quality, cost,
+  deadline, region, residency, profile, and attempt-budget fallback policy.
+- Durable per-deployment closed/open/half-open circuit breakers with fenced
+  probes, Retry-After-aware open intervals, multi-replica coordination,
+  classified exhaustion, trace events, and resilience metrics.
 - Task-aware execution across the complete built-in task registry with
   measured routing, bounded planning, validation, and materialization.
 - Tenant-scoped SQLite/PostgreSQL persistence, workflow checkpoints, approvals,
@@ -41,10 +40,19 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ### Known limitations
 
-- This is an alpha prerelease, not a production support commitment.
-- In-flight execution and cancellation are process-local; API requests scale
-  horizontally, but work is not transparently movable between replicas.
+- This is an experimental alpha prerelease with expected breaking changes and
+  no production or security-response SLA.
+- Distributed tenant concurrency, request, queue, token, and cost quotas are not
+  implemented.
 - Run exactly one lifecycle worker per database until distributed leasing is
   implemented.
-- Production transport adapters, external-action reconciliation, and managed
-  provider integrations remain operator responsibilities.
+- Reference connectors are not production integrations, and provider
+  performance/cost figures are not validated production measurements.
+- Authentication, TLS, secrets, backups, network controls, production transport
+  adapters, external-action reconciliation, and managed provider integrations
+  remain operator responsibilities.
+
+### Security
+
+- `DevelopmentHeaders` is rejected automatically when the host environment is
+  not Development; production-shaped deployment defaults use JWT.

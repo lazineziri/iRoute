@@ -69,8 +69,43 @@ public sealed class RequestIdentityTests
         var services = new ServiceCollection();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            services.AddIRouteIdentity(configuration));
+            services.AddIRouteIdentity(configuration, "Production"));
 
         Assert.Contains("Identity:Authority", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevelopmentHeadersFailClosedOutsideDevelopment()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Identity:Mode"] = IRouteIdentityOptions.DevelopmentHeadersMode
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddIRouteIdentity(configuration, "Production"));
+
+        Assert.Contains("permitted only", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Identity:Mode=Jwt", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevelopmentHeadersAreAvailableInDevelopment()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Identity:Mode"] = IRouteIdentityOptions.DevelopmentHeadersMode
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        var options = services.AddIRouteIdentity(configuration, "Development");
+
+        Assert.Equal(IRouteIdentityOptions.DevelopmentHeadersMode, options.Mode);
+        Assert.False(options.UsesJwt);
     }
 }

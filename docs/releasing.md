@@ -39,6 +39,12 @@ reference before production use.
    review. Resolve every unexplained change.
 6. Confirm the security advisory channel is enabled and a maintainer can receive
    private reports.
+7. Confirm the release notes explicitly identify the experimental alpha status,
+   expected breaking changes, absence of production/security-response SLAs,
+   reference-connector limitations, unvalidated provider measurements, and the
+   self-hoster security/operations boundary.
+8. Prove `DevelopmentHeaders` fails startup outside Development and that every
+   production-shaped manifest defaults to JWT.
 
 ## Verify from a clean checkout
 

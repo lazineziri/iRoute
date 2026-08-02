@@ -33,7 +33,8 @@ internal static class IdentityConfiguration
 
     public static IRouteIdentityOptions AddIRouteIdentity(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        string environmentName)
     {
         var options = configuration
             .GetSection(IRouteIdentityOptions.SectionName)
@@ -43,6 +44,14 @@ internal static class IdentityConfiguration
         {
             throw new InvalidOperationException(
                 $"Unsupported Identity:Mode '{options.Mode}'. Use DevelopmentHeaders or Jwt.");
+        }
+
+        if (string.Equals(options.Mode, IRouteIdentityOptions.DevelopmentHeadersMode, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(environmentName, Environments.Development, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Identity:Mode=DevelopmentHeaders is permitted only when the host environment is Development. " +
+                "Configure Identity:Mode=Jwt outside Development.");
         }
 
         if (options.UsesJwt &&

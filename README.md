@@ -2,6 +2,11 @@
 
 iRoute is an open-source, task-aware AI execution runtime. It resolves work from trusted state first, sends only unresolved work to capabilities or models, validates the result, and materializes reusable project artifacts with evidence and cost metadata.
 
+> **Experimental alpha:** `0.1.0-alpha.1` is intended for evaluation and controlled
+> pilots. Breaking changes are expected before `1.0`. There is no production or
+> security-response SLA. Reference connectors are not production integrations,
+> and checked provider cost/performance figures are not production measurements.
+
 ## Current milestone
 
 Formal backlog status: **M0, M1, M2, and M3 are complete through W16; W17 durable execution and W18 provider resilience are complete**. The
@@ -55,7 +60,7 @@ Prerequisite: .NET SDK `10.0.100` or newer on the .NET 10 line. The repository i
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --no-restore
-dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
 ```
 
 In a second terminal, start the execution and lifecycle host:
@@ -178,7 +183,7 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Lifecycle__MaxMemoryRecordsPerTenant` | Memory-record quota used for cold candidate selection | `10,000` |
 | `Lifecycle__MaxArchivesPerTenant` | Retained archive-record quota | `20,000` |
 | `Lifecycle__BatchSize` | Maximum expiry/archive/delete work per sweep stage | `500` |
-| `Identity__Mode` | `DevelopmentHeaders` or `Jwt` | `DevelopmentHeaders` |
+| `Identity__Mode` | `DevelopmentHeaders` or `Jwt` | `DevelopmentHeaders` in Development; startup is rejected elsewhere |
 | `Identity__Authority` | OpenID Connect/JWT issuer | required in JWT mode |
 | `Identity__Audience` | Expected JWT audience | required in JWT mode |
 | `Identity__TenantClaim` | Claim containing tenant identity | `tenant_id` |
@@ -196,7 +201,7 @@ Use the deterministic gateway only for local development and repeatable tests. B
 
 For resilient HTTP routing, configure `ModelGateway__Deployments__0__...`, `ModelGateway__Deployments__1__...`, and so on. Each route declares a unique route/deployment ID, generic gateway URL and credential, provider/region/residency/model-version metadata, capabilities/profiles, expected quality/cost/latency, and priority. iRoute uses those fields for deterministic eligibility and observability; provider-specific request/response protocols remain behind the generic gateway. Configure the same list for every worker replica and use PostgreSQL for shared circuit state.
 
-`DevelopmentHeaders` trusts `X-Tenant-Id`, `X-Actor-Id`, and `X-Permission-Scopes` and must not be exposed as an internet-facing production configuration. JWT mode requires an authenticated token with the configured tenant claim and obtains permission scopes only from `Identity__PermissionClaim`; request headers and body fields cannot elevate them.
+`DevelopmentHeaders` trusts `X-Tenant-Id`, `X-Actor-Id`, and `X-Permission-Scopes`. The API rejects this mode at startup unless the host environment is exactly `Development`. JWT mode is mandatory outside Development, requires an authenticated token with the configured tenant claim, and obtains permission scopes only from `Identity__PermissionClaim`; request headers and body fields cannot elevate them.
 
 ## Architecture and source of truth
 
