@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace iRoute.UnitTests;
 
+[Collection(PostgresIntegrationGroup.Name)]
 public sealed class ExecutionOrchestratorTests
 {
     private static readonly string[] ActiveDecisions =
