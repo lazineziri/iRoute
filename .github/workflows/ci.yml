@@ -35,7 +35,7 @@ jobs:
       IROUTE_TEST_POSTGRES: Host=localhost;Port=5432;Database=iroute_test;Username=iroute;Password=iroute-test-only
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
