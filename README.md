@@ -181,6 +181,8 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Workflow__RetryJitterRatio` | Deterministic retry jitter ratio | `0.2` |
 | `ExecutionWorker__LeaseDuration` | Distributed execution lease duration | `30 seconds` |
 | `ExecutionWorker__HeartbeatInterval` | Lease renewal and cancellation polling interval | `5 seconds` |
+| `ExecutionWorker__MaxDeliveryAttempts` | Deliveries before a repeatedly failing execution is failed terminally; `0` redelivers forever | `5` |
+| `ExecutionWorker__MaxAbandonDelay` | Ceiling on the redelivery delay, which doubles per failed delivery | `5 minutes` |
 | `Lifecycle__SweepInterval` | Delay between lifecycle worker sweeps | `5 minutes` |
 | `Lifecycle__DefaultArtifactTimeToLive` | Default lifetime assigned to new artifacts | `30 days` |
 | `Lifecycle__DefaultMemoryTimeToLive` | Default lifetime assigned to new memory records | `90 days` |

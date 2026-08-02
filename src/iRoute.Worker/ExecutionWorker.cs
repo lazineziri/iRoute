@@ -14,8 +14,51 @@ public sealed record ExecutionWorkerOptions
     public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan AbandonDelay { get; init; } = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// Upper bound on the redelivery delay, which doubles with each failed delivery.
+    /// </summary>
+    public TimeSpan MaxAbandonDelay { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Deliveries allowed before an execution is failed terminally instead of being redelivered.
+    /// Zero disables the ceiling and restores unbounded redelivery.
+    /// </summary>
+    public int MaxDeliveryAttempts { get; init; } = 5;
+
+    public bool HasExhaustedDeliveries(int deliveryAttempt) =>
+        MaxDeliveryAttempts > 0 && deliveryAttempt >= MaxDeliveryAttempts;
+
+    /// <summary>
+    /// Redelivery delay for a given attempt: doubles per attempt, clamped to
+    /// <see cref="MaxAbandonDelay"/>, so one poison item cannot spin the queue.
+    /// </summary>
+    public TimeSpan AbandonDelayFor(int deliveryAttempt)
+    {
+        if (deliveryAttempt <= 1)
+        {
+            return AbandonDelay;
+        }
+
+        // Cap the shift before it can overflow the multiplication.
+        var doublings = Math.Min(deliveryAttempt - 1, 30);
+        var scaled = AbandonDelay * Math.Pow(2, doublings);
+        return scaled >= MaxAbandonDelay ? MaxAbandonDelay : scaled;
+    }
+
     public void EnsureValid()
     {
+        if (MaxDeliveryAttempts < 0)
+        {
+            throw new InvalidOperationException(
+                "ExecutionWorker:MaxDeliveryAttempts cannot be negative; use 0 for unlimited redelivery.");
+        }
+
+        if (MaxAbandonDelay < AbandonDelay)
+        {
+            throw new InvalidOperationException(
+                "ExecutionWorker:MaxAbandonDelay must be greater than or equal to AbandonDelay.");
+        }
+
         if (PollInterval <= TimeSpan.Zero ||
             LeaseDuration <= TimeSpan.Zero ||
             HeartbeatInterval <= TimeSpan.Zero ||
@@ -127,7 +170,16 @@ public sealed partial class ExecutionWorker(
         catch (Exception exception)
         {
             LogExecutionFailed(logger, lease.ExecutionId, exception);
-            await AbandonAsync(lease, "worker_failure");
+            if (_options.HasExhaustedDeliveries(lease.DeliveryAttempt))
+            {
+                // Redelivering a deterministically failing execution forever spins the queue and
+                // grows the event log without bound. Settle it instead.
+                await DeadLetterAsync(lease, exception);
+            }
+            else
+            {
+                await AbandonAsync(lease, "worker_failure");
+            }
         }
         finally
         {
@@ -207,9 +259,55 @@ public sealed partial class ExecutionWorker(
         }
     }
 
+    /// <summary>
+    /// Fails an execution that has exhausted its deliveries and completes the work item, so the
+    /// queue stops re-serving it. The lease token still fences both writes.
+    /// </summary>
+    private async Task DeadLetterAsync(ExecutionLease lease, Exception exception)
+    {
+        var now = clock.UtcNow;
+        var problem = new Problem(
+            ErrorCodes.ExecutionFailed,
+            "Execution delivery attempts exhausted",
+            $"Execution '{lease.ExecutionId}' failed on {lease.DeliveryAttempt} deliveries and was " +
+                $"not retried again. Last failure: {exception.Message}",
+            Retryable: false);
+
+        LogDeliveriesExhausted(logger, lease.ExecutionId, lease.DeliveryAttempt);
+
+        try
+        {
+            var snapshot = await executions.GetAsync(lease.ExecutionId, CancellationToken.None);
+            if (snapshot is not null && !ExecutionStateMachine.IsTerminal(snapshot.Status) &&
+                ExecutionStateMachine.CanTransition(snapshot.Status, ExecutionStatus.Failed))
+            {
+                await executions.UpdateAsync(
+                    snapshot with
+                    {
+                        Status = ExecutionStatus.Failed,
+                        UpdatedAt = now,
+                        Error = problem
+                    },
+                    CancellationToken.None);
+                await TryAppendEventAsync(
+                    lease.ExecutionId,
+                    ExecutionEventTypes.Failed,
+                    new { workerId = _workerId, reason = "delivery_attempts_exhausted", problem.Detail },
+                    CancellationToken.None);
+            }
+
+            await work.CompleteAsync(lease, now, CancellationToken.None);
+        }
+        catch (Exception deadLetterFailure)
+        {
+            // Never let the settling path take the worker down; the lease simply expires.
+            LogExecutionFailed(logger, lease.ExecutionId, deadLetterFailure);
+        }
+    }
+
     private async Task AbandonAsync(ExecutionLease lease, string reason)
     {
-        var availableAt = clock.UtcNow.Add(_options.AbandonDelay);
+        var availableAt = clock.UtcNow.Add(_options.AbandonDelayFor(lease.DeliveryAttempt));
         if (await work.AbandonAsync(lease, availableAt, CancellationToken.None))
         {
             await TryAppendEventAsync(
@@ -287,6 +385,15 @@ public sealed partial class ExecutionWorker(
 
     [LoggerMessage(14, LogLevel.Error, "Durable execution {ExecutionId} failed in the worker host")]
     private static partial void LogExecutionFailed(ILogger logger, Guid executionId, Exception exception);
+
+    [LoggerMessage(
+        18,
+        LogLevel.Error,
+        "Execution {ExecutionId} exhausted {DeliveryAttempt} delivery attempts and was failed")]
+    private static partial void LogDeliveriesExhausted(
+        ILogger logger,
+        Guid executionId,
+        int deliveryAttempt);
 
     [LoggerMessage(15, LogLevel.Error, "Execution {ExecutionId} lease heartbeat failed")]
     private static partial void LogHeartbeatFailed(ILogger logger, Guid executionId, Exception exception);
