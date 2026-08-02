@@ -79,7 +79,9 @@ using them. In particular:
 - run the release-matched migration job before workloads;
 - keep exactly one lifecycle worker per database;
 - run at least two execution workers for takeover capacity;
-- configure TLS ingress, secret management, and the external model gateway.
+- configure TLS ingress, secret management, and at least one generic gateway deployment;
+- keep the registered gateway route list identical across execution workers and use PostgreSQL for shared circuit state;
+- run sustained load, soak, and production failover validation before declaring the installation production-ready.
 
 ## Installation failures
 

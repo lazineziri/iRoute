@@ -84,9 +84,15 @@ public sealed class DirectPathSelector(
         ExecutionPlanBudget budget,
         int stepsOfKind)
     {
+        if (candidate.StepKind == ExecutionStepKind.Model)
+        {
+            // W18 assigns model retry/fallback ownership to the provider-neutral resilience gateway.
+            // Repeating the whole deployment sequence in the workflow scheduler would duplicate retries.
+            return 1;
+        }
+
         var callBudget = candidate.StepKind switch
         {
-            ExecutionStepKind.Model => budget.MaxModelCalls,
             ExecutionStepKind.Tool => budget.MaxToolCalls,
             _ => 1
         };
@@ -399,7 +405,7 @@ public sealed class MeasuredEscalationPolicy : IEscalationPolicy
 
 internal static class RoutingDecisions
 {
-    public const string PolicyVersion = "routing.w08.v1";
+    public const string PolicyVersion = "routing.w18.v1";
 
     public static RoutingDecision Create(
         RoutingPath path,

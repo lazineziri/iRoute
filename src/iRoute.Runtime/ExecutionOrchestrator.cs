@@ -806,6 +806,7 @@ public sealed class ExecutionOrchestrator(
             },
             cancellationToken);
 
+        var modelGatewayBudgets = ModelGatewayBudgets(plan);
         var workflow = await scheduler.ExecuteAsync(
             snapshot.ExecutionId,
             request,
@@ -821,6 +822,7 @@ public sealed class ExecutionOrchestrator(
                         definition,
                         context,
                         step,
+                        modelGatewayBudgets[step.Id],
                         dependencyOutputs,
                         stepCancellationToken),
                     ExecutionStepKind.Tool when step.SideEffectClass < SideEffectClass.ReversibleWrite =>
@@ -855,6 +857,14 @@ public sealed class ExecutionOrchestrator(
             ?? throw new WorkflowStepExecutionException(
                 "execute",
                 "The checkpointed capability result is invalid.");
+        if (capabilityResult.Resilience is { } resilience)
+        {
+            routing = routing with
+            {
+                SelectedDeployment = resilience.FinalDeployment,
+                Resilience = resilience
+            };
+        }
         var usage = capabilityResult.Usage;
         EnsureUsageWithinBudget(request, capabilityResult);
         if (usage.ModelCalls > 0)
@@ -867,6 +877,11 @@ public sealed class ExecutionOrchestrator(
                     capability = routing.SelectedCapability,
                     profileId = routing.SelectedProfileId,
                     gatewayId = capabilityResult.GatewayId,
+                    provider = capabilityResult.Deployment?.Provider,
+                    deploymentId = capabilityResult.Deployment?.DeploymentId,
+                    region = capabilityResult.Deployment?.Region,
+                    residency = capabilityResult.Deployment?.Residency,
+                    modelVersion = capabilityResult.Deployment?.ModelVersion,
                     transport = capabilityResult.Transport,
                     finishReason = capabilityResult.FinishReason,
                     inputTokens = usage.InputTokens,
@@ -874,6 +889,7 @@ public sealed class ExecutionOrchestrator(
                     cost = usage.Cost,
                     durationMilliseconds = usage.DurationMilliseconds,
                     modelCalls = usage.ModelCalls,
+                    fallbackAttempts = capabilityResult.Resilience?.Attempts.Count ?? 0,
                     peakQueuedSteps = workflow.PeakQueuedSteps,
                     backpressureWaitCount = workflow.BackpressureWaitCount,
                     recoveredStepCount = workflow.RecoveredStepCount
@@ -992,6 +1008,7 @@ public sealed class ExecutionOrchestrator(
         TaskDefinition definition,
         CompiledContext context,
         ExecutionPlanStep step,
+        ModelStepGatewayBudget gatewayBudget,
         IReadOnlyDictionary<string, JsonElement> dependencyOutputs,
         CancellationToken cancellationToken)
     {
@@ -1008,7 +1025,14 @@ public sealed class ExecutionOrchestrator(
             request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
             executionId.ToString(),
             step.ProfileId,
-            step.TimeoutMilliseconds);
+            step.TimeoutMilliseconds,
+            MinimumQuality: Math.Max(
+                request.Constraints?.MinimumQuality ?? definition.MinimumQuality,
+                definition.MinimumQuality),
+            MaximumCost: gatewayBudget.MaximumCost,
+            AllowedRegions: request.Constraints?.AllowedRegions,
+            RequiredResidency: request.Constraints?.RequiredResidency,
+            MaximumAttempts: gatewayBudget.MaximumAttempts);
         await AppendEventAsync(
             executionId,
             ExecutionEventTypes.GatewayStarted,
@@ -1075,6 +1099,13 @@ public sealed class ExecutionOrchestrator(
         catch (ModelGatewayException exception)
         {
             stopwatch.Stop();
+            if (exception.Resilience is { } resilience)
+            {
+                await AppendGatewayResilienceEvidenceAsync(
+                    executionId,
+                    resilience,
+                    CancellationToken.None);
+            }
             await AppendGatewayFailureAsync(
                 executionId,
                 step,
@@ -1108,6 +1139,13 @@ public sealed class ExecutionOrchestrator(
                 ModelCalls = Math.Max(1, result.Usage.ModelCalls)
             }
         };
+        if (normalized.Resilience is { } resilienceTrace)
+        {
+            await AppendGatewayResilienceEvidenceAsync(
+                executionId,
+                resilienceTrace,
+                cancellationToken);
+        }
         var dependencyResults = dependencyOutputs.Values
             .Select(value => value.Deserialize<ModelGatewayResult>(ContractJsonOptions)
                 ?? throw new WorkflowStepExecutionException(
@@ -1298,6 +1336,161 @@ public sealed class ExecutionOrchestrator(
         return tokenLimit * 4;
     }
 
+    private async Task AppendGatewayResilienceEvidenceAsync(
+        Guid executionId,
+        GatewayResilienceTrace trace,
+        CancellationToken cancellationToken)
+    {
+        foreach (var candidate in trace.Candidates)
+        {
+            await AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.GatewayCandidateEvaluated,
+                new
+                {
+                    candidate.Deployment.GatewayId,
+                    candidate.Deployment.Provider,
+                    candidate.Deployment.DeploymentId,
+                    candidate.Deployment.Region,
+                    candidate.Deployment.Residency,
+                    candidate.Deployment.ModelVersion,
+                    candidate.Eligible,
+                    candidate.Reason,
+                    candidate.CircuitState,
+                    candidate.FailureClass
+                },
+                cancellationToken);
+        }
+
+        foreach (var attempt in trace.Attempts)
+        {
+            var fallbackSelected = IsGatewayFallback(trace, attempt);
+            _telemetry.RecordGatewayAttempt(attempt, fallbackSelected);
+            await AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.GatewayAttempted,
+                new
+                {
+                    attempt.Deployment.GatewayId,
+                    attempt.Deployment.Provider,
+                    attempt.Deployment.DeploymentId,
+                    attempt.Deployment.Region,
+                    attempt.Deployment.Residency,
+                    attempt.Deployment.ModelVersion,
+                    attempt.Attempt,
+                    attempt.CircuitStateBefore,
+                    attempt.CircuitStateAfter,
+                    attempt.Succeeded,
+                    attempt.FailureClass,
+                    attempt.FailureCode,
+                    attempt.StatusCode,
+                    attempt.DurationMilliseconds,
+                    attempt.RetryAfterMilliseconds,
+                    fallbackSelected
+                },
+                cancellationToken);
+            if (fallbackSelected)
+            {
+                await AppendEventAsync(
+                    executionId,
+                    ExecutionEventTypes.GatewayFallbackSelected,
+                    new
+                    {
+                        attempt.Deployment.GatewayId,
+                        attempt.Deployment.Provider,
+                        attempt.Deployment.DeploymentId,
+                        attempt.Deployment.Region,
+                        attempt.Deployment.ModelVersion,
+                        attempt.Attempt,
+                        reason = trace.FallbackReason
+                    },
+                    cancellationToken);
+            }
+
+            if (attempt.CircuitStateBefore != attempt.CircuitStateAfter)
+            {
+                await AppendEventAsync(
+                    executionId,
+                    ExecutionEventTypes.GatewayCircuitChanged,
+                    new
+                    {
+                        attempt.Deployment.GatewayId,
+                        attempt.Deployment.Provider,
+                        attempt.Deployment.DeploymentId,
+                        attempt.Deployment.Region,
+                        attempt.Deployment.ModelVersion,
+                        from = attempt.CircuitStateBefore,
+                        to = attempt.CircuitStateAfter,
+                        attempt.FailureClass
+                    },
+                    cancellationToken);
+            }
+        }
+
+        if (trace.ExhaustionReason is not null)
+        {
+            await AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.GatewayExhausted,
+                new
+                {
+                    trace.PolicyVersion,
+                    trace.ExhaustionReason,
+                    candidates = trace.Candidates.Count,
+                    attempts = trace.Attempts.Count
+                },
+                cancellationToken);
+        }
+
+        await AppendEventAsync(
+            executionId,
+            ExecutionEventTypes.GatewayResilienceDecided,
+            new
+            {
+                trace.PolicyVersion,
+                finalGatewayId = trace.FinalDeployment?.GatewayId,
+                finalProvider = trace.FinalDeployment?.Provider,
+                finalDeploymentId = trace.FinalDeployment?.DeploymentId,
+                finalRegion = trace.FinalDeployment?.Region,
+                finalResidency = trace.FinalDeployment?.Residency,
+                finalModelVersion = trace.FinalDeployment?.ModelVersion,
+                trace.FallbackReason,
+                trace.ExhaustionReason,
+                candidates = trace.Candidates.Count,
+                attempts = trace.Attempts.Count
+            },
+            cancellationToken);
+    }
+
+    private static bool IsGatewayFallback(
+        GatewayResilienceTrace trace,
+        GatewayAttemptEvidence attempt)
+    {
+        if (attempt.Attempt > 1)
+        {
+            return true;
+        }
+
+        foreach (var candidate in trace.Candidates)
+        {
+            if (candidate.Eligible &&
+                string.Equals(
+                    candidate.Deployment.DeploymentId,
+                    attempt.Deployment.DeploymentId,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!candidate.Eligible && candidate.FailureClass is not GatewayFailureClass.Policy)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private async Task AppendGatewayFailureAsync(
         Guid executionId,
         ExecutionPlanStep step,
@@ -1316,6 +1509,8 @@ public sealed class ExecutionOrchestrator(
                 retryable = failure.Retryable,
                 statusCode = failure.StatusCode,
                 gatewayId = failure.GatewayId,
+                failureClass = failure.FailureClass,
+                retryAfterMilliseconds = failure.RetryAfterMilliseconds,
                 durationMilliseconds
             },
             CancellationToken.None);
@@ -1966,6 +2161,33 @@ public sealed class ExecutionOrchestrator(
         }
     }
 
+    private static Dictionary<string, ModelStepGatewayBudget> ModelGatewayBudgets(
+        ExecutionPlan plan)
+    {
+        var modelSteps = plan.Steps
+            .Where(step => step.Kind == ExecutionStepKind.Model)
+            .ToArray();
+        if (modelSteps.Length == 0)
+        {
+            return new Dictionary<string, ModelStepGatewayBudget>(StringComparer.Ordinal);
+        }
+
+        var minimumAttempts = plan.Budget.MaxModelCalls / modelSteps.Length;
+        var extraAttempts = plan.Budget.MaxModelCalls % modelSteps.Length;
+        var costShare = plan.Budget.MaxCost is { } maximumCost
+            ? maximumCost / modelSteps.Length
+            : (decimal?)null;
+        return modelSteps
+            .Select((step, index) => new
+            {
+                step.Id,
+                Budget = new ModelStepGatewayBudget(
+                    minimumAttempts + (index < extraAttempts ? 1 : 0),
+                    costShare)
+            })
+            .ToDictionary(item => item.Id, item => item.Budget, StringComparer.Ordinal);
+    }
+
     private static void EnsureUsageWithinBudget(TaskRequest request, ModelGatewayResult result)
     {
         if (request.Constraints?.MaxCost is { } maxCost && result.Usage.Cost > maxCost)
@@ -2091,6 +2313,24 @@ public sealed class ExecutionOrchestrator(
             throw new ArgumentOutOfRangeException(nameof(request), "MinimumQuality must be between zero and one.");
         }
 
+        if (request.Constraints?.AllowedRegions is { } regions &&
+            (regions.Count > 64 ||
+             regions.Any(region => string.IsNullOrWhiteSpace(region) || region.Length > 200) ||
+             regions.Distinct(StringComparer.OrdinalIgnoreCase).Count() != regions.Count))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "AllowedRegions must contain at most 64 unique non-empty region names of 200 characters or fewer.");
+        }
+
+        if (request.Constraints?.RequiredResidency is { } residency &&
+            (string.IsNullOrWhiteSpace(residency) || residency.Length > 200))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(request),
+                "RequiredResidency must be non-empty and no longer than 200 characters.");
+        }
+
         if (request.Metadata?.TryGetValue("artifactKey", out var artifactKey) is true &&
             artifactKey.Trim().Length > 200)
         {
@@ -2108,4 +2348,8 @@ public sealed class ExecutionOrchestrator(
         public string Title { get; } = title;
         public bool Retryable { get; } = retryable;
     }
+
+    private sealed record ModelStepGatewayBudget(
+        int MaximumAttempts,
+        decimal? MaximumCost);
 }

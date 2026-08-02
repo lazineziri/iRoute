@@ -41,6 +41,12 @@ public sealed class PublicContractTaxonomyTests
             "gateway.streamed",
             "gateway.completed",
             "gateway.failed",
+            "gateway.candidate_evaluated",
+            "gateway.attempted",
+            "gateway.fallback_selected",
+            "gateway.circuit_changed",
+            "gateway.exhausted",
+            "gateway.resilience_decided",
             "validation.completed",
             "artifact.materialized",
             "artifact.superseded",
@@ -97,7 +103,8 @@ public sealed class PublicContractTaxonomyTests
             "model_call_budget_exceeded",
             "model_gateway_unavailable",
             "model_gateway_http_error",
-            "model_gateway_invalid_response"
+            "model_gateway_invalid_response",
+            "model_gateway_exhausted"
         ];
 
         Assert.True(ErrorCodes.All.SetEquals(expected));

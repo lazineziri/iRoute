@@ -51,6 +51,7 @@ public interface IExecutionTelemetry
         string operation);
 
     void RecordEvent(string eventType);
+    void RecordGatewayAttempt(GatewayAttemptEvidence attempt, bool fallbackSelected);
     void RecordTerminal(ExecutionSnapshot snapshot);
 }
 
@@ -73,6 +74,10 @@ public sealed class NoOpExecutionTelemetry : IExecutionTelemetry
         string operation) => new NoOpTraceScope(snapshot.ExecutionId.ToString("N"));
 
     public void RecordEvent(string eventType)
+    {
+    }
+
+    public void RecordGatewayAttempt(GatewayAttemptEvidence attempt, bool fallbackSelected)
     {
     }
 

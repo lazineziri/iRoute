@@ -53,6 +53,12 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `gateway.streamed` | A streaming call completed; data contains event/delta/character counts, never generated content. |
 | `gateway.completed` | The model gateway returned normalized usage, observed latency, transport, finish reason, and configured gateway identity. |
 | `gateway.failed` | A call failed with a normalized failure kind, retryability, status, gateway identity, and observed latency. |
+| `gateway.candidate_evaluated` | A registered deployment was accepted or rejected with policy reason, failure class, and current circuit state. |
+| `gateway.attempted` | One bounded deployment attempt completed with deployment identity, circuit transition, classification, status, latency, and Retry-After metadata. |
+| `gateway.fallback_selected` | A later eligible deployment was selected after an earlier bounded attempt failed. |
+| `gateway.circuit_changed` | A deployment circuit moved between closed, open, and half-open states. |
+| `gateway.exhausted` | No eligible deployment remained inside the task's policy and attempt budgets. |
+| `gateway.resilience_decided` | The final deployment or exhaustion result was recorded with the deterministic resilience policy version. |
 | `validation.completed` | Task-specific validation completed. |
 | `artifact.materialized` | A versioned artifact was stored. |
 | `artifact.superseded` | A new artifact version records the artifact version it supersedes. |
@@ -80,7 +86,7 @@ Every `routing.decided` event contains the routing policy version, direct/workfl
 
 ## Model gateway data
 
-`gateway.started` records only the step, capability, selected profile, and effective deadline. For streaming transports, `gateway.streamed` reports aggregate stream counts without persisting deltas. `gateway.completed` uses camel-case normalized usage fields and records `gatewayId`, `transport`, and `finishReason`. `gateway.failed` records the normalized failure kind and never copies a provider response body, credential, prompt, context, or generated output into the event stream.
+`gateway.started` records only the step, capability, selected profile, and effective deadline. For streaming transports, `gateway.streamed` reports aggregate stream counts without persisting deltas. `gateway.completed` uses camel-case normalized usage fields and records gateway, provider, deployment, region, residency, model version, transport, finish reason, and fallback-attempt count. `gateway.failed` records the normalized failure kind, failure class, and Retry-After delay. The W18 resilience events expose rejected candidates, breaker state, bounded attempts, fallback reason, and final deployment without copying a provider response body, credential, prompt, context, or generated output into the event stream.
 
 ## Capability connector data
 

@@ -10,6 +10,8 @@ export interface TaskConstraints {
   maxToolCalls?: number;
   maxParallelCalls?: number;
   maxTaskDepth?: number;
+  allowedRegions?: readonly string[] | null;
+  requiredResidency?: string | null;
 }
 
 export interface TaskRequest {
@@ -146,6 +148,8 @@ export interface RoutingDecision {
   escalated: boolean;
   escalationReason: string | null;
   candidates: readonly RoutingCandidateEvaluation[];
+  selectedDeployment?: GatewayDeploymentReference | null;
+  resilience?: GatewayResilienceTrace | null;
 }
 
 export interface ModelProfile {
@@ -184,6 +188,56 @@ export type ModelGatewayFailureKind =
   | 'Cancelled'
   | 'Internal';
 
+export type GatewayFailureClass =
+  | 'Timeout'
+  | 'Throttling'
+  | 'Transport'
+  | 'Provider'
+  | 'MalformedOutput'
+  | 'Validation'
+  | 'Policy'
+  | 'Permanent';
+export type GatewayCircuitState = 'Closed' | 'Open' | 'HalfOpen';
+
+export interface GatewayDeploymentReference {
+  gatewayId: string;
+  provider: string;
+  deploymentId: string;
+  region: string;
+  residency: string;
+  modelVersion: string;
+}
+
+export interface GatewayCandidateEvidence {
+  deployment: GatewayDeploymentReference;
+  eligible: boolean;
+  reason: string;
+  circuitState: GatewayCircuitState;
+  failureClass: GatewayFailureClass | null;
+}
+
+export interface GatewayAttemptEvidence {
+  deployment: GatewayDeploymentReference;
+  attempt: number;
+  circuitStateBefore: GatewayCircuitState;
+  circuitStateAfter: GatewayCircuitState;
+  succeeded: boolean;
+  failureClass: GatewayFailureClass | null;
+  failureCode: string | null;
+  statusCode: number | null;
+  durationMilliseconds: number;
+  retryAfterMilliseconds: number | null;
+}
+
+export interface GatewayResilienceTrace {
+  policyVersion: string;
+  candidates: readonly GatewayCandidateEvidence[];
+  attempts: readonly GatewayAttemptEvidence[];
+  finalDeployment: GatewayDeploymentReference | null;
+  fallbackReason: string | null;
+  exhaustionReason: string | null;
+}
+
 export interface ModelGatewayRequest {
   capability: string;
   input: unknown;
@@ -192,6 +246,11 @@ export interface ModelGatewayRequest {
   correlationId?: string | null;
   profileId?: string | null;
   deadlineMilliseconds?: number | null;
+  minimumQuality?: number | null;
+  maximumCost?: number | null;
+  allowedRegions?: readonly string[] | null;
+  requiredResidency?: string | null;
+  maximumAttempts?: number | null;
 }
 
 export interface ModelGatewayResult {
@@ -202,6 +261,8 @@ export interface ModelGatewayResult {
   gatewayId?: string | null;
   transport?: ModelGatewayTransport;
   finishReason?: ModelGatewayFinishReason;
+  deployment?: GatewayDeploymentReference | null;
+  resilience?: GatewayResilienceTrace | null;
 }
 
 export interface ModelGatewayStreamEvent {
@@ -221,6 +282,8 @@ export interface ModelGatewayFailure {
   gatewayId?: string | null;
   correlationId?: string | null;
   retryAfterMilliseconds?: number | null;
+  failureClass?: GatewayFailureClass | null;
+  resilience?: GatewayResilienceTrace | null;
 }
 
 export interface ModelGatewayHealth {
@@ -481,6 +544,26 @@ export interface ObservabilityMetricGroup {
   metrics: ObservabilityMetricSet;
 }
 
+export interface GatewayObservabilityMetricSet {
+  attempts: number;
+  successes: number;
+  failures: number;
+  rejectedCandidates: number;
+  fallbacks: number;
+  averageLatencyMilliseconds: number;
+}
+
+export interface GatewayObservabilityMetricGroup {
+  gatewayId: string;
+  provider: string;
+  deploymentId: string;
+  region: string;
+  modelVersion: string;
+  failureClass: GatewayFailureClass | null;
+  circuitState: GatewayCircuitState;
+  metrics: GatewayObservabilityMetricSet;
+}
+
 export interface MemoryResolverDiagnostic {
   resolver: string;
   considered: number;
@@ -520,6 +603,7 @@ export interface ObservabilitySummary {
   groups: readonly ObservabilityMetricGroup[];
   memory: MemoryHitDiagnostics;
   recentExecutions: readonly ObservabilityExecutionItem[];
+  gatewayGroups?: readonly GatewayObservabilityMetricGroup[];
 }
 
 export type ObservabilityPayloadMode = 'MetadataOnly' | 'Redacted';

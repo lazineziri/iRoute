@@ -12,6 +12,10 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.Configure<ModelGatewayOptions>(configuration.GetSection("ModelGateway"));
+        var modelGatewayOptions = configuration.GetSection("ModelGateway").Get<ModelGatewayOptions>()
+            ?? new ModelGatewayOptions();
+        modelGatewayOptions.Resilience.EnsureValid();
+        services.AddSingleton(modelGatewayOptions.Resilience);
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         var observabilityOptions = configuration.GetSection("Observability").Get<ObservabilityOptions>()
             ?? new ObservabilityOptions();
@@ -40,6 +44,7 @@ public static class ServiceCollectionExtensions
                 provider.GetRequiredService<InMemoryMemoryStore>());
             services.AddSingleton<ILifecycleStore, InMemoryLifecycleStore>();
             services.AddSingleton<IObservabilityStore, InMemoryObservabilityStore>();
+            services.AddSingleton<IGatewayCircuitStore, InMemoryGatewayCircuitStore>();
         }
         else
         {
@@ -70,6 +75,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IMemoryStore, EfMemoryStore>();
             services.AddSingleton<ILifecycleStore, EfLifecycleStore>();
             services.AddSingleton<IObservabilityStore, EfObservabilityStore>();
+            services.AddSingleton<IGatewayCircuitStore, EfGatewayCircuitStore>();
             services.AddSingleton<SchemaMigrationManager>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);
@@ -87,6 +93,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICapabilityExecutor, NormalizedCapabilityExecutor>();
         services.AddSingleton<IExternalActionExecutor, CapabilityExternalActionExecutor>();
         services.AddSingleton<DeterministicModelGateway>();
+        services.AddSingleton<IGatewayDeploymentRegistry, ConfiguredGatewayDeploymentRegistry>();
+        services.AddSingleton<IGatewayDeploymentClientFactory, ConfiguredGatewayDeploymentClientFactory>();
+        services.AddHttpClient("iroute-generic-gateway");
         services.AddHttpClient<GenericHttpModelGateway>((provider, client) =>
         {
             var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ModelGatewayOptions>>().Value;
@@ -94,13 +103,19 @@ public static class ServiceCollectionExtensions
             {
                 client.BaseAddress = baseUri;
             }
-        }).AddStandardResilienceHandler();
+        });
+        services.AddTransient<ResilientModelGateway>();
         services.AddTransient<IModelGateway>(provider =>
         {
             var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ModelGatewayOptions>>().Value;
-            return string.Equals(options.Mode, "Http", StringComparison.OrdinalIgnoreCase)
-                ? provider.GetRequiredService<GenericHttpModelGateway>()
-                : provider.GetRequiredService<DeterministicModelGateway>();
+            if (!string.Equals(options.Mode, "Http", StringComparison.OrdinalIgnoreCase))
+            {
+                return provider.GetRequiredService<DeterministicModelGateway>();
+            }
+
+            return options.Resilience.Enabled
+                ? provider.GetRequiredService<ResilientModelGateway>()
+                : provider.GetRequiredService<GenericHttpModelGateway>();
         });
         services.AddHealthChecks().AddCheck<ModelGatewayHealthCheck>(
             "model_gateway",

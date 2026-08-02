@@ -5,5 +5,7 @@
   "retryable": true,
   "statusCode": 429,
   "gatewayId": "external-alpha",
-  "correlationId": "019b2c00-1111-7000-8000-000000000001"
+  "correlationId": "019b2c00-1111-7000-8000-000000000001",
+  "retryAfterMilliseconds": 30000,
+  "failureClass": "Throttling"
 }

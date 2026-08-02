@@ -29,6 +29,7 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
     public DbSet<MemoryEntity> MemoryRecords => Set<MemoryEntity>();
     public DbSet<DependencyEdgeEntity> DependencyEdges => Set<DependencyEdgeEntity>();
     public DbSet<LifecycleArchiveEntity> LifecycleArchives => Set<LifecycleArchiveEntity>();
+    public DbSet<GatewayCircuitEntity> GatewayCircuits => Set<GatewayCircuitEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -197,6 +198,16 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
         lifecycleArchive.Property(x => x.ResourceKind).HasConversion<string>().HasMaxLength(40);
         lifecycleArchive.Property(x => x.ContentHash).HasMaxLength(64);
         lifecycleArchive.HasIndex(x => new { x.TenantId, x.ArchivedAtUnixMilliseconds });
+
+        var gatewayCircuit = modelBuilder.Entity<GatewayCircuitEntity>();
+        gatewayCircuit.ToTable("GatewayCircuits");
+        gatewayCircuit.HasKey(x => x.DeploymentId);
+        gatewayCircuit.Property(x => x.DeploymentId).HasMaxLength(200);
+        gatewayCircuit.Property(x => x.State).HasConversion<string>().HasMaxLength(40);
+        gatewayCircuit.Property(x => x.ProbeOwner).HasMaxLength(200);
+        gatewayCircuit.Property(x => x.LastFailureClass).HasConversion<string>().HasMaxLength(40);
+        gatewayCircuit.HasIndex(x => new { x.State, x.NextProbeAtUnixMilliseconds });
+        gatewayCircuit.HasIndex(x => x.ProbeLeaseExpiresAtUnixMilliseconds);
     }
 }
 
@@ -237,6 +248,22 @@ public sealed class ExecutionWorkItemEntity
     public long? LeaseExpiresAtUnixMilliseconds { get; set; }
     public long? HeartbeatAtUnixMilliseconds { get; set; }
     public long? CompletedAtUnixMilliseconds { get; set; }
+}
+
+public sealed class GatewayCircuitEntity
+{
+    public string DeploymentId { get; set; } = null!;
+    public GatewayCircuitState State { get; set; }
+    public int ConsecutiveFailures { get; set; }
+    public int OpenCount { get; set; }
+    public long? OpenedAtUnixMilliseconds { get; set; }
+    public long? NextProbeAtUnixMilliseconds { get; set; }
+    public string? ProbeOwner { get; set; }
+    public Guid? ProbeToken { get; set; }
+    public long? ProbeLeaseExpiresAtUnixMilliseconds { get; set; }
+    public GatewayFailureClass? LastFailureClass { get; set; }
+    public long? LastFailureAtUnixMilliseconds { get; set; }
+    public long UpdatedAtUnixMilliseconds { get; set; }
 }
 
 public sealed class WorkflowPlanEntity

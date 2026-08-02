@@ -3,7 +3,7 @@
   "traceId": "0123456789abcdef0123456789abcdef",
   "taskType": "email.draft",
   "taskDefinitionVersion": 1,
-  "policyVersion": "routing.w08.v1",
+  "policyVersion": "routing.w18.v1",
   "status": "Succeeded",
   "startedAt": "2026-08-01T13:45:00Z",
   "updatedAt": "2026-08-01T13:45:00.640Z",
@@ -31,7 +31,7 @@
       "occurredAt": "2026-08-01T13:45:00.120Z",
       "offsetMilliseconds": 120,
       "data": {
-        "policyVersion": "routing.w08.v1",
+        "policyVersion": "routing.w18.v1",
         "selectedCapability": "model.text.generate"
       }
     },

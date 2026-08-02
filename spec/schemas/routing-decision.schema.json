@@ -44,6 +44,18 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/candidate" }
+    },
+    "selectedDeployment": {
+      "oneOf": [
+        { "$ref": "gateway-deployment-reference.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "resilience": {
+      "oneOf": [
+        { "$ref": "gateway-resilience-trace.schema.json" },
+        { "type": "null" }
+      ]
     }
   },
   "$defs": {

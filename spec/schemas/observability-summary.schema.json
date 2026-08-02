@@ -83,6 +83,36 @@
         "inputTokens": { "type": "integer", "minimum": 0 },
         "outputTokens": { "type": "integer", "minimum": 0 }
       }
+    },
+    "gatewayMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempts", "successes", "failures", "rejectedCandidates", "fallbacks", "averageLatencyMilliseconds"],
+      "properties": {
+        "attempts": { "type": "integer", "minimum": 0 },
+        "successes": { "type": "integer", "minimum": 0 },
+        "failures": { "type": "integer", "minimum": 0 },
+        "rejectedCandidates": { "type": "integer", "minimum": 0 },
+        "fallbacks": { "type": "integer", "minimum": 0 },
+        "averageLatencyMilliseconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "gatewayGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gatewayId", "provider", "deploymentId", "region", "modelVersion", "failureClass", "circuitState", "metrics"],
+      "properties": {
+        "gatewayId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "deploymentId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "region": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "modelVersion": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "failureClass": {
+          "enum": ["Timeout", "Throttling", "Transport", "Provider", "MalformedOutput", "Validation", "Policy", "Permanent", null]
+        },
+        "circuitState": { "enum": ["Closed", "Open", "HalfOpen"] },
+        "metrics": { "$ref": "#/$defs/gatewayMetrics" }
+      }
     }
   },
   "properties": {
@@ -93,6 +123,7 @@
     "totals": { "$ref": "#/$defs/metrics" },
     "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
     "memory": { "$ref": "#/$defs/memory" },
-    "recentExecutions": { "type": "array", "items": { "$ref": "#/$defs/recentExecution" } }
+    "recentExecutions": { "type": "array", "items": { "$ref": "#/$defs/recentExecution" } },
+    "gatewayGroups": { "type": "array", "items": { "$ref": "#/$defs/gatewayGroup" } }
   }
 }

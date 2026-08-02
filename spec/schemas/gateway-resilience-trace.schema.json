@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/gateway-resilience-trace.schema.json",
+  "title": "GatewayResilienceTrace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"],
+  "$defs": {
+    "failureClass": {
+      "enum": ["Timeout", "Throttling", "Transport", "Provider", "MalformedOutput", "Validation", "Policy", "Permanent", null]
+    },
+    "circuitState": {
+      "enum": ["Closed", "Open", "HalfOpen"]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deployment", "eligible", "reason", "circuitState", "failureClass"],
+      "properties": {
+        "deployment": { "$ref": "gateway-deployment-reference.schema.json" },
+        "eligible": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "circuitState": { "$ref": "#/$defs/circuitState" },
+        "failureClass": { "$ref": "#/$defs/failureClass" }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deployment", "attempt", "circuitStateBefore", "circuitStateAfter", "succeeded", "failureClass", "failureCode", "statusCode", "durationMilliseconds", "retryAfterMilliseconds"],
+      "properties": {
+        "deployment": { "$ref": "gateway-deployment-reference.schema.json" },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "circuitStateBefore": { "$ref": "#/$defs/circuitState" },
+        "circuitStateAfter": { "$ref": "#/$defs/circuitState" },
+        "succeeded": { "type": "boolean" },
+        "failureClass": { "$ref": "#/$defs/failureClass" },
+        "failureCode": { "type": ["string", "null"], "maxLength": 100 },
+        "statusCode": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+        "durationMilliseconds": { "type": "integer", "minimum": 0 },
+        "retryAfterMilliseconds": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  },
+  "properties": {
+    "policyVersion": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+    "attempts": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/attempt" } },
+    "finalDeployment": {
+      "oneOf": [
+        { "$ref": "gateway-deployment-reference.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "fallbackReason": { "type": ["string", "null"], "maxLength": 2000 },
+    "exhaustionReason": { "type": ["string", "null"], "maxLength": 2000 }
+  }
+}

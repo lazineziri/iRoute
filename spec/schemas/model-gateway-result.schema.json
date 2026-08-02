@@ -27,6 +27,18 @@
     },
     "gatewayId": { "type": ["string", "null"], "maxLength": 200 },
     "transport": { "enum": ["Buffered", "Streaming"] },
-    "finishReason": { "enum": ["Completed", "Length", "ContentFiltered", "ToolCall", "Other"] }
+    "finishReason": { "enum": ["Completed", "Length", "ContentFiltered", "ToolCall", "Other"] },
+    "deployment": {
+      "oneOf": [
+        { "$ref": "gateway-deployment-reference.schema.json" },
+        { "type": "null" }
+      ]
+    },
+    "resilience": {
+      "oneOf": [
+        { "$ref": "gateway-resilience-trace.schema.json" },
+        { "type": "null" }
+      ]
+    }
   }
 }

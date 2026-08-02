@@ -15,6 +15,12 @@ services:
       ModelGateway__ApiKey: ${IROUTE_MODEL_GATEWAY_KEY:-}
       ModelGateway__GatewayId: ${IROUTE_MODEL_GATEWAY_ID:-external}
       ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
+      ModelGateway__Resilience__Enabled: ${IROUTE_GATEWAY_RESILIENCE_ENABLED:-true}
+      ModelGateway__Resilience__MaximumAttempts: ${IROUTE_GATEWAY_MAXIMUM_ATTEMPTS:-3}
+      ModelGateway__Resilience__Circuit__FailureThreshold: ${IROUTE_GATEWAY_FAILURE_THRESHOLD:-3}
+      ModelGateway__Resilience__Circuit__OpenDuration: ${IROUTE_GATEWAY_OPEN_DURATION:-00:00:30}
+      ModelGateway__Resilience__Circuit__MaximumOpenDuration: ${IROUTE_GATEWAY_MAXIMUM_OPEN_DURATION:-00:05:00}
+      ModelGateway__Resilience__Circuit__ProbeLeaseDuration: ${IROUTE_GATEWAY_PROBE_LEASE_DURATION:-00:00:15}
       Workflow__QueueCapacity: ${IROUTE_WORKFLOW_QUEUE_CAPACITY:-16}
       Workflow__MaxParallelSteps: ${IROUTE_WORKFLOW_MAX_PARALLEL_STEPS:-4}
       Workflow__RetryBaseDelayMilliseconds: ${IROUTE_RETRY_BASE_DELAY_MS:-100}
@@ -64,6 +70,12 @@ services:
       ModelGateway__ApiKey: ${IROUTE_MODEL_GATEWAY_KEY:-}
       ModelGateway__GatewayId: ${IROUTE_MODEL_GATEWAY_ID:-external}
       ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
+      ModelGateway__Resilience__Enabled: ${IROUTE_GATEWAY_RESILIENCE_ENABLED:-true}
+      ModelGateway__Resilience__MaximumAttempts: ${IROUTE_GATEWAY_MAXIMUM_ATTEMPTS:-3}
+      ModelGateway__Resilience__Circuit__FailureThreshold: ${IROUTE_GATEWAY_FAILURE_THRESHOLD:-3}
+      ModelGateway__Resilience__Circuit__OpenDuration: ${IROUTE_GATEWAY_OPEN_DURATION:-00:00:30}
+      ModelGateway__Resilience__Circuit__MaximumOpenDuration: ${IROUTE_GATEWAY_MAXIMUM_OPEN_DURATION:-00:05:00}
+      ModelGateway__Resilience__Circuit__ProbeLeaseDuration: ${IROUTE_GATEWAY_PROBE_LEASE_DURATION:-00:00:15}
       Workflow__QueueCapacity: ${IROUTE_WORKFLOW_QUEUE_CAPACITY:-16}
       Workflow__MaxParallelSteps: ${IROUTE_WORKFLOW_MAX_PARALLEL_STEPS:-4}
       Workflow__RetryBaseDelayMilliseconds: ${IROUTE_RETRY_BASE_DELAY_MS:-100}

@@ -15,6 +15,15 @@
     "statusCode": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
     "gatewayId": { "type": ["string", "null"], "maxLength": 200 },
     "correlationId": { "type": ["string", "null"], "maxLength": 200 },
-    "retryAfterMilliseconds": { "type": ["integer", "null"], "minimum": 0 }
+    "retryAfterMilliseconds": { "type": ["integer", "null"], "minimum": 0 },
+    "failureClass": {
+      "enum": ["Timeout", "Throttling", "Transport", "Provider", "MalformedOutput", "Validation", "Policy", "Permanent", null]
+    },
+    "resilience": {
+      "oneOf": [
+        { "$ref": "gateway-resilience-trace.schema.json" },
+        { "type": "null" }
+      ]
+    }
   }
 }

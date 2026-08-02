@@ -15,6 +15,11 @@ additional public-contract promises in `docs/compatibility.md`.
 - Approval requeueing, scalable execution-worker deployments, ordered
   queue/lease events, and retry policies with timeouts, bounded exponential
   backoff, jitter, and `Retry-After` support.
+- Multiple provider-neutral gateway routes with deterministic quality, cost,
+  deadline, region, residency, profile, and attempt-budget fallback policy.
+- Durable per-deployment closed/open/half-open circuit breakers with fenced
+  probes, Retry-After-aware open intervals, multi-replica coordination,
+  classified exhaustion, trace events, and resilience metrics.
 
 ## [0.1.0-alpha.1] - 2026-08-01
 

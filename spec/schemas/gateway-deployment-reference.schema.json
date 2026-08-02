@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/gateway-deployment-reference.schema.json",
+  "title": "GatewayDeploymentReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"],
+  "properties": {
+    "gatewayId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "provider": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "deploymentId": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "region": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "residency": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "modelVersion": { "type": "string", "minLength": 1, "maxLength": 200 }
+  }
+}

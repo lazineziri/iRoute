@@ -3,6 +3,10 @@ import { createServer } from 'node:http';
 const port = Number.parseInt(process.env.IROUTE_GATEWAY_PORT ?? '5092', 10);
 const expectedApiKey = process.env.IROUTE_GATEWAY_API_KEY;
 const gatewayId = process.env.IROUTE_GATEWAY_ID ?? `conformance-${port}`;
+const failureStatus = optionalInteger(process.env.IROUTE_GATEWAY_FAILURE_STATUS);
+const failureCount = optionalInteger(process.env.IROUTE_GATEWAY_FAILURE_COUNT) ?? Number.POSITIVE_INFINITY;
+const retryAfterSeconds = optionalInteger(process.env.IROUTE_GATEWAY_RETRY_AFTER_SECONDS);
+let invocationCount = 0;
 
 const server = createServer(async (request, response) => {
   if (request.method === 'GET' && request.url === '/health') {
@@ -42,6 +46,16 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    invocationCount++;
+    if (failureStatus && invocationCount <= failureCount) {
+      response.writeHead(failureStatus, {
+        'content-type': 'application/json',
+        ...(retryAfterSeconds === undefined ? {} : { 'retry-after': retryAfterSeconds.toString() })
+      });
+      response.end(JSON.stringify({ error: 'synthetic_gateway_failure', invocationCount }));
+      return;
+    }
+
     const projectName = body.input.projectName ?? 'the project';
     const recipient = body.input.recipient?.name ?? 'there';
     const objective = body.input.objective ?? 'Here is the requested update.';
@@ -61,7 +75,7 @@ const server = createServer(async (request, response) => {
         toolCalls: 0
       },
       confidence: 0.92,
-      evidence: [],
+      evidence: [{ kind: 'request', reference: 'gateway-conformance-input' }],
       gatewayId,
       transport: request.url === '/v1/stream' ? 'Streaming' : 'Buffered',
       finishReason: 'Completed'
@@ -102,4 +116,13 @@ function send(response, status, body) {
 
 function writeEvent(response, event) {
   response.write(`${JSON.stringify(event)}\n`);
+}
+
+function optionalInteger(value) {
+  if (value === undefined || value === '') return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`Expected a non-negative integer but received '${value}'.`);
+  }
+  return parsed;
 }

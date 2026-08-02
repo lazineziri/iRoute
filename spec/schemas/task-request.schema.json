@@ -24,7 +24,14 @@
         "maxModelCalls": { "type": ["integer", "null"], "minimum": 0, "maximum": 16 },
         "maxToolCalls": { "type": ["integer", "null"], "minimum": 0, "maximum": 64 },
         "maxParallelCalls": { "type": ["integer", "null"], "minimum": 1, "maximum": 32 },
-        "maxTaskDepth": { "type": ["integer", "null"], "minimum": 1, "maximum": 16 }
+        "maxTaskDepth": { "type": ["integer", "null"], "minimum": 1, "maximum": 16 },
+        "allowedRegions": {
+          "type": ["array", "null"],
+          "uniqueItems": true,
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "requiredResidency": { "type": ["string", "null"], "maxLength": 200 }
       }
     },
     "metadata": {

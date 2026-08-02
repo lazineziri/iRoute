@@ -64,7 +64,7 @@
     }
   },
   "routing": {
-    "policyVersion": "routing.w08.v1",
+    "policyVersion": "routing.w18.v1",
     "path": "Direct",
     "reason": "The task requires one capability, so the direct path avoids the planning tax.",
     "selectedCapability": "text.generation",

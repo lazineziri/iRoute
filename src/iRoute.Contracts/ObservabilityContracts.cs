@@ -11,7 +11,8 @@ public sealed record ObservabilitySummary(
     ObservabilityMetricSet Totals,
     IReadOnlyList<ObservabilityMetricGroup> Groups,
     MemoryHitDiagnostics Memory,
-    IReadOnlyList<ObservabilityExecutionItem> RecentExecutions);
+    IReadOnlyList<ObservabilityExecutionItem> RecentExecutions,
+    IReadOnlyList<GatewayObservabilityMetricGroup> GatewayGroups);
 
 public sealed record ObservabilityExecutionItem(
     Guid ExecutionId,
@@ -45,6 +46,24 @@ public sealed record ObservabilityMetricGroup(
     string TaskType,
     string PolicyVersion,
     ObservabilityMetricSet Metrics);
+
+public sealed record GatewayObservabilityMetricGroup(
+    string GatewayId,
+    string Provider,
+    string DeploymentId,
+    string Region,
+    string ModelVersion,
+    GatewayFailureClass? FailureClass,
+    GatewayCircuitState CircuitState,
+    GatewayObservabilityMetricSet Metrics);
+
+public sealed record GatewayObservabilityMetricSet(
+    int Attempts,
+    int Successes,
+    int Failures,
+    int RejectedCandidates,
+    int Fallbacks,
+    decimal AverageLatencyMilliseconds);
 
 public sealed record MemoryHitDiagnostics(
     int Considered,

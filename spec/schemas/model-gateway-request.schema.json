@@ -12,6 +12,16 @@
     "maxOutputTokens": { "type": "integer", "minimum": 1 },
     "correlationId": { "type": ["string", "null"], "maxLength": 200 },
     "profileId": { "type": ["string", "null"], "maxLength": 200 },
-    "deadlineMilliseconds": { "type": ["integer", "null"], "minimum": 1 }
+    "deadlineMilliseconds": { "type": ["integer", "null"], "minimum": 1 },
+    "minimumQuality": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "maximumCost": { "type": ["number", "null"], "minimum": 0 },
+    "allowedRegions": {
+      "type": ["array", "null"],
+      "uniqueItems": true,
+      "maxItems": 64,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "requiredResidency": { "type": ["string", "null"], "maxLength": 200 },
+    "maximumAttempts": { "type": ["integer", "null"], "minimum": 1, "maximum": 10 }
   }
 }

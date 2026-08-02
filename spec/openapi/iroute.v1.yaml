@@ -392,6 +392,12 @@ components:
         maxToolCalls: { type: [integer, 'null'], minimum: 0, maximum: 64 }
         maxParallelCalls: { type: [integer, 'null'], minimum: 1, maximum: 32 }
         maxTaskDepth: { type: [integer, 'null'], minimum: 1, maximum: 16 }
+        allowedRegions:
+          type: [array, 'null']
+          uniqueItems: true
+          maxItems: 64
+          items: { type: string, minLength: 1, maxLength: 200 }
+        requiredResidency: { type: [string, 'null'], maxLength: 200 }
     ExecutionSnapshot:
       type: object
       additionalProperties: false
@@ -623,6 +629,9 @@ components:
         recentExecutions:
           type: array
           items: { $ref: '#/components/schemas/ObservabilityExecutionItem' }
+        gatewayGroups:
+          type: array
+          items: { $ref: '#/components/schemas/GatewayObservabilityMetricGroup' }
     ObservabilityMetricSet:
       type: object
       additionalProperties: false
@@ -649,6 +658,30 @@ components:
         taskType: { type: string }
         policyVersion: { type: string }
         metrics: { $ref: '#/components/schemas/ObservabilityMetricSet' }
+    GatewayObservabilityMetricGroup:
+      type: object
+      additionalProperties: false
+      required: [gatewayId, provider, deploymentId, region, modelVersion, failureClass, circuitState, metrics]
+      properties:
+        gatewayId: { type: string }
+        provider: { type: string }
+        deploymentId: { type: string }
+        region: { type: string }
+        modelVersion: { type: string }
+        failureClass: { $ref: '#/components/schemas/GatewayFailureClass' }
+        circuitState: { $ref: '#/components/schemas/GatewayCircuitState' }
+        metrics: { $ref: '#/components/schemas/GatewayObservabilityMetricSet' }
+    GatewayObservabilityMetricSet:
+      type: object
+      additionalProperties: false
+      required: [attempts, successes, failures, rejectedCandidates, fallbacks, averageLatencyMilliseconds]
+      properties:
+        attempts: { type: integer, minimum: 0 }
+        successes: { type: integer, minimum: 0 }
+        failures: { type: integer, minimum: 0 }
+        rejectedCandidates: { type: integer, minimum: 0 }
+        fallbacks: { type: integer, minimum: 0 }
+        averageLatencyMilliseconds: { type: number, minimum: 0 }
     MemoryHitDiagnostics:
       type: object
       additionalProperties: false
@@ -810,6 +843,14 @@ components:
         candidates:
           type: array
           items: { $ref: '#/components/schemas/RoutingCandidateEvaluation' }
+        selectedDeployment:
+          oneOf:
+            - $ref: '#/components/schemas/GatewayDeploymentReference'
+            - type: 'null'
+        resilience:
+          oneOf:
+            - $ref: '#/components/schemas/GatewayResilienceTrace'
+            - type: 'null'
     RoutingCandidateEvaluation:
       type: object
       additionalProperties: false
@@ -830,6 +871,67 @@ components:
         reliability: { type: number, minimum: 0, maximum: 1 }
         availability: { type: number, minimum: 0, maximum: 1 }
         score: { type: number }
+    GatewayDeploymentReference:
+      type: object
+      additionalProperties: false
+      required: [gatewayId, provider, deploymentId, region, residency, modelVersion]
+      properties:
+        gatewayId: { type: string, minLength: 1, maxLength: 200 }
+        provider: { type: string, minLength: 1, maxLength: 200 }
+        deploymentId: { type: string, minLength: 1, maxLength: 200 }
+        region: { type: string, minLength: 1, maxLength: 200 }
+        residency: { type: string, minLength: 1, maxLength: 200 }
+        modelVersion: { type: string, minLength: 1, maxLength: 200 }
+    GatewayFailureClass:
+      type: [string, 'null']
+      enum: [Timeout, Throttling, Transport, Provider, MalformedOutput, Validation, Policy, Permanent, null]
+    GatewayCircuitState:
+      type: string
+      enum: [Closed, Open, HalfOpen]
+    GatewayCandidateEvidence:
+      type: object
+      additionalProperties: false
+      required: [deployment, eligible, reason, circuitState, failureClass]
+      properties:
+        deployment: { $ref: '#/components/schemas/GatewayDeploymentReference' }
+        eligible: { type: boolean }
+        reason: { type: string }
+        circuitState: { $ref: '#/components/schemas/GatewayCircuitState' }
+        failureClass: { $ref: '#/components/schemas/GatewayFailureClass' }
+    GatewayAttemptEvidence:
+      type: object
+      additionalProperties: false
+      required: [deployment, attempt, circuitStateBefore, circuitStateAfter, succeeded, failureClass, failureCode, statusCode, durationMilliseconds, retryAfterMilliseconds]
+      properties:
+        deployment: { $ref: '#/components/schemas/GatewayDeploymentReference' }
+        attempt: { type: integer, minimum: 1, maximum: 10 }
+        circuitStateBefore: { $ref: '#/components/schemas/GatewayCircuitState' }
+        circuitStateAfter: { $ref: '#/components/schemas/GatewayCircuitState' }
+        succeeded: { type: boolean }
+        failureClass: { $ref: '#/components/schemas/GatewayFailureClass' }
+        failureCode: { type: [string, 'null'] }
+        statusCode: { type: [integer, 'null'], minimum: 100, maximum: 599 }
+        durationMilliseconds: { type: integer, format: int64, minimum: 0 }
+        retryAfterMilliseconds: { type: [integer, 'null'], minimum: 0 }
+    GatewayResilienceTrace:
+      type: object
+      additionalProperties: false
+      required: [policyVersion, candidates, attempts, finalDeployment, fallbackReason, exhaustionReason]
+      properties:
+        policyVersion: { type: string }
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/GatewayCandidateEvidence' }
+        attempts:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/GatewayAttemptEvidence' }
+        finalDeployment:
+          oneOf:
+            - $ref: '#/components/schemas/GatewayDeploymentReference'
+            - type: 'null'
+        fallbackReason: { type: [string, 'null'] }
+        exhaustionReason: { type: [string, 'null'] }
     RoutingPath:
       type: string
       enum: [Direct, Workflow]
@@ -956,6 +1058,12 @@ components:
         - gateway.streamed
         - gateway.completed
         - gateway.failed
+        - gateway.candidate_evaluated
+        - gateway.attempted
+        - gateway.fallback_selected
+        - gateway.circuit_changed
+        - gateway.exhausted
+        - gateway.resilience_decided
         - validation.completed
         - artifact.materialized
         - artifact.superseded
@@ -1007,6 +1115,7 @@ components:
         - model_gateway_unavailable
         - model_gateway_http_error
         - model_gateway_invalid_response
+        - model_gateway_exhausted
     ExecutionProblem:
       type: object
       additionalProperties: false

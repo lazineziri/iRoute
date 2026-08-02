@@ -47,17 +47,69 @@ Raw `projectHistory` is removed from the model task input and never passed throu
 
 ## Routing audit
 
-The current routing policy is `routing.w08.v1`. For single-capability tasks the direct selector must report `plannerInvoked=false` and `planningCalls=0`. Multi-capability definitions invoke the deterministic bounded planner once; it must fail with `routing_budget_exceeded` before checkpointing if required depth or calls exceed the lower request/task-definition ceiling.
+The current routing policy is `routing.w18.v1`. For single-capability tasks the direct selector must report `plannerInvoked=false` and `planningCalls=0`. Multi-capability definitions invoke the deterministic bounded planner once; it must fail with `routing_budget_exceeded` before checkpointing if required depth or calls exceed the lower request/task-definition ceiling.
 
 Model profiles are evaluation-derived measurements, not provider marketing names. A candidate is eligible only when its task coverage, health, quality, deadline, token capacity, cost, model-call budget, and capability allow list all pass. Operators should compare `routing.decided` candidate measurements with actual `gateway.completed` usage. An unexplained profile change, a missing candidate reason, or routing below the quality floor is an incident. Profile edits require the evaluation and contract suites; do not raise request limits or quality estimates dynamically in production.
 
 ## Model-gateway operations
 
-`ModelGateway:Mode=Http` uses only the generic W09 contract. Buffered mode calls `POST v1/execute`; streaming mode calls `POST v1/stream` and consumes monotonic `application/x-ndjson` events with a maximum of 10,000 events and 65,536 characters per line. A stream is valid only when it ends with exactly one completed result and emits nothing afterward. The request includes the selected capability/profile, maximum output tokens, correlation ID, and effective step deadline. Cancellation is passed directly to the HTTP request and response reader.
+`ModelGateway:Mode=Http` uses only the generic W09 contract. Buffered mode calls `POST v1/execute`; streaming mode calls `POST v1/stream` and consumes monotonic `application/x-ndjson` events with a maximum of 10,000 events and 65,536 characters per line. A stream is valid only when it ends with exactly one completed result and emits nothing afterward. The request includes the selected capability/profile, maximum output tokens, correlation ID, effective step deadline, quality/cost ceilings, region/residency policy, and the bounded remaining attempt count. Cancellation is passed directly to the HTTP request and response reader.
 
 The runtime treats its own wall-clock duration as authoritative latency and normalizes every successful model call to at least one model invocation. Negative usage, confidence outside zero-to-one, missing output/evidence, malformed JSON, non-monotonic stream sequences, missing completion, or post-completion data fail with `model_gateway_invalid_response`. `gateway.started`, `gateway.streamed`, `gateway.completed`, and `gateway.failed` expose identities, counts, normalized usage, classifications, and latency only; prompts, context, deltas, outputs, credentials, and provider response bodies must never enter audit events.
 
-HTTP failures are classified as invalid request, authentication, timeout, rate limit, unavailable, or internal. Only timeout, rate-limit, and unavailable failures are retryable. The gateway remains responsible for provider credentials, provider model aliases, provider protocols, and provider health. Do not add provider model names, request fields, or response parsing to Contracts, Core, Runtime, routing policy, or task definitions.
+W18 registers one or more generic routes under `ModelGateway:Deployments`. Every route needs unique `RouteId` and `DeploymentId` values plus `GatewayId`, provider metadata, region, residency, model version, supported capabilities/profiles, expected quality/cost/latency, priority, transport, base URL, and secret-sourced API key. These fields describe an operator-managed gateway deployment; they do not add a provider protocol to iRoute. Keep keys in the platform secret manager and inject route entries identically into API and execution-worker processes.
+
+```json
+{
+  "ModelGateway": {
+    "Mode": "Http",
+    "Deployments": [
+      {
+        "RouteId": "eu-primary",
+        "GatewayId": "gateway-eu",
+        "Provider": "gateway-operator-a",
+        "DeploymentId": "generation-small-v1",
+        "Region": "westeurope",
+        "Residency": "EUR",
+        "ModelVersion": "2026-08",
+        "Capabilities": ["text.generation"],
+        "ProfileIds": ["text.generation.small.eval-v1"],
+        "ExpectedQuality": 0.84,
+        "EstimatedCost": 0.004,
+        "ExpectedLatencyMilliseconds": 900,
+        "Priority": 0,
+        "Transport": "Buffered",
+        "BaseUrl": "https://generic-gateway-a.example.invalid"
+      },
+      {
+        "RouteId": "eu-fallback",
+        "GatewayId": "gateway-eu-fallback",
+        "Provider": "gateway-operator-b",
+        "DeploymentId": "generation-strong-v1",
+        "Region": "northeurope",
+        "Residency": "EUR",
+        "ModelVersion": "2026-07",
+        "Capabilities": ["text.generation"],
+        "ProfileIds": ["text.generation.small.eval-v1", "text.generation.strong.eval-v1"],
+        "ExpectedQuality": 0.94,
+        "EstimatedCost": 0.02,
+        "ExpectedLatencyMilliseconds": 2200,
+        "Priority": 1,
+        "Transport": "Buffered",
+        "BaseUrl": "https://generic-gateway-b.example.invalid"
+      }
+    ]
+  }
+}
+```
+
+`ModelGateway:Resilience:MaximumAttempts` is an absolute gateway-layer ceiling and is further reduced by the task's model-call budget. For plans containing multiple model steps, model-call attempts and the model cost ceiling are divided deterministically across those steps before concurrent execution, so independent fallback sequences cannot each consume the full task budget. Model workflow steps use one scheduler attempt, preventing the HTTP client, gateway resilience layer, and worker scheduler from retrying the same model call independently. Tool-step retry policy is unchanged. A 429 Retry-After value extends the deployment's open interval within the configured maximum. Timeout, throttling, transport, provider, malformed-output, and validation failures count toward the deployment circuit; policy and permanent failures are classified but do not create retry storms.
+
+The durable circuit policy uses `FailureThreshold`, `OpenDuration`, `MaximumOpenDuration`, and `ProbeLeaseDuration`. When the open interval elapses, only one worker receives the fenced half-open probe. Other replicas reject that deployment until the probe closes or reopens the circuit, or until an expired probe lease is taken over. PostgreSQL is required for production multi-replica coordination; SQLite is the local single-node profile.
+
+Investigate `gateway.candidate_evaluated`, `gateway.attempted`, `gateway.fallback_selected`, `gateway.circuit_changed`, `gateway.exhausted`, and `gateway.resilience_decided` together. Metrics are grouped by gateway, provider, deployment, region, model version, failure class, and circuit state. Alert on sustained open circuits, repeated half-open failure, rising exhaustion, or fallback cost/latency approaching task ceilings. Never include prompts, provider bodies, credentials, or tenant identifiers in these dimensions.
+
+HTTP failures are normalized first as invalid request, authentication, timeout, rate limit, unavailable, or internal, then mapped to the W18 resilience classes. The registered gateway remains responsible for provider credentials, model aliases, provider protocols, and provider-specific health. Do not add provider model names, request fields, SDKs, or response parsing to Contracts, Core, Runtime, routing policy, or task definitions.
 
 ## Capability connector operations
 
@@ -138,7 +190,7 @@ The migration executable reads standard .NET configuration and supports status, 
 ```bash
 dotnet run --project src/iRoute.Migrations -- status
 dotnet run --project src/iRoute.Migrations -- up
-dotnet run --project src/iRoute.Migrations -- up 20260801030000_LifecycleCleanup
+dotnet run --project src/iRoute.Migrations -- up 20260802010000_GatewayCircuitBreaker
 dotnet run --project src/iRoute.Migrations -- down 20260801010000_RoutingDecisionCheckpoint --confirm
 ```
 

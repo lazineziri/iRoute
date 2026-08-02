@@ -20,7 +20,7 @@
     },
     "TaskConstraints": {
       "required": [],
-      "properties": ["maxInputTokens", "maxOutputTokens", "maxCost", "deadlineMilliseconds", "minimumQuality", "requireEvidence", "allowExternalWrites", "maxModelCalls", "maxToolCalls", "maxParallelCalls", "maxTaskDepth"]
+      "properties": ["maxInputTokens", "maxOutputTokens", "maxCost", "deadlineMilliseconds", "minimumQuality", "requireEvidence", "allowExternalWrites", "maxModelCalls", "maxToolCalls", "maxParallelCalls", "maxTaskDepth", "allowedRegions", "requiredResidency"]
     },
     "ExecutionSnapshot": {
       "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
@@ -64,7 +64,7 @@
     },
     "ObservabilitySummary": {
       "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
-      "properties": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"]
+      "properties": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions", "gatewayGroups"]
     },
     "ObservabilityMetricSet": {
       "required": ["executions", "completed", "failed", "completionRate", "averageQuality", "inputTokens", "outputTokens", "cost", "averageLatencyMilliseconds", "modelCalls", "toolCalls", "noModelResolutions", "modelCallsAvoided"],
@@ -73,6 +73,14 @@
     "ObservabilityMetricGroup": {
       "required": ["taskType", "policyVersion", "metrics"],
       "properties": ["taskType", "policyVersion", "metrics"]
+    },
+    "GatewayObservabilityMetricGroup": {
+      "required": ["gatewayId", "provider", "deploymentId", "region", "modelVersion", "failureClass", "circuitState", "metrics"],
+      "properties": ["gatewayId", "provider", "deploymentId", "region", "modelVersion", "failureClass", "circuitState", "metrics"]
+    },
+    "GatewayObservabilityMetricSet": {
+      "required": ["attempts", "successes", "failures", "rejectedCandidates", "fallbacks", "averageLatencyMilliseconds"],
+      "properties": ["attempts", "successes", "failures", "rejectedCandidates", "fallbacks", "averageLatencyMilliseconds"]
     },
     "MemoryHitDiagnostics": {
       "required": ["considered", "accepted", "rejected", "hitRate", "resolvers"],
@@ -112,11 +120,27 @@
     },
     "RoutingDecision": {
       "required": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"],
-      "properties": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"]
+      "properties": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates", "selectedDeployment", "resilience"]
     },
     "RoutingCandidateEvaluation": {
       "required": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"],
       "properties": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"]
+    },
+    "GatewayDeploymentReference": {
+      "required": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"],
+      "properties": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"]
+    },
+    "GatewayCandidateEvidence": {
+      "required": ["deployment", "eligible", "reason", "circuitState", "failureClass"],
+      "properties": ["deployment", "eligible", "reason", "circuitState", "failureClass"]
+    },
+    "GatewayAttemptEvidence": {
+      "required": ["deployment", "attempt", "circuitStateBefore", "circuitStateAfter", "succeeded", "failureClass", "failureCode", "statusCode", "durationMilliseconds", "retryAfterMilliseconds"],
+      "properties": ["deployment", "attempt", "circuitStateBefore", "circuitStateAfter", "succeeded", "failureClass", "failureCode", "statusCode", "durationMilliseconds", "retryAfterMilliseconds"]
+    },
+    "GatewayResilienceTrace": {
+      "required": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"],
+      "properties": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"]
     },
     "ModelProfile": {
       "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
@@ -155,9 +179,11 @@
     "RoutingPath": ["Direct", "Workflow"],
     "ModelTier": ["Small", "Strong", "Verifier"],
     "ModelGatewayHealthStatus": ["Healthy", "Degraded", "Unavailable"],
+    "GatewayFailureClass": ["Timeout", "Throttling", "Transport", "Provider", "MalformedOutput", "Validation", "Policy", "Permanent", null],
+    "GatewayCircuitState": ["Closed", "Open", "HalfOpen"],
     "ResolutionDecisionCode": ["exact_cache_hit", "exact_cache_miss", "permission_denied", "unsupported_task", "project_scope_required", "state_key_required", "state_hit", "state_unavailable", "artifact_reference_required", "artifact_hit", "artifact_unavailable", "handler_unavailable", "handler_declined", "handler_stale", "handler_accepted", "external_write_blocked", "validation_failed"],
-    "TaskEventType": ["execution.created", "execution.status_changed", "execution.queued", "execution.lease_claimed", "execution.lease_renewed", "execution.lease_released", "resolution.considered", "routing.decided", "routing.escalated", "plan.validated", "policy.evaluated", "capability.denied", "capability.started", "capability.completed", "capability.failed", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.started", "gateway.streamed", "gateway.completed", "gateway.failed", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
-    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "routing_no_eligible_capability", "routing_budget_exceeded", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "capability_not_registered", "capability_contract_mismatch", "capability_invocation_failed", "capability_result_invalid", "capability_output_limit_exceeded", "capability_deadline_exceeded", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response"]
+    "TaskEventType": ["execution.created", "execution.status_changed", "execution.queued", "execution.lease_claimed", "execution.lease_renewed", "execution.lease_released", "resolution.considered", "routing.decided", "routing.escalated", "plan.validated", "policy.evaluated", "capability.denied", "capability.started", "capability.completed", "capability.failed", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.started", "gateway.streamed", "gateway.completed", "gateway.failed", "gateway.candidate_evaluated", "gateway.attempted", "gateway.fallback_selected", "gateway.circuit_changed", "gateway.exhausted", "gateway.resilience_decided", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
+    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "routing_no_eligible_capability", "routing_budget_exceeded", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "capability_not_registered", "capability_contract_mismatch", "capability_invocation_failed", "capability_result_invalid", "capability_output_limit_exceeded", "capability_deadline_exceeded", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response", "model_gateway_exhausted"]
   },
   "jsonSchemas": {
     "https://schemas.iroute.dev/v1/approval-decision.schema.json": {
@@ -232,13 +258,21 @@
       "required": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"],
       "properties": ["actorReference", "durationMilliseconds", "events", "executionId", "payloadMode", "policyVersion", "projectReference", "startedAt", "status", "taskDefinitionVersion", "taskType", "traceId", "truncated", "updatedAt"]
     },
+    "https://schemas.iroute.dev/v1/gateway-deployment-reference.schema.json": {
+      "required": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"],
+      "properties": ["deploymentId", "gatewayId", "modelVersion", "provider", "region", "residency"]
+    },
+    "https://schemas.iroute.dev/v1/gateway-resilience-trace.schema.json": {
+      "required": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"],
+      "properties": ["attempts", "candidates", "exhaustionReason", "fallbackReason", "finalDeployment", "policyVersion"]
+    },
     "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
       "required": ["capability", "input", "context", "maxOutputTokens"],
-      "properties": ["capability", "context", "correlationId", "deadlineMilliseconds", "input", "maxOutputTokens", "profileId"]
+      "properties": ["allowedRegions", "capability", "context", "correlationId", "deadlineMilliseconds", "input", "maximumAttempts", "maximumCost", "maxOutputTokens", "minimumQuality", "profileId", "requiredResidency"]
     },
     "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json": {
       "required": ["code", "kind", "message", "retryable"],
-      "properties": ["code", "correlationId", "gatewayId", "kind", "message", "retryable", "statusCode"]
+      "properties": ["code", "correlationId", "failureClass", "gatewayId", "kind", "message", "resilience", "retryable", "retryAfterMilliseconds", "statusCode"]
     },
     "https://schemas.iroute.dev/v1/model-gateway-health.schema.json": {
       "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
@@ -250,7 +284,7 @@
     },
     "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
       "required": ["output", "usage", "confidence", "evidence"],
-      "properties": ["confidence", "evidence", "finishReason", "gatewayId", "output", "transport", "usage"]
+      "properties": ["confidence", "deployment", "evidence", "finishReason", "gatewayId", "output", "resilience", "transport", "usage"]
     },
     "https://schemas.iroute.dev/v1/model-gateway-stream-event.schema.json": {
       "required": ["sequence", "kind"],
@@ -262,7 +296,7 @@
     },
     "https://schemas.iroute.dev/v1/observability-summary.schema.json": {
       "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
-      "properties": ["from", "groups", "memory", "recentExecutions", "sampledExecutions", "to", "totals", "truncated"]
+      "properties": ["from", "gatewayGroups", "groups", "memory", "recentExecutions", "sampledExecutions", "to", "totals", "truncated"]
     },
     "https://schemas.iroute.dev/v1/problem.schema.json": {
       "required": ["code", "title", "detail", "retryable"],
@@ -274,7 +308,7 @@
     },
     "https://schemas.iroute.dev/v1/routing-decision.schema.json": {
       "required": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"],
-      "properties": ["candidates", "escalated", "escalationReason", "expectedCost", "expectedLatencyMilliseconds", "expectedQuality", "path", "plannerInvoked", "planningCalls", "policyVersion", "qualityFloor", "reason", "score", "selectedCapability", "selectedModelTier", "selectedProfileId", "uncertainty"]
+      "properties": ["candidates", "escalated", "escalationReason", "expectedCost", "expectedLatencyMilliseconds", "expectedQuality", "path", "plannerInvoked", "planningCalls", "policyVersion", "qualityFloor", "reason", "resilience", "score", "selectedCapability", "selectedDeployment", "selectedModelTier", "selectedProfileId", "uncertainty"]
     },
     "https://schemas.iroute.dev/v1/task-definition.schema.json": {
       "required": ["taskType", "version", "description", "category", "inputSchema", "outputSchema", "requiredCapabilities", "allowedCapabilities", "contextSourcePolicy", "sideEffectClass", "permissionScopes", "approvalRequired", "qualityFloor", "budget", "validationStrategy", "escalationPolicy", "cachePolicy", "memoryPolicy", "retentionPolicy"],

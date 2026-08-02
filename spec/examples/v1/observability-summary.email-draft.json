@@ -21,7 +21,7 @@
   "groups": [
     {
       "taskType": "email.draft",
-      "policyVersion": "routing.w08.v1",
+      "policyVersion": "routing.w18.v1",
       "metrics": {
         "executions": 2,
         "completed": 2,
@@ -61,7 +61,7 @@
     {
       "executionId": "019883a0-7b00-7000-8000-000000000013",
       "taskType": "email.draft",
-      "policyVersion": "routing.w08.v1",
+      "policyVersion": "routing.w18.v1",
       "status": "Succeeded",
       "startedAt": "2026-08-01T13:45:00Z",
       "durationMilliseconds": 640,
@@ -70,6 +70,42 @@
       "cost": 0.024,
       "inputTokens": 920,
       "outputTokens": 280
+    }
+  ],
+  "gatewayGroups": [
+    {
+      "gatewayId": "gateway-eu",
+      "provider": "gateway-operator-a",
+      "deploymentId": "generation-small-v1",
+      "region": "westeurope",
+      "modelVersion": "2026-08",
+      "failureClass": "Throttling",
+      "circuitState": "Closed",
+      "metrics": {
+        "attempts": 1,
+        "successes": 0,
+        "failures": 1,
+        "rejectedCandidates": 0,
+        "fallbacks": 0,
+        "averageLatencyMilliseconds": 42
+      }
+    },
+    {
+      "gatewayId": "gateway-eu-fallback",
+      "provider": "gateway-operator-b",
+      "deploymentId": "generation-strong-v1",
+      "region": "northeurope",
+      "modelVersion": "2026-07",
+      "failureClass": null,
+      "circuitState": "Closed",
+      "metrics": {
+        "attempts": 1,
+        "successes": 1,
+        "failures": 0,
+        "rejectedCandidates": 0,
+        "fallbacks": 1,
+        "averageLatencyMilliseconds": 800
+      }
     }
   ]
 }

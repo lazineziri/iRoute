@@ -38,7 +38,8 @@
         "model_call_budget_exceeded",
         "model_gateway_unavailable",
         "model_gateway_http_error",
-        "model_gateway_invalid_response"
+        "model_gateway_invalid_response",
+        "model_gateway_exhausted"
       ]
     },
     "title": { "type": "string", "minLength": 1, "maxLength": 200 },

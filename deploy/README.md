@@ -35,6 +35,16 @@ This remains a local/team profile because its defaults use development identity
 headers and a local database password. Configure JWT identity, managed PostgreSQL,
 TLS ingress, and external secret management before exposing iRoute publicly.
 
+HTTP model execution can register multiple provider-neutral routes with
+`ModelGateway__Deployments__{index}__...`. Supply the same ordered list to every
+execution worker; each entry declares gateway/deployment identity, operational
+provider/region/residency/model-version metadata, supported capabilities and
+profiles, expected quality/cost/latency, priority, transport, URL, and a
+secret-sourced API key. PostgreSQL persists shared circuit state so only one
+replica receives a half-open probe. The checked Compose and Kubernetes defaults
+show the resilience thresholds but intentionally do not guess real provider
+routes or credentials.
+
 ## Kubernetes reference
 
 The manifests under `deploy/kubernetes` use external PostgreSQL, a dedicated

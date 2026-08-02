@@ -1,6 +1,6 @@
 # Engineering workstream status
 
-Status date: 1 August 2026
+Status date: 2 August 2026
 
 ## M0 — Specification: complete
 
@@ -336,9 +336,34 @@ Acceptance evidence:
 - The live container smoke starts separate SQLite API and worker containers, observes HTTP `202`, polls the persisted execution across the host boundary, verifies `Succeeded`, and removes its isolated stack.
 - Contract and deployment tests validate the additive `Queued` status, queue/lease events, `202` response, retry metadata, migration ordering, shared local volume, two scalable execution workers, and one lifecycle worker.
 
+Completion caveats:
+
+- Sustained load, soak testing, and production failover remain future production-readiness gates. They are not reasons to reopen the completed W17 workstream.
+- The ignored Azure adopter lab is useful external evidence, but it is not a release gate until a sanitized, reproducible harness exists in the repository.
+
+### W18 — Provider resilience and circuit breaking: complete
+
+Deliverables:
+
+- A provider-neutral deployment registry for multiple generic gateway routes, with gateway, provider, deployment, region, residency, model-version, quality, cost, latency, capability, profile, priority, and enabled metadata.
+- Per-deployment closed/open/half-open circuits in memory and durable SQLite/PostgreSQL stores, including failure thresholds, bounded exponential open intervals, Retry-After extension, one fenced half-open probe lease, lease takeover, and stale-probe rejection.
+- Deterministic failure classification for timeout, throttling, transport, provider, malformed output, validation, policy, and permanent failures.
+- One model-resilience retry owner: model workflow steps have one scheduler attempt while the gateway layer performs bounded cross-deployment fallback; tool-step retry behavior is unchanged.
+- Static fallback policy enforcing task quality floor, cumulative estimated cost, remaining deadline, allowed regions, required residency, model-call attempts, selected capability, and selected profile.
+- Stable non-retryable `model_gateway_exhausted` behavior with complete candidate and attempt evidence when no eligible deployment remains.
+- Durable trace events and OpenTelemetry metrics exposing rejected candidates, breaker state, failure class, fallback reason, attempts, final deployment, and all required gateway/deployment dimensions without provider payloads.
+- An eighth additive schema migration plus versioned JSON Schema, OpenAPI, event/error taxonomy, Node SDK types, configuration, and operations guidance.
+
+Acceptance evidence:
+
+- Resilience tests cover 429 with Retry-After, repeated 5xx failures, slow deployments, malformed outputs, validation failure, partial recovery, open-circuit bypass, half-open concurrency, stale-probe fencing, full exhaustion, and fallback constrained by region, residency, cost, deadline, and attempts.
+- The SQLite reconstruction test proves circuit state persists; the opt-in PostgreSQL test creates independent store instances and proves exactly one replica receives the half-open probe permit.
+- An end-to-end orchestration test fails the primary route, succeeds on the fallback, records both attempts and the final deployment, opens the primary circuit, and proves no workflow-layer model retry was scheduled.
+- Observability tests group attempted and rejected candidates by gateway, provider, deployment, region, model version, failure class, and circuit state.
+- Adaptive routing and online learning remain deliberately outside W18; deterministic resilience must remain measurable before learned policy is introduced.
+
 ## Extended backlog status
 
-All W01-W17 workstreams are implemented. The result is a credible durable alpha,
-not a production declaration. The next measured work should cover provider
-resilience, tenant quotas, real connectors, semantic memory, and production
-deployment validation.
+All W01-W18 workstreams are implemented. The result is a credible resilient alpha,
+not a production declaration. The next measured work should cover tenant quotas,
+real connectors, semantic memory, and production deployment validation.

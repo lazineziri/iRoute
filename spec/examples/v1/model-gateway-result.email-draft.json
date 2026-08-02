@@ -7,14 +7,105 @@
   "usage": {
     "inputTokens": 124,
     "outputTokens": 31,
-    "cost": 0.004,
+    "cost": 0.024,
     "durationMilliseconds": 842,
-    "modelCalls": 1,
+    "modelCalls": 2,
     "toolCalls": 0
   },
   "confidence": 0.92,
   "evidence": [],
-  "gatewayId": "external-alpha",
+  "gatewayId": "gateway-eu-fallback",
   "transport": "Streaming",
-  "finishReason": "Completed"
+  "finishReason": "Completed",
+  "deployment": {
+    "gatewayId": "gateway-eu-fallback",
+    "provider": "gateway-operator-b",
+    "deploymentId": "generation-strong-v1",
+    "region": "northeurope",
+    "residency": "EUR",
+    "modelVersion": "2026-07"
+  },
+  "resilience": {
+    "policyVersion": "gateway-resilience.w18.v1",
+    "candidates": [
+      {
+        "deployment": {
+          "gatewayId": "gateway-eu",
+          "provider": "gateway-operator-a",
+          "deploymentId": "generation-small-v1",
+          "region": "westeurope",
+          "residency": "EUR",
+          "modelVersion": "2026-08"
+        },
+        "eligible": true,
+        "reason": "The deployment circuit is closed.",
+        "circuitState": "Closed",
+        "failureClass": null
+      },
+      {
+        "deployment": {
+          "gatewayId": "gateway-eu-fallback",
+          "provider": "gateway-operator-b",
+          "deploymentId": "generation-strong-v1",
+          "region": "northeurope",
+          "residency": "EUR",
+          "modelVersion": "2026-07"
+        },
+        "eligible": true,
+        "reason": "The deployment circuit is closed.",
+        "circuitState": "Closed",
+        "failureClass": null
+      }
+    ],
+    "attempts": [
+      {
+        "deployment": {
+          "gatewayId": "gateway-eu",
+          "provider": "gateway-operator-a",
+          "deploymentId": "generation-small-v1",
+          "region": "westeurope",
+          "residency": "EUR",
+          "modelVersion": "2026-08"
+        },
+        "attempt": 1,
+        "circuitStateBefore": "Closed",
+        "circuitStateAfter": "Open",
+        "succeeded": false,
+        "failureClass": "Throttling",
+        "failureCode": "model_gateway_http_error",
+        "statusCode": 429,
+        "durationMilliseconds": 42,
+        "retryAfterMilliseconds": 30000
+      },
+      {
+        "deployment": {
+          "gatewayId": "gateway-eu-fallback",
+          "provider": "gateway-operator-b",
+          "deploymentId": "generation-strong-v1",
+          "region": "northeurope",
+          "residency": "EUR",
+          "modelVersion": "2026-07"
+        },
+        "attempt": 2,
+        "circuitStateBefore": "Closed",
+        "circuitStateAfter": "Closed",
+        "succeeded": true,
+        "failureClass": null,
+        "failureCode": null,
+        "statusCode": null,
+        "durationMilliseconds": 800,
+        "retryAfterMilliseconds": null
+      }
+    ],
+    "finalDeployment": {
+      "gatewayId": "gateway-eu-fallback",
+      "provider": "gateway-operator-b",
+      "deploymentId": "generation-strong-v1",
+      "region": "northeurope",
+      "residency": "EUR",
+      "modelVersion": "2026-07"
+    },
+    "fallbackReason": "Fallback from deployment 'generation-small-v1' after Throttling: model_gateway_http_error.",
+    "exhaustionReason": null
+  }
 }

@@ -1,7 +1,7 @@
 # Routing policy regression report
 
 - Dataset: `builtin-tasks.v1` v1 (2026-08-01T10:00:00Z)
-- Dataset fingerprint: `sha256:97f8b97b5e7144a74500641246795fa40e3076d276b8083023e68ac0dfa0fe7d`
+- Dataset fingerprint: `sha256:85ed3b89c561d8e0fa0eafb62497943582f0e5fc29caa1e9053a6ec69ac23aa5`
 - Gate: **PASS**
 
 ## Overall comparison
@@ -32,6 +32,6 @@ No task increases mean cost or latency without the configured justified quality 
 ## Provenance
 
 - `full-history-single-strong.v1`: `external:full-history-single-strong.v1`
-- `task-aware.v1`: `sha256:c22e65db5a09c053cbd0dcf3dd0dd4f3b9922ef1c80a09a61a07f62735621275`
+- `task-aware.v1`: `sha256:876b3e0866154aafa747dc020d66d75f7bffedf27a100ae0d683e2f38c68b9fa`
 
 This checked report is deterministic. Run `npm run eval:write` after recording fresh observations; `npm run test:regression` rejects stale policy fingerprints, datasets, or report snapshots.

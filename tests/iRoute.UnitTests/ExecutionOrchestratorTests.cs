@@ -65,7 +65,7 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(ExecutionEventTypes.Completed, events[^1].Type);
         Assert.Contains(events, x => x.Type == ExecutionEventTypes.PlanValidated);
         var routingEvent = Assert.Single(events, x => x.Type == ExecutionEventTypes.RoutingDecided);
-        Assert.Equal("routing.w08.v1", routingEvent.Data.GetProperty("policyVersion").GetString());
+        Assert.Equal("routing.w18.v1", routingEvent.Data.GetProperty("policyVersion").GetString());
         Assert.Equal("Direct", routingEvent.Data.GetProperty("path").GetString());
         Assert.False(routingEvent.Data.GetProperty("plannerInvoked").GetBoolean());
         Assert.Equal(0, routingEvent.Data.GetProperty("planningCalls").GetInt32());
@@ -1006,13 +1006,60 @@ public sealed class ExecutionOrchestratorTests
         Assert.Equal(ModelGatewayFailureKind.Unavailable.ToString(), metadata["gatewayFailureKind"]);
         Assert.Equal("external-failure", metadata["gatewayId"]);
         var events = await ReadEventsAsync(store, result.ExecutionId);
-        Assert.Equal(3, events.Count(item => item.Type == ExecutionEventTypes.GatewayStarted));
-        Assert.Equal(2, events.Count(item => item.Type == ExecutionEventTypes.StepRetryScheduled));
+        Assert.Equal(1, events.Count(item => item.Type == ExecutionEventTypes.GatewayStarted));
+        Assert.DoesNotContain(events, item => item.Type == ExecutionEventTypes.StepRetryScheduled);
         var failed = events.Last(item => item.Type == ExecutionEventTypes.GatewayFailed);
-        Assert.Equal(3, events.Count(item => item.Type == ExecutionEventTypes.GatewayFailed));
+        Assert.Equal(1, events.Count(item => item.Type == ExecutionEventTypes.GatewayFailed));
         Assert.Equal("Unavailable", failed.Data.GetProperty("kind").GetString());
         Assert.True(failed.Data.GetProperty("retryable").GetBoolean());
         Assert.Equal(503, failed.Data.GetProperty("statusCode").GetInt32());
+    }
+
+    [Fact]
+    public async Task GatewayFallbackIsTracedWithoutWorkflowLayerRetries()
+    {
+        var store = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var deployments = new[]
+        {
+            TestGatewayDeployment("primary", "gateway-a", 0),
+            TestGatewayDeployment("secondary", "gateway-b", 1)
+        };
+        var gateway = new ResilientModelGateway(
+            new TestGatewayRegistry(deployments),
+            new TestGatewayClientFactory(new Dictionary<string, IModelGateway>(StringComparer.Ordinal)
+            {
+                ["primary"] = new ThrowingModelGateway(),
+                ["secondary"] = new DeterministicModelGateway()
+            }),
+            new InMemoryGatewayCircuitStore(),
+            new SystemClock(),
+            new GatewayResilienceOptions
+            {
+                MaximumAttempts = 2,
+                Circuit = new GatewayCircuitPolicy(1, TimeSpan.FromSeconds(30))
+            });
+        var orchestrator = CreateOrchestrator(store, artifacts, cancellations, gateway);
+
+        var result = await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "gateway-fallback"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var routing = Assert.IsType<RoutingDecision>(Assert.IsType<TaskOutcome>(result.Outcome).Routing);
+        Assert.Equal("secondary", routing.SelectedDeployment?.DeploymentId);
+        Assert.Equal(2, routing.Resilience?.Attempts.Count);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        Assert.Equal(1, events.Count(item => item.Type == ExecutionEventTypes.GatewayStarted));
+        Assert.DoesNotContain(events, item => item.Type == ExecutionEventTypes.StepRetryScheduled);
+        Assert.Equal(2, events.Count(item => item.Type == ExecutionEventTypes.GatewayAttempted));
+        Assert.Equal(1, events.Count(item => item.Type == ExecutionEventTypes.GatewayFallbackSelected));
+        Assert.Equal(1, events.Count(item => item.Type == ExecutionEventTypes.GatewayCircuitChanged));
+        Assert.Equal(1, events.Count(item => item.Type == ExecutionEventTypes.GatewayResilienceDecided));
+        var completed = Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayCompleted);
+        Assert.Equal("secondary", completed.Data.GetProperty("deploymentId").GetString());
+        Assert.Equal(2, completed.Data.GetProperty("fallbackAttempts").GetInt32());
     }
 
     [Fact]
@@ -1314,6 +1361,40 @@ public sealed class ExecutionOrchestratorTests
                 .Options;
 
         public IRouteDbContext CreateDbContext() => new(_options);
+    }
+
+    private static GatewayDeployment TestGatewayDeployment(
+        string deploymentId,
+        string gatewayId,
+        int priority) => new(
+            deploymentId,
+            gatewayId,
+            "generic-provider",
+            deploymentId,
+            "westeurope",
+            "EUR",
+            "model-v1",
+            ["text.generation"],
+            ["*"],
+            0.95m,
+            0.001m,
+            1,
+            priority);
+
+    private sealed class TestGatewayRegistry(IReadOnlyList<GatewayDeployment> deployments)
+        : IGatewayDeploymentRegistry
+    {
+        public Task<IReadOnlyList<GatewayDeployment>> ListAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(deployments);
+        }
+    }
+
+    private sealed class TestGatewayClientFactory(IReadOnlyDictionary<string, IModelGateway> gateways)
+        : IGatewayDeploymentClientFactory
+    {
+        public IModelGateway GetClient(GatewayDeployment deployment) => gateways[deployment.DeploymentId];
     }
 
     private sealed class ThrowingModelGateway : IModelGateway

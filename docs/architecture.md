@@ -133,7 +133,26 @@ flowchart LR
     J["HTTP or contract failure"] --> K["Normalized failure classification"]
 ```
 
-The request contains capability, profile, projected input, compiled context, maximum output tokens, correlation ID, and deadline—not a provider model name or provider payload. Both transports end in the same typed result. Streaming sequences and sizes are bounded before validation; generated deltas are counted but never persisted in audit data. Runtime-measured wall-clock latency replaces gateway-reported duration so buffered and streaming calls are comparable. Health is reported through a dedicated endpoint and is excluded from API readiness because model execution is an optional capability. Provider credentials, aliases, protocols, and failover remain gateway responsibilities in Infrastructure or the external gateway deployment, never routing concerns.
+The request contains capability, profile, projected input, compiled context, maximum output tokens, correlation ID, and deadline—not a provider model name or provider payload. Both transports end in the same typed result. Streaming sequences and sizes are bounded before validation; generated deltas are counted but never persisted in audit data. Runtime-measured wall-clock latency replaces gateway-reported duration so buffered and streaming calls are comparable. Health is reported through a dedicated endpoint and is excluded from API readiness because model execution is an optional capability. Provider credentials, aliases, and protocols remain responsibilities of the registered generic gateway routes in Infrastructure or an external gateway deployment, never Core or Runtime concerns.
+
+W18 adds deterministic resilience between registered generic gateway deployments without adding provider adapters to Core:
+
+```mermaid
+flowchart LR
+    A["Selected capability and profile"] --> B["Registered generic deployments"]
+    B --> C["Quality, cost, deadline, region, residency policy"]
+    C --> D{"Per-deployment circuit"}
+    D -->|"closed"| E["Bounded attempt"]
+    D -->|"open"| F["Reject candidate"]
+    D -->|"half-open permit"| E
+    E -->|"classified failure"| G["Persist circuit state"]
+    G --> H["Next eligible deployment"]
+    E -->|"success"| I["Final deployment and trace"]
+    H --> D
+    F --> H
+```
+
+The gateway layer is the single owner of model-deployment fallback. Workflow model steps therefore have one scheduler attempt; tool retries retain the W17 scheduler policy. Each attempt targets an operator-registered generic HTTP route and carries no provider-specific request fields. SQLite and PostgreSQL persist circuit state, while a fenced half-open probe lease ensures only one worker tests a recovering deployment. Candidate and attempt evidence becomes durable execution events and low-cardinality metrics. Adaptive routing and online learning are separate future policy layers.
 
 W10 makes routing changes measurable before they reach runtime:
 
@@ -270,7 +289,7 @@ Every transition is persisted and emits an ordered event. Terminal states are im
 
 ## Persistence profiles
 
-`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, work items and leases, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, and external-action reservations through the same ports. PostgreSQL tests cover concurrent claims, fencing, lease expiry, takeover, workflow recovery, and cancellation; restart tests also cover approval-gated action resumption, routing-decision preservation, project-state lifecycle parity, and two-phase archival/deletion.
+`Memory` is an isolated test profile. `Sqlite` is the default single-node developer profile. `Postgres` is the durable team/container profile. Both durable providers store executions, work items and leases, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, external-action reservations, and per-deployment circuit state through the same ports. PostgreSQL tests cover concurrent work claims and half-open probe claims, fencing, lease expiry, takeover, workflow recovery, and cancellation; restart tests also cover approval-gated action resumption, routing-decision preservation, circuit reconstruction, project-state lifecycle parity, and two-phase archival/deletion.
 
 `Storage:AutoInitialize` applies checked-in EF migrations only in local profiles. Production API and worker processes disable it and depend on the one-shot migration image. Readiness fails while known migrations are pending. The initial migration contains provider-specific SQL so SQLite uses its native storage representation while PostgreSQL uses native UUID and boolean columns. Future changes must follow expand-and-contract migration rules.
 
@@ -283,7 +302,7 @@ flowchart LR
     M["One-shot migration job"] --> P
     E["Execution workers (2+)"] --> P
     W["Lifecycle worker (exactly 1)"] --> P
-    E --> G["External model gateway"]
+    E --> G["Registered generic gateway routes"]
 ```
 
 API replicas persist submissions and serve durable reads over one PostgreSQL schema. Execution workers claim work with expiring fenced leases and scale independently; the lifecycle worker remains single-instance. A migration job upgrades the schema before new pods become ready. SQLite is intentionally limited to the local API-plus-worker profile.
@@ -297,6 +316,7 @@ The API has two explicit identity profiles. `DevelopmentHeaders` accepts local t
 - New tasks enter through versioned task definitions and handlers.
 - New deterministic or external capabilities implement Core ports.
 - New model providers belong behind the generic gateway.
+- New gateway routes register provider identity only as operational metadata; provider SDKs and wire protocols never enter Core or Runtime.
 - New storage profiles implement state ports and must pass the same isolation and consistency suite.
 - New SDKs are derived from the versioned OpenAPI contract and wrapped idiomatically.
 - New adaptive policies require offline evaluation and rollback.

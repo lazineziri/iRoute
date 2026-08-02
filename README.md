@@ -4,7 +4,7 @@ iRoute is an open-source, task-aware AI execution runtime. It resolves work from
 
 ## Current milestone
 
-Formal backlog status: **M0, M1, M2, and M3 are complete through W16; W17 durable asynchronous execution is complete**. The
+Formal backlog status: **M0, M1, M2, and M3 are complete through W16; W17 durable execution and W18 provider resilience are complete**. The
 first adoption-ready source baseline is `0.1.0-alpha.1`. See [the workstream
 status](docs/workstream-status.md) and [release notes](docs/releases/0.1.0-alpha.1.md).
 
@@ -28,6 +28,8 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - ranked context compilation with explicit artifact sections, full-history exclusion, serialized token bounds, and fact-level provenance
 - measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
 - provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
+- multiple registered generic gateway deployments with deterministic policy fallback and durable per-deployment circuit breaking
+- fenced half-open probes, Retry-After-aware open intervals, exhaustion evidence, and gateway/deployment resilience metrics
 - versioned golden evaluation across every built-in task, task-specific quality/safety scoring, cost/latency benchmarks, and a source-bound routing regression gate
 - one normalized capability contract with reference email, calendar, read-only database, registered OpenAPI, registered MCP, and typed agent-result connectors
 - connector projection before model context, bounded outputs/deadlines, classified failures, and write reuse through the approval/idempotency boundary
@@ -42,7 +44,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
 - Apache-2.0 community governance, private security reporting, explicit compatibility windows, and reproducible checksummed release artifacts
 
-This is a development milestone, not a production release. Durable execution leasing is implemented, but distributed action reconciliation, tenant quotas, provider failover/circuit breaking, and production transport adapters are still ahead. Run one lifecycle worker per database; execution workers may scale horizontally. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
+This is a development milestone, not a production release. Durable execution leasing and deterministic provider fallback/circuit breaking are implemented, but distributed action reconciliation, tenant quotas, sustained load/soak testing, production failover validation, and production transport adapters are still ahead. Run one lifecycle worker per database; execution workers may scale horizontally. The W11 connectors are deterministic reference adapters; `email.send` remains simulated and approval-gated.
 
 ## Quick start
 
@@ -136,6 +138,8 @@ The offline W10 gate needs no API or provider. `npm run test:regression` validat
 
 To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. Set `ModelGateway__Transport=Streaming` to use bounded NDJSON streaming. `node tools/check-gateway-contract.mjs` verifies an external endpoint directly; run it against separate buffered and streaming gateways to prove contract parity. Gateway and normalized capability request/result/failure schemas are under `spec/schemas`.
 
+The same sanitized server can exercise W18 locally. Run separate instances by setting `IROUTE_GATEWAY_PORT` and `IROUTE_GATEWAY_ID`; set `IROUTE_GATEWAY_FAILURE_STATUS=429`, `IROUTE_GATEWAY_RETRY_AFTER_SECONDS=30`, and optionally `IROUTE_GATEWAY_FAILURE_COUNT=1` on the primary. Register both loopback URLs under `ModelGateway__Deployments__0` and `__1`, then inspect the execution SSE/timeline and observability summary for circuit, attempt, and fallback evidence. This harness contains no provider SDK, credential, or Azure-specific assumption.
+
 ## Configuration
 
 Use environment variables or standard ASP.NET Core configuration.
@@ -150,6 +154,11 @@ Use environment variables or standard ASP.NET Core configuration.
 | `ModelGateway__Transport` | `Buffered` or bounded NDJSON `Streaming` | `Buffered` |
 | `ModelGateway__BaseUrl` | Generic HTTP gateway base URL | unset |
 | `ModelGateway__ApiKey` | Generic HTTP gateway bearer credential | unset |
+| `ModelGateway__Resilience__MaximumAttempts` | Absolute cross-deployment attempt ceiling, further bounded by the task | `3` |
+| `ModelGateway__Resilience__Circuit__FailureThreshold` | Counted failures before a deployment circuit opens | `3` |
+| `ModelGateway__Resilience__Circuit__OpenDuration` | Initial circuit-open interval | `30 seconds` |
+| `ModelGateway__Resilience__Circuit__MaximumOpenDuration` | Maximum exponential/Retry-After circuit-open interval | `5 minutes` |
+| `ModelGateway__Resilience__Circuit__ProbeLeaseDuration` | Fenced half-open probe lease | `15 seconds` |
 | `Workflow__QueueCapacity` | Maximum queued ready steps per scheduling round | `16` |
 | `Workflow__MaxParallelSteps` | Runtime ceiling on parallel steps per execution | `4` |
 | `Workflow__RetryBaseDelayMilliseconds` | Initial classified-retry delay | `100` |
@@ -184,6 +193,8 @@ Use environment variables or standard ASP.NET Core configuration.
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Opt-in telemetry export | unset |
 
 Use the deterministic gateway only for local development and repeatable tests. Buffered HTTP mode expects `POST {BaseUrl}/v1/execute`; streaming mode expects `POST {BaseUrl}/v1/stream` with monotonic NDJSON events and one terminal result. Both use the same provider-neutral request/result contract. `GET {BaseUrl}/health` supplies normalized optional-gateway health without affecting `/health/ready`.
+
+For resilient HTTP routing, configure `ModelGateway__Deployments__0__...`, `ModelGateway__Deployments__1__...`, and so on. Each route declares a unique route/deployment ID, generic gateway URL and credential, provider/region/residency/model-version metadata, capabilities/profiles, expected quality/cost/latency, and priority. iRoute uses those fields for deterministic eligibility and observability; provider-specific request/response protocols remain behind the generic gateway. Configure the same list for every worker replica and use PostgreSQL for shared circuit state.
 
 `DevelopmentHeaders` trusts `X-Tenant-Id`, `X-Actor-Id`, and `X-Permission-Scopes` and must not be exposed as an internet-facing production configuration. JWT mode requires an authenticated token with the configured tenant claim and obtains permission scopes only from `Identity__PermissionClaim`; request headers and body fields cannot elevate them.
 

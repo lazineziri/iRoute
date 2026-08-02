@@ -11,5 +11,10 @@
   "maxOutputTokens": 800,
   "correlationId": "019b2c00-1111-7000-8000-000000000001",
   "profileId": "text.generation.small.eval-v1",
-  "deadlineMilliseconds": 30000
+  "deadlineMilliseconds": 30000,
+  "minimumQuality": 0.8,
+  "maximumCost": 0.03,
+  "allowedRegions": ["westeurope", "northeurope"],
+  "requiredResidency": "EUR",
+  "maximumAttempts": 3
 }

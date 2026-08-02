@@ -31,6 +31,18 @@ test('PostgreSQL Compose migrates once before API and worker startup', async () 
   assert.equal(compose.services.worker.environment.Storage__AutoInitialize, 'false');
   assert.equal(compose.services.worker.environment.Workflow__RetryMaxDelayMilliseconds, '${IROUTE_RETRY_MAX_DELAY_MS:-5000}');
   assert.equal(
+    compose.services.api.environment.ModelGateway__Resilience__MaximumAttempts,
+    '${IROUTE_GATEWAY_MAXIMUM_ATTEMPTS:-3}'
+  );
+  assert.equal(
+    compose.services.worker.environment.ModelGateway__Resilience__MaximumAttempts,
+    compose.services.api.environment.ModelGateway__Resilience__MaximumAttempts
+  );
+  assert.equal(
+    compose.services.worker.environment.ModelGateway__Resilience__Circuit__ProbeLeaseDuration,
+    '${IROUTE_GATEWAY_PROBE_LEASE_DURATION:-00:00:15}'
+  );
+  assert.equal(
     compose.services.api.depends_on.migrate.condition,
     'service_completed_successfully'
   );
@@ -68,6 +80,10 @@ test('Kubernetes reference separates migrations, scalable execution, and singlet
   assert.ok(autoscaler.spec.maxReplicas > autoscaler.spec.minReplicas);
   assert.equal(config.data.Storage__Provider, 'Postgres');
   assert.equal(config.data.Storage__AutoInitialize, 'false');
+  assert.equal(config.data.ModelGateway__Resilience__Enabled, 'true');
+  assert.equal(config.data.ModelGateway__Resilience__MaximumAttempts, '3');
+  assert.equal(config.data.ModelGateway__Resilience__Circuit__FailureThreshold, '3');
+  assert.equal(config.data.ModelGateway__Resilience__Circuit__ProbeLeaseDuration, '00:00:15');
   assert.ok(migration);
   assert.match(migration.metadata.generateName, /^iroute-migrate-/);
   assert.deepEqual(migration.spec.template.spec.containers[0].args, ['up']);

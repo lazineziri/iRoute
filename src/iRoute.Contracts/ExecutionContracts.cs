@@ -25,7 +25,9 @@ public sealed record TaskConstraints(
     int? MaxModelCalls = null,
     int? MaxToolCalls = null,
     int? MaxParallelCalls = null,
-    int? MaxTaskDepth = null);
+    int? MaxTaskDepth = null,
+    IReadOnlyList<string>? AllowedRegions = null,
+    string? RequiredResidency = null);
 
 public sealed record ExecutionPlan(
     string PlanId,
@@ -105,7 +107,9 @@ public sealed record RoutingDecision(
     int PlanningCalls,
     bool Escalated,
     string? EscalationReason,
-    IReadOnlyList<RoutingCandidateEvaluation> Candidates);
+    IReadOnlyList<RoutingCandidateEvaluation> Candidates,
+    GatewayDeploymentReference? SelectedDeployment = null,
+    GatewayResilienceTrace? Resilience = null);
 
 public sealed record RoutingCandidateEvaluation(
     string Capability,
@@ -128,7 +132,12 @@ public sealed record ModelGatewayRequest(
     int MaxOutputTokens,
     string? CorrelationId = null,
     string? ProfileId = null,
-    int? DeadlineMilliseconds = null);
+    int? DeadlineMilliseconds = null,
+    decimal? MinimumQuality = null,
+    decimal? MaximumCost = null,
+    IReadOnlyList<string>? AllowedRegions = null,
+    string? RequiredResidency = null,
+    int? MaximumAttempts = null);
 
 public sealed record ModelGatewayResult(
     JsonElement Output,
@@ -137,7 +146,9 @@ public sealed record ModelGatewayResult(
     IReadOnlyList<EvidenceReference> Evidence,
     string? GatewayId = null,
     ModelGatewayTransport Transport = ModelGatewayTransport.Buffered,
-    ModelGatewayFinishReason FinishReason = ModelGatewayFinishReason.Completed);
+    ModelGatewayFinishReason FinishReason = ModelGatewayFinishReason.Completed,
+    GatewayDeploymentReference? Deployment = null,
+    GatewayResilienceTrace? Resilience = null);
 
 public sealed record ModelGatewayStreamEvent(
     long Sequence,
@@ -161,7 +172,44 @@ public sealed record ModelGatewayFailure(
     int? StatusCode = null,
     string? GatewayId = null,
     string? CorrelationId = null,
+    int? RetryAfterMilliseconds = null,
+    GatewayFailureClass? FailureClass = null,
+    GatewayResilienceTrace? Resilience = null);
+
+public sealed record GatewayDeploymentReference(
+    string GatewayId,
+    string Provider,
+    string DeploymentId,
+    string Region,
+    string Residency,
+    string ModelVersion);
+
+public sealed record GatewayCandidateEvidence(
+    GatewayDeploymentReference Deployment,
+    bool Eligible,
+    string Reason,
+    GatewayCircuitState CircuitState,
+    GatewayFailureClass? FailureClass = null);
+
+public sealed record GatewayAttemptEvidence(
+    GatewayDeploymentReference Deployment,
+    int Attempt,
+    GatewayCircuitState CircuitStateBefore,
+    GatewayCircuitState CircuitStateAfter,
+    bool Succeeded,
+    GatewayFailureClass? FailureClass,
+    string? FailureCode,
+    int? StatusCode,
+    long DurationMilliseconds,
     int? RetryAfterMilliseconds = null);
+
+public sealed record GatewayResilienceTrace(
+    string PolicyVersion,
+    IReadOnlyList<GatewayCandidateEvidence> Candidates,
+    IReadOnlyList<GatewayAttemptEvidence> Attempts,
+    GatewayDeploymentReference? FinalDeployment,
+    string? FallbackReason,
+    string? ExhaustionReason);
 
 public sealed record UsageSummary(
     int InputTokens = 0,
@@ -442,6 +490,27 @@ public enum ModelGatewayFailureKind
     Internal
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<GatewayFailureClass>))]
+public enum GatewayFailureClass
+{
+    Timeout,
+    Throttling,
+    Transport,
+    Provider,
+    MalformedOutput,
+    Validation,
+    Policy,
+    Permanent
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<GatewayCircuitState>))]
+public enum GatewayCircuitState
+{
+    Closed,
+    Open,
+    HalfOpen
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<SideEffectClass>))]
 public enum SideEffectClass
 {
@@ -516,6 +585,12 @@ public static class ExecutionEventTypes
     public const string GatewayStreamed = "gateway.streamed";
     public const string GatewayCompleted = "gateway.completed";
     public const string GatewayFailed = "gateway.failed";
+    public const string GatewayCandidateEvaluated = "gateway.candidate_evaluated";
+    public const string GatewayAttempted = "gateway.attempted";
+    public const string GatewayFallbackSelected = "gateway.fallback_selected";
+    public const string GatewayCircuitChanged = "gateway.circuit_changed";
+    public const string GatewayExhausted = "gateway.exhausted";
+    public const string GatewayResilienceDecided = "gateway.resilience_decided";
     public const string ValidationCompleted = "validation.completed";
     public const string ArtifactMaterialized = "artifact.materialized";
     public const string ArtifactSuperseded = "artifact.superseded";
@@ -561,6 +636,12 @@ public static class ExecutionEventTypes
         GatewayStreamed,
         GatewayCompleted,
         GatewayFailed,
+        GatewayCandidateEvaluated,
+        GatewayAttempted,
+        GatewayFallbackSelected,
+        GatewayCircuitChanged,
+        GatewayExhausted,
+        GatewayResilienceDecided,
         ValidationCompleted,
         ArtifactMaterialized,
         ArtifactSuperseded,
@@ -613,6 +694,7 @@ public static class ErrorCodes
     public const string ModelGatewayUnavailable = "model_gateway_unavailable";
     public const string ModelGatewayHttpError = "model_gateway_http_error";
     public const string ModelGatewayInvalidResponse = "model_gateway_invalid_response";
+    public const string ModelGatewayExhausted = "model_gateway_exhausted";
 
     public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -652,6 +734,7 @@ public static class ErrorCodes
         ModelCallBudgetExceeded,
         ModelGatewayUnavailable,
         ModelGatewayHttpError,
-        ModelGatewayInvalidResponse
+        ModelGatewayInvalidResponse,
+        ModelGatewayExhausted
     };
 }

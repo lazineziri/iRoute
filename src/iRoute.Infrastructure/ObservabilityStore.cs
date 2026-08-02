@@ -194,6 +194,7 @@ internal static class ObservabilityProjection
                 group.Key.PolicyVersion,
                 Metrics(group)))
             .ToArray();
+        var gatewayGroups = GatewayGroups(observations.SelectMany(item => item.Events));
         return new ObservabilitySummary(
             query.From,
             query.To,
@@ -207,7 +208,8 @@ internal static class ObservabilityProjection
                 .ThenByDescending(item => item.Snapshot.ExecutionId)
                 .Take(maxRecentExecutions)
                 .Select(RecentExecution)
-                .ToArray());
+                .ToArray(),
+            gatewayGroups);
     }
 
     public static ExecutionTimeline Timeline(
@@ -304,6 +306,84 @@ internal static class ObservabilityProjection
             decisions.Length - accepted,
             Ratio(accepted, decisions.Length),
             resolvers);
+    }
+
+    private static GatewayObservabilityMetricGroup[] GatewayGroups(
+        IEnumerable<ExecutionEvent> events)
+    {
+        var observations = events.Select(item => item.Type switch
+        {
+            ExecutionEventTypes.GatewayAttempted =>
+                ReadGatewayObservation(item.Data, attempted: true),
+            ExecutionEventTypes.GatewayCandidateEvaluated when !ReadBoolean(item.Data, "eligible") =>
+                ReadGatewayObservation(item.Data, attempted: false),
+            _ => null
+        }).Where(item => item is not null).Cast<GatewayObservation>().ToArray();
+        return observations
+            .GroupBy(item => new
+            {
+                item.GatewayId,
+                item.Provider,
+                item.DeploymentId,
+                item.Region,
+                item.ModelVersion,
+                item.FailureClass,
+                item.CircuitState
+            })
+            .OrderBy(item => item.Key.GatewayId, StringComparer.Ordinal)
+            .ThenBy(item => item.Key.Provider, StringComparer.Ordinal)
+            .ThenBy(item => item.Key.DeploymentId, StringComparer.Ordinal)
+            .ThenBy(item => item.Key.Region, StringComparer.Ordinal)
+            .ThenBy(item => item.Key.ModelVersion, StringComparer.Ordinal)
+            .ThenBy(item => item.Key.FailureClass)
+            .ThenBy(item => item.Key.CircuitState)
+            .Select(group => new GatewayObservabilityMetricGroup(
+                group.Key.GatewayId,
+                group.Key.Provider,
+                group.Key.DeploymentId,
+                group.Key.Region,
+                group.Key.ModelVersion,
+                group.Key.FailureClass,
+                group.Key.CircuitState,
+                new GatewayObservabilityMetricSet(
+                    group.Count(item => item.Attempted),
+                    group.Count(item => item.Attempted && item.Succeeded),
+                    group.Count(item => item.Attempted && !item.Succeeded),
+                    group.Count(item => !item.Attempted),
+                    group.Count(item => item.Attempted && item.FallbackSelected),
+                    group.Any(item => item.Attempted)
+                        ? (decimal)group.Where(item => item.Attempted).Average(item => item.DurationMilliseconds)
+                        : 0m)))
+            .ToArray();
+    }
+
+    private static GatewayObservation? ReadGatewayObservation(JsonElement data, bool attempted)
+    {
+        var gatewayId = ReadString(data, "gatewayId");
+        var provider = ReadString(data, "provider");
+        var deploymentId = ReadString(data, "deploymentId");
+        var region = ReadString(data, "region");
+        var modelVersion = ReadString(data, "modelVersion");
+        if (gatewayId is null || provider is null || deploymentId is null || region is null || modelVersion is null)
+        {
+            return null;
+        }
+
+        return new GatewayObservation(
+            gatewayId,
+            provider,
+            deploymentId,
+            region,
+            modelVersion,
+            ReadEnum<GatewayFailureClass>(data, "failureClass"),
+            ReadEnum<GatewayCircuitState>(data, attempted ? "circuitStateBefore" : "circuitState") ??
+                GatewayCircuitState.Closed,
+            attempted,
+            attempted && ReadBoolean(data, "succeeded"),
+            ReadInt32(data, "attempt"),
+            ReadInt64(data, "durationMilliseconds"),
+            attempted &&
+                (ReadBoolean(data, "fallbackSelected") || ReadInt32(data, "attempt") > 1));
     }
 
     private static ObservabilityExecutionItem RecentExecution(ExecutionObservation observation)
@@ -422,6 +502,18 @@ internal static class ObservabilityProjection
     private static bool ReadBoolean(JsonElement data, string name) =>
         TryGetProperty(data, name, out var value) && value.ValueKind == JsonValueKind.True;
 
+    private static int ReadInt32(JsonElement data, string name) =>
+        TryGetProperty(data, name, out var value) && value.TryGetInt32(out var result) ? result : 0;
+
+    private static long ReadInt64(JsonElement data, string name) =>
+        TryGetProperty(data, name, out var value) && value.TryGetInt64(out var result) ? result : 0;
+
+    private static T? ReadEnum<T>(JsonElement data, string name) where T : struct, Enum
+    {
+        var value = ReadString(data, name);
+        return Enum.TryParse<T>(value, true, out var parsed) ? parsed : null;
+    }
+
     private static bool TryGetProperty(JsonElement data, string name, out JsonElement value)
     {
         if (data.ValueKind == JsonValueKind.Object)
@@ -459,4 +551,18 @@ internal static class ObservabilityProjection
         ExecutionSnapshot Snapshot,
         IReadOnlyList<ExecutionEvent> Events,
         string PolicyVersion);
+
+    private sealed record GatewayObservation(
+        string GatewayId,
+        string Provider,
+        string DeploymentId,
+        string Region,
+        string ModelVersion,
+        GatewayFailureClass? FailureClass,
+        GatewayCircuitState CircuitState,
+        bool Attempted,
+        bool Succeeded,
+        int Attempt,
+        long DurationMilliseconds,
+        bool FallbackSelected);
 }

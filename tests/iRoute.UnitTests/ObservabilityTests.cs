@@ -63,6 +63,24 @@ public sealed class ObservabilityTests
         Assert.Equal(2, summary.Memory.Considered);
         Assert.Equal(1, summary.Memory.Accepted);
         Assert.Equal(0.5m, summary.Memory.HitRate);
+        Assert.Collection(
+            summary.GatewayGroups,
+            rejected =>
+            {
+                Assert.Equal("gateway-a", rejected.GatewayId);
+                Assert.Equal("deployment-a", rejected.DeploymentId);
+                Assert.Equal(GatewayFailureClass.Throttling, rejected.FailureClass);
+                Assert.Equal(GatewayCircuitState.Open, rejected.CircuitState);
+                Assert.Equal(1, rejected.Metrics.RejectedCandidates);
+            },
+            selected =>
+            {
+                Assert.Equal("gateway-b", selected.GatewayId);
+                Assert.Equal("deployment-b", selected.DeploymentId);
+                Assert.Null(selected.FailureClass);
+                Assert.Equal(1, selected.Metrics.Attempts);
+                Assert.Equal(1, selected.Metrics.Successes);
+            });
         Assert.Equal(3, summary.RecentExecutions.Count);
     }
 
@@ -279,6 +297,39 @@ public sealed class ObservabilityTests
                 resolver = "exact-cache",
                 accepted = false,
                 code = "exact_cache_miss"
+            }),
+            cancellationToken);
+        await store.AppendEventAsync(
+            generated.ExecutionId,
+            ExecutionEventTypes.GatewayCandidateEvaluated,
+            generated.CreatedAt.AddMilliseconds(11),
+            JsonSerializer.SerializeToElement(new
+            {
+                gatewayId = "gateway-a",
+                provider = "generic-provider",
+                deploymentId = "deployment-a",
+                region = "westeurope",
+                modelVersion = "model-v1",
+                eligible = false,
+                circuitState = GatewayCircuitState.Open,
+                failureClass = GatewayFailureClass.Throttling
+            }),
+            cancellationToken);
+        await store.AppendEventAsync(
+            generated.ExecutionId,
+            ExecutionEventTypes.GatewayAttempted,
+            generated.CreatedAt.AddMilliseconds(12),
+            JsonSerializer.SerializeToElement(new
+            {
+                gatewayId = "gateway-b",
+                provider = "generic-provider",
+                deploymentId = "deployment-b",
+                region = "westeurope",
+                modelVersion = "model-v1",
+                attempt = 2,
+                circuitStateBefore = GatewayCircuitState.Closed,
+                succeeded = true,
+                durationMilliseconds = 25
             }),
             cancellationToken);
         await store.AppendEventAsync(

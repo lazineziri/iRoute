@@ -19,11 +19,16 @@ public sealed class RuntimeTelemetry : IExecutionTelemetry, IDisposable
     private readonly Counter<long> _failed;
     private readonly Counter<long> _memoryHits;
     private readonly Counter<long> _modelCallsAvoided;
+    private readonly Counter<long> _gatewayAttempts;
+    private readonly Counter<long> _gatewayFailures;
+    private readonly Counter<long> _gatewayFallbacks;
+    private readonly Counter<long> _gatewayCircuitTransitions;
     private readonly Histogram<double> _quality;
     private readonly Histogram<double> _cost;
     private readonly Histogram<long> _inputTokens;
     private readonly Histogram<long> _outputTokens;
     private readonly Histogram<double> _duration;
+    private readonly Histogram<double> _gatewayDuration;
     private bool _disposed;
 
     public RuntimeTelemetry()
@@ -33,11 +38,16 @@ public sealed class RuntimeTelemetry : IExecutionTelemetry, IDisposable
         _failed = _meter.CreateCounter<long>("iroute.executions.failed");
         _memoryHits = _meter.CreateCounter<long>("iroute.memory.hits");
         _modelCallsAvoided = _meter.CreateCounter<long>("iroute.model.calls.avoided");
+        _gatewayAttempts = _meter.CreateCounter<long>("iroute.gateway.attempts");
+        _gatewayFailures = _meter.CreateCounter<long>("iroute.gateway.failures");
+        _gatewayFallbacks = _meter.CreateCounter<long>("iroute.gateway.fallbacks");
+        _gatewayCircuitTransitions = _meter.CreateCounter<long>("iroute.gateway.circuit.transitions");
         _quality = _meter.CreateHistogram<double>("iroute.execution.quality");
         _cost = _meter.CreateHistogram<double>("iroute.execution.cost");
         _inputTokens = _meter.CreateHistogram<long>("iroute.execution.input_tokens");
         _outputTokens = _meter.CreateHistogram<long>("iroute.execution.output_tokens");
         _duration = _meter.CreateHistogram<double>("iroute.execution.duration", "ms");
+        _gatewayDuration = _meter.CreateHistogram<double>("iroute.gateway.duration", "ms");
     }
 
     public IExecutionTraceScope StartExecution(
@@ -70,6 +80,35 @@ public sealed class RuntimeTelemetry : IExecutionTelemetry, IDisposable
             {
                 { "iroute.event.type", eventType }
             }));
+    }
+
+    public void RecordGatewayAttempt(GatewayAttemptEvidence attempt, bool fallbackSelected)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var tags = new TagList
+        {
+            { "iroute.gateway.id", attempt.Deployment.GatewayId },
+            { "iroute.gateway.provider", attempt.Deployment.Provider },
+            { "iroute.gateway.deployment", attempt.Deployment.DeploymentId },
+            { "iroute.gateway.region", attempt.Deployment.Region },
+            { "iroute.gateway.model_version", attempt.Deployment.ModelVersion },
+            { "iroute.gateway.failure_class", attempt.FailureClass?.ToString() ?? "none" },
+            { "iroute.gateway.circuit_state", attempt.CircuitStateBefore.ToString() }
+        };
+        _gatewayAttempts.Add(1, tags);
+        _gatewayDuration.Record(attempt.DurationMilliseconds, tags);
+        if (!attempt.Succeeded)
+        {
+            _gatewayFailures.Add(1, tags);
+        }
+        if (fallbackSelected)
+        {
+            _gatewayFallbacks.Add(1, tags);
+        }
+        if (attempt.CircuitStateBefore != attempt.CircuitStateAfter)
+        {
+            _gatewayCircuitTransitions.Add(1, tags);
+        }
     }
 
     public void RecordTerminal(ExecutionSnapshot snapshot)
