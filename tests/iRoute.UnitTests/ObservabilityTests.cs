@@ -264,7 +264,7 @@ public sealed class ObservabilityTests
             TaskDefinitionVersion: 1);
         foreach (var snapshot in new[] { generated, reused, failed })
         {
-            await store.CreateAsync(snapshot, null, cancellationToken);
+            await store.CreateAsync(snapshot, null, null, cancellationToken);
             await store.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.Created,

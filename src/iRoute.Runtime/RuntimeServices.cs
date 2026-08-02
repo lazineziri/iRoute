@@ -24,6 +24,22 @@ public sealed class Sha256InputFingerprint : IInputFingerprint
 
         return Convert.ToHexStringLower(SHA256.HashData(stream.ToArray()));
     }
+
+    public string CreateForSubmission(TaskRequest request)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("taskType", request.TaskType);
+            writer.WriteString("projectId", request.ProjectId);
+            writer.WritePropertyName("input");
+            CanonicalJson.Write(writer, request.Input);
+            writer.WriteEndObject();
+        }
+
+        return Convert.ToHexStringLower(SHA256.HashData(stream.ToArray()));
+    }
 }
 
 public sealed class EmailDraftOutcomeValidator : ITaskOutcomeValidator

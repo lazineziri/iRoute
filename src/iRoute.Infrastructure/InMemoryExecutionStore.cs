@@ -12,17 +12,19 @@ public sealed class InMemoryExecutionStore : IExecutionStore
     private readonly ConcurrentDictionary<string, Guid> _idempotencyKeys = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, ConcurrentQueue<ExecutionEvent>> _events = new();
     private readonly ConcurrentDictionary<Guid, long> _eventSequences = new();
+    private readonly ConcurrentDictionary<Guid, string> _inputFingerprints = new();
 
-    public Task<ExecutionSnapshot?> FindByIdempotencyKeyAsync(
+    public Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(
         string tenantId,
         string key,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var scopedKey = CreateIdempotencyKey(tenantId, key);
-        return Task.FromResult(_idempotencyKeys.TryGetValue(scopedKey, out var id) && _executions.TryGetValue(id, out var value)
-            ? value
-            : null);
+        return Task.FromResult(
+            _idempotencyKeys.TryGetValue(scopedKey, out var id) && _executions.TryGetValue(id, out var value)
+                ? new ExecutionSubmission(value, _inputFingerprints.GetValueOrDefault(id))
+                : null);
     }
 
     public Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken)
@@ -31,7 +33,11 @@ public sealed class InMemoryExecutionStore : IExecutionStore
         return Task.FromResult(_executions.GetValueOrDefault(executionId));
     }
 
-    public Task CreateAsync(ExecutionSnapshot execution, string? idempotencyKey, CancellationToken cancellationToken)
+    public Task CreateAsync(
+        ExecutionSnapshot execution,
+        string? idempotencyKey,
+        string? inputFingerprint,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_executions.TryAdd(execution.ExecutionId, execution))
@@ -45,8 +51,13 @@ public sealed class InMemoryExecutionStore : IExecutionStore
             if (!_idempotencyKeys.TryAdd(scopedKey, execution.ExecutionId))
             {
                 _executions.TryRemove(execution.ExecutionId, out _);
-                throw new InvalidOperationException("The idempotency key already exists for this tenant.");
+                throw new IdempotencyConflictException(execution.TenantId, idempotencyKey);
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(inputFingerprint))
+        {
+            _inputFingerprints[execution.ExecutionId] = inputFingerprint;
         }
 
         return Task.CompletedTask;

@@ -105,6 +105,14 @@ public static class ExecutionEndpoints
             var result = await orchestrator.SubmitAsync(scopedRequest, cancellationToken);
             return Results.Accepted($"/v1/executions/{result.ExecutionId}", result);
         }
+        catch (IdempotencyKeyReusedException exception)
+        {
+            return Problem(
+                StatusCodes.Status409Conflict,
+                ErrorCodes.IdempotencyKeyConflict,
+                "Idempotency key conflict",
+                exception.Message);
+        }
         catch (ArgumentException exception)
         {
             return Problem(

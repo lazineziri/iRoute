@@ -22,7 +22,7 @@ public sealed class SchemaMigrationTests
                 cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(upgraded.IsCurrent);
             Assert.Equal(
-                iRoute.Infrastructure.Migrations.GatewayCircuitBreaker.MigrationId,
+                iRoute.Infrastructure.Migrations.IdempotencyFingerprint.MigrationId,
                 upgraded.CurrentMigration);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() => manager.RollbackAsync(
@@ -41,7 +41,8 @@ public sealed class SchemaMigrationTests
                 [
                     iRoute.Infrastructure.Migrations.LifecycleCleanup.MigrationId,
                     iRoute.Infrastructure.Migrations.DurableExecutionWork.MigrationId,
-                    iRoute.Infrastructure.Migrations.GatewayCircuitBreaker.MigrationId
+                    iRoute.Infrastructure.Migrations.GatewayCircuitBreaker.MigrationId,
+                    iRoute.Infrastructure.Migrations.IdempotencyFingerprint.MigrationId
                 ],
                 rolledBack.PendingMigrations);
 

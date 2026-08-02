@@ -41,6 +41,7 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
         execution.Property(x => x.ActorId).HasMaxLength(200);
         execution.Property(x => x.ProjectId).HasMaxLength(200);
         execution.Property(x => x.IdempotencyKey).HasMaxLength(200);
+        execution.Property(x => x.InputFingerprint).HasMaxLength(64);
         execution.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
         execution.HasIndex(x => new { x.TenantId, x.IdempotencyKey }).IsUnique();
 
@@ -224,6 +225,7 @@ public sealed class ExecutionEntity
     public long UpdatedAtUnixMilliseconds { get; set; }
     public long? CancellationRequestedAtUnixMilliseconds { get; set; }
     public string? IdempotencyKey { get; set; }
+    public string? InputFingerprint { get; set; }
     public string? OutcomeJson { get; set; }
     public string? ErrorJson { get; set; }
 }
@@ -314,7 +316,7 @@ public sealed class ArtifactEntity
 
 public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextFactory) : IExecutionStore
 {
-    public async Task<ExecutionSnapshot?> FindByIdempotencyKeyAsync(
+    public async Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(
         string tenantId,
         string key,
         CancellationToken cancellationToken)
@@ -325,7 +327,9 @@ public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextF
             .SingleOrDefaultAsync(
                 x => x.TenantId == tenantId && x.IdempotencyKey == key,
                 cancellationToken);
-        return entity is null ? null : PersistenceMapping.ToContract(entity);
+        return entity is null
+            ? null
+            : new ExecutionSubmission(PersistenceMapping.ToContract(entity), entity.InputFingerprint);
     }
 
     public async Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken)
@@ -340,12 +344,31 @@ public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextF
     public async Task CreateAsync(
         ExecutionSnapshot execution,
         string? idempotencyKey,
+        string? inputFingerprint,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        context.Executions.Add(PersistenceMapping.ToEntity(execution, idempotencyKey));
-        await context.SaveChangesAsync(cancellationToken);
+        context.Executions.Add(
+            PersistenceMapping.ToEntity(execution, idempotencyKey, inputFingerprint));
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (!string.IsNullOrWhiteSpace(idempotencyKey) && IsUniqueViolation(exception))
+        {
+            // A concurrent submit with the same key won the race. Surface a typed conflict so the
+            // caller can re-read and answer with the execution that was actually created.
+            throw new IdempotencyConflictException(execution.TenantId, idempotencyKey);
+        }
     }
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is { } inner &&
+        (inner.Message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) ||
+            inner.Message.Contains("duplicate key value", StringComparison.OrdinalIgnoreCase) ||
+            (inner.GetType().Name == "PostgresException" &&
+                inner.GetType().GetProperty("SqlState")?.GetValue(inner) as string == "23505"));
 
     public async Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken)
     {
@@ -998,7 +1021,10 @@ internal static class PersistenceMapping
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public static ExecutionEntity ToEntity(ExecutionSnapshot snapshot, string? idempotencyKey) => new()
+    public static ExecutionEntity ToEntity(
+        ExecutionSnapshot snapshot,
+        string? idempotencyKey,
+        string? inputFingerprint) => new()
     {
         ExecutionId = snapshot.ExecutionId,
         TenantId = snapshot.TenantId,
@@ -1011,6 +1037,7 @@ internal static class PersistenceMapping
         UpdatedAtUnixMilliseconds = snapshot.UpdatedAt.ToUnixTimeMilliseconds(),
         CancellationRequestedAtUnixMilliseconds = snapshot.CancellationRequestedAt?.ToUnixTimeMilliseconds(),
         IdempotencyKey = idempotencyKey,
+        InputFingerprint = inputFingerprint,
         OutcomeJson = Serialize(snapshot.Outcome),
         ErrorJson = Serialize(snapshot.Error)
     };

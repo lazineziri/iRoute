@@ -23,7 +23,8 @@ public sealed class ExecutionCancellationRaceTests
         var store = harness.Store;
         var now = DateTimeOffset.UtcNow;
         var snapshot = Snapshot(now);
-        await store.CreateAsync(snapshot, "cancel-race-1", TestContext.Current.CancellationToken);
+        await store.CreateAsync(snapshot, "cancel-race-1", null,
+            TestContext.Current.CancellationToken);
 
         // The worker reads the execution and begins a phase.
         var workerCopy = Assert.IsType<ExecutionSnapshot>(
@@ -57,7 +58,8 @@ public sealed class ExecutionCancellationRaceTests
         var store = harness.Store;
         var now = DateTimeOffset.UtcNow;
         var snapshot = Snapshot(now);
-        await store.CreateAsync(snapshot, "cancel-race-2", TestContext.Current.CancellationToken);
+        await store.CreateAsync(snapshot, "cancel-race-2", null,
+            TestContext.Current.CancellationToken);
 
         // A caller loads the execution while it is still running.
         var staleCopy = Assert.IsType<ExecutionSnapshot>(
@@ -94,7 +96,8 @@ public sealed class ExecutionCancellationRaceTests
         var store = harness.Store;
         var now = DateTimeOffset.UtcNow;
         var snapshot = Snapshot(now);
-        await store.CreateAsync(snapshot, "cancel-race-3", TestContext.Current.CancellationToken);
+        await store.CreateAsync(snapshot, "cancel-race-3", null,
+            TestContext.Current.CancellationToken);
 
         var first = now.AddSeconds(1);
         Assert.True(await store.TryRequestCancellationAsync(

@@ -4,14 +4,54 @@ using iRoute.Contracts;
 
 namespace iRoute.Core;
 
+/// <summary>
+/// An execution recorded against an idempotency key, with the fingerprint of the request that
+/// created it so a replay carrying a different payload can be told apart from a genuine retry.
+/// </summary>
+public sealed record ExecutionSubmission(ExecutionSnapshot Execution, string? InputFingerprint);
+
+/// <summary>
+/// Thrown when an idempotency key is already recorded for the tenant. Concurrent submits with the
+/// same key race, so callers must treat this as "someone else won" and re-read, not as an error.
+/// </summary>
+public sealed class IdempotencyConflictException(string tenantId, string idempotencyKey)
+    : Exception($"Idempotency key '{idempotencyKey}' already exists for tenant '{tenantId}'.")
+{
+    public string TenantId { get; } = tenantId;
+    public string IdempotencyKey { get; } = idempotencyKey;
+}
+
+/// <summary>
+/// Thrown when an idempotency key is replayed with a different request payload. Unlike
+/// <see cref="IdempotencyConflictException"/> this is a client error, not a race: answering with
+/// the original execution would hide the mistake, so it is reported instead.
+/// </summary>
+public sealed class IdempotencyKeyReusedException(string idempotencyKey)
+    : Exception($"Idempotency key '{idempotencyKey}' was already used for a different request payload.")
+{
+    public string IdempotencyKey { get; } = idempotencyKey;
+}
+
 public interface IExecutionStore
 {
-    Task<ExecutionSnapshot?> FindByIdempotencyKeyAsync(
+    Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(
         string tenantId,
         string key,
         CancellationToken cancellationToken);
     Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken);
-    Task CreateAsync(ExecutionSnapshot execution, string? idempotencyKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Inserts a new execution.
+    /// </summary>
+    /// <exception cref="IdempotencyConflictException">
+    /// The tenant already has an execution for <paramref name="idempotencyKey"/>. Raised instead of
+    /// a provider-specific unique-violation so concurrent submits can be resolved by re-reading.
+    /// </exception>
+    Task CreateAsync(
+        ExecutionSnapshot execution,
+        string? idempotencyKey,
+        string? inputFingerprint,
+        CancellationToken cancellationToken);
     /// <summary>
     /// Persists the mutable execution state. <see cref="ExecutionSnapshot.CancellationRequestedAt"/>
     /// is owned by the store and is never written from the supplied snapshot, so a transition
@@ -320,6 +360,12 @@ public interface ITaskOutcomeValidator
 public interface IInputFingerprint
 {
     string Create(TaskRequest request, int taskDefinitionVersion);
+
+    /// <summary>
+    /// Fingerprints a request as submitted, before any task definition has been resolved, so two
+    /// submissions carrying the same idempotency key can be compared.
+    /// </summary>
+    string CreateForSubmission(TaskRequest request);
 }
 
 public interface IExecutionCancellationRegistry

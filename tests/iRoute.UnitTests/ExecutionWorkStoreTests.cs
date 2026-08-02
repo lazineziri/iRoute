@@ -15,7 +15,8 @@ public sealed class ExecutionWorkStoreTests
         var work = new InMemoryExecutionWorkStore(executions);
         var now = DateTimeOffset.UtcNow;
         var snapshot = Snapshot(now);
-        await executions.CreateAsync(snapshot, "queue-test", TestContext.Current.CancellationToken);
+        await executions.CreateAsync(snapshot, "queue-test", null,
+            TestContext.Current.CancellationToken);
         var item = await work.EnqueueAsync(
             snapshot.ExecutionId,
             ExecutionStatus.Planning,
@@ -61,7 +62,8 @@ public sealed class ExecutionWorkStoreTests
             var executions = new EfExecutionStore(factory);
             var now = DateTimeOffset.UtcNow;
             var snapshot = Snapshot(now);
-            await executions.CreateAsync(snapshot, "durable-queue-test", TestContext.Current.CancellationToken);
+            await executions.CreateAsync(snapshot, "durable-queue-test", null,
+            TestContext.Current.CancellationToken);
             await new EfExecutionWorkStore(factory).EnqueueAsync(
                 snapshot.ExecutionId,
                 ExecutionStatus.Planning,

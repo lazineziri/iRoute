@@ -1225,6 +1225,11 @@ public sealed class ExecutionOrchestratorTests
         }
     }
 
+    internal static ExecutionOrchestrator CreateTestOrchestrator(
+        IExecutionStore store,
+        ExecutionCancellationRegistry cancellations) =>
+        CreateOrchestrator(store, new InMemoryArtifactStore(), cancellations);
+
     private static ExecutionOrchestrator CreateOrchestrator(
         IExecutionStore store,
         IArtifactStore artifacts,
