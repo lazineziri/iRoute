@@ -144,6 +144,20 @@ public interface IExternalActionStore
         Problem problem,
         DateTimeOffset failedAt,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reservations still <see cref="ExternalActionStatus.Running"/> for an execution.
+    /// </summary>
+    /// <remarks>
+    /// A worker that dies mid action deliberately leaves its reservation running, because iRoute
+    /// cannot know whether the external side effect happened. Every later attempt is then refused
+    /// so the action is never fired twice. An operator establishes what really happened and
+    /// records it, which is the only thing that can release the reservation.
+    /// </remarks>
+    Task<IReadOnlyList<ExternalActionRecord>> ListUnresolvedAsync(
+        string tenantId,
+        Guid executionId,
+        CancellationToken cancellationToken);
 }
 
 public sealed record ExternalActionRequest(

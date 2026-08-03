@@ -96,6 +96,23 @@ public sealed class InMemoryExternalActionStore : IExternalActionStore
     private readonly ConcurrentDictionary<(string TenantId, string Reference), ExternalActionRecord> _actions = new();
     private readonly object _sync = new();
 
+    public Task<IReadOnlyList<ExternalActionRecord>> ListUnresolvedAsync(
+        string tenantId,
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        IReadOnlyList<ExternalActionRecord> unresolved =
+        [
+            .. _actions.Values
+                .Where(action => action.TenantId == tenantId
+                    && action.ExecutionId == executionId
+                    && action.Status == ExternalActionStatus.Running)
+                .OrderBy(action => action.ActionId, StringComparer.Ordinal)
+        ];
+        return Task.FromResult(unresolved);
+    }
+
     public Task<ExternalActionReservation> ReserveAsync(
         ExternalActionRecord action,
         CancellationToken cancellationToken)

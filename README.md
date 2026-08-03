@@ -125,6 +125,7 @@ Useful endpoints:
 - `GET /v1/executions/{executionId}/events?after=0`
 - `POST /v1/executions/{executionId}/cancel`
 - `POST /v1/executions/{executionId}/approvals`
+- `GET /v1/executions/{executionId}/external-actions` and `POST /v1/executions/{executionId}/external-actions/{actionId}/reconcile`
 - `GET /v1/artifacts/{artifactId}`
 - `GET /v1/observability/summary?from=...&to=...&taskType=...&policyVersion=...`
 - `GET /v1/observability/executions/{executionId}`

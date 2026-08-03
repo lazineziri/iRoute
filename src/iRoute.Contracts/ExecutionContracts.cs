@@ -580,6 +580,7 @@ public static class ExecutionEventTypes
     public const string ExternalActionCompleted = "external_action.completed";
     public const string ExternalActionReused = "external_action.reused";
     public const string ExternalActionFailed = "external_action.failed";
+    public const string ExternalActionReconciled = "external_action.reconciled";
     public const string ContextCompiled = "context.compiled";
     public const string GatewayStarted = "gateway.started";
     public const string GatewayStreamed = "gateway.streamed";
@@ -631,6 +632,7 @@ public static class ExecutionEventTypes
         ExternalActionCompleted,
         ExternalActionReused,
         ExternalActionFailed,
+        ExternalActionReconciled,
         ContextCompiled,
         GatewayStarted,
         GatewayStreamed,
