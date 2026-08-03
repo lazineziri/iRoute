@@ -9,6 +9,59 @@ additional public-contract promises in `docs/compatibility.md`.
 
 No changes yet.
 
+## [0.1.0-alpha.2] - 2026-08-03
+
+### Fixed
+
+- The documented two-terminal quick start never completed. The API and the worker
+  both defaulted to the relative connection string `Data Source=iroute.db`, and
+  `dotnet run --project` sets the working directory per project, so each host
+  opened a different database and submissions stayed `Queued` forever. A relative
+  SQLite data source now resolves against one shared per-user directory.
+- A cancellation and a worker transition could discard each other. Cancelling an
+  execution that had just finished reverted its status and erased the recorded
+  outcome, and a cancellation arriving mid-execution was overwritten by the
+  worker's next write, so the request was silently ignored.
+- An unknown `taskType` returned HTTP 500 and stranded the execution in a
+  non-terminal state, because no `Accepted -> Failed` transition existed.
+- Retrying a submission that raced the original returned HTTP 500 instead of the
+  execution that won, which is the situation an idempotency key exists for.
+- A repeatedly failing execution was redelivered about once per second forever,
+  growing the event log without bound.
+- Event streaming timed out after 30 seconds in the Python SDK and could block
+  forever in the Java SDK.
+- Durable writes made while processing a leased execution were not fenced by the
+  lease, so a worker whose lease had been taken over could interleave writes with
+  the new owner.
+
+### Added
+
+- Operators can list external actions whose outcome is unknown and record what
+  actually happened, releasing a reservation that previously wedged an execution
+  permanently. Adds the `external_action.reconciled` event.
+- Reusing an idempotency key with a different payload now returns `409` with
+  `idempotency_key_conflict`, as the OpenAPI document has always declared.
+- `ExecutionWorker:MaxDeliveryAttempts` and `ExecutionWorker:MaxAbandonDelay`.
+
+### Changed
+
+- **Breaking:** `Storage:Provider=Memory` is removed. It kept no durable record,
+  so executions, approvals and leases were lost on restart. Use `Sqlite` for
+  single-node development or `Postgres` to deploy.
+- **Breaking:** the Node.js SDK is published as `@iroute-dev/sdk`. The `@iroute`
+  npm scope belongs to an unrelated account.
+- Node.js `24.18.1` is the single declared floor across the repository.
+- An unsupported `Storage:Provider` is now rejected at startup rather than on the
+  first database call.
+
+### Upgrading
+
+- A relative SQLite database is no longer read from the host's working directory.
+  Move an existing `iroute.db` to the per-user data directory reported in the
+  README, or set `ConnectionStrings__iRoute` to its absolute path.
+- Replace `Storage:Provider=Memory` with `Sqlite`.
+- Replace the `@iroute/sdk` dependency with `@iroute-dev/sdk`.
+
 ## [0.1.0-alpha.1] - 2026-08-01
 
 ### Added

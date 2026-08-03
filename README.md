@@ -2,15 +2,15 @@
 
 iRoute is an open-source, task-aware AI execution runtime. It resolves work from trusted state first, sends only unresolved work to capabilities or models, validates the result, and materializes reusable project artifacts with evidence and cost metadata.
 
-> **Experimental alpha:** `0.1.0-alpha.1` is intended for evaluation and controlled
+> **Experimental alpha:** `0.1.0-alpha.2` is intended for evaluation and controlled
 > pilots. Breaking changes are expected before `1.0`. There is no production or
 > security-response SLA. Reference connectors are not production integrations,
 > and checked provider cost/performance figures are not production measurements.
 
 ## Current release
 
-The first adoption-ready source baseline is `0.1.0-alpha.1`. See the
-[release notes](docs/releases/0.1.0-alpha.1.md) for its verified capabilities,
+The first adoption-ready source baseline is `0.1.0-alpha.2`. See the
+[release notes](docs/releases/0.1.0-alpha.2.md) for its verified capabilities,
 known limits, and upgrade guidance.
 
 The first end-to-end P0 slice is operational for `email.draft`:

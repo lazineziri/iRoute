@@ -7,7 +7,7 @@ or provider policy.
 
 ## Status and requirements
 
-- SDK version: `0.1.0-alpha.1`
+- SDK version: `0.1.0-alpha.2`
 - Runtime minimum: Node.js `24.18.1`
 - Verified baseline: Node.js `24.18.1` and TypeScript `7.0.2`
 - Module format: ESM
@@ -29,7 +29,7 @@ options.
 ## Install from npm
 
 ```bash
-npm install @iroute-dev/sdk@0.1.0-alpha.1
+npm install @iroute-dev/sdk@0.1.0-alpha.2
 ```
 
 ## Install from source

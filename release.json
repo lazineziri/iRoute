@@ -1,10 +1,10 @@
 {
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "channel": "alpha",
-  "releaseDate": "2026-08-01",
+  "releaseDate": "2026-08-03",
   "apiVersion": "v1",
   "schemaDraft": "2020-12",
   "minimumDotNetSdk": "10.0.100",
   "nodeVersion": "24.18.1",
-  "releaseNotes": "docs/releases/0.1.0-alpha.1.md"
+  "releaseNotes": "docs/releases/0.1.0-alpha.2.md"
 }

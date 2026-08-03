@@ -3,7 +3,7 @@
     <AssemblyName>iRoute.Contracts</AssemblyName>
     <RootNamespace>iRoute.Contracts</RootNamespace>
     <PackageId>iRoute.Contracts</PackageId>
-    <Version>0.1.0-alpha.1</Version>
+    <Version>0.1.0-alpha.2</Version>
     <Description>Stable public contracts for iRoute clients and hosts.</Description>
     <PackageTags>ai;llm;router;contracts;task-aware</PackageTags>
     <PackageReleaseNotes>First alpha release of the iRoute v1 public contracts.</PackageReleaseNotes>

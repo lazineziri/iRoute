@@ -10,7 +10,7 @@ server-side.
 
 ## Status and requirements
 
-- SDK version: `0.1.0-alpha.1`
+- SDK version: `0.1.0-alpha.2`
 - Rust baseline: `1.97.1`
 - Edition: 2024
 - Crate name: `iroute-sdk`
@@ -32,7 +32,7 @@ options.
 ## Install from crates.io
 
 ```bash
-cargo add iroute-sdk@0.1.0-alpha.1
+cargo add iroute-sdk@0.1.0-alpha.2
 ```
 
 ## Install from source

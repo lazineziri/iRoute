@@ -5,7 +5,7 @@ v1 rules in [contract-versioning.md](contract-versioning.md).
 
 ## Release maturity
 
-`0.1.0-alpha.1` is an alpha prerelease. Runtime internals, configuration that is
+`0.1.0-alpha.2` is an alpha prerelease. Runtime internals, configuration that is
 not listed in public documentation, deterministic reference-adapter behavior,
 and source-level extension points may change between prereleases. Such changes
 are still documented in the changelog and migration notes.
