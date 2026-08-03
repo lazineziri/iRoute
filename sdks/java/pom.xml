@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.iroute</groupId>
   <artifactId>iroute-sdk</artifactId>
-  <version>0.1.0-alpha.1</version>
+  <version>0.1.0-alpha.2</version>
   <name>iRoute Java SDK</name>
   <description>Thin Java client for the iRoute task-aware runtime</description>
   <url>https://iroute.dev/docs/sdk/java</url>

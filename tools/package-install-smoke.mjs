@@ -60,9 +60,9 @@ Console.WriteLine(client.GetType().FullName);
   await writeFile(join(nodeApp, 'package.json'), `${JSON.stringify({
     private: true,
     type: 'module',
-    dependencies: { '@iroute/sdk': `file:${join(input, npmTarball)}` }
+    dependencies: { '@iroute-dev/sdk': `file:${join(input, npmTarball)}` }
   }, null, 2)}\n`, 'utf8');
-  await writeFile(join(nodeApp, 'smoke.mjs'), `import { IRouteClient } from '@iroute/sdk';
+  await writeFile(join(nodeApp, 'smoke.mjs'), `import { IRouteClient } from '@iroute-dev/sdk';
 
 const client = new IRouteClient(new URL('http://localhost:8080'), {
   tenantId: 'package-smoke',

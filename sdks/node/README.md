@@ -1,17 +1,17 @@
 # iRoute Node.js and TypeScript SDK
 
-`@iroute/sdk` is the typed Node.js client for the iRoute v1 HTTP and SSE API.
+`@iroute-dev/sdk` is the typed Node.js client for the iRoute v1 HTTP and SSE API.
 It supports execution, polling, incremental event streaming, cancellation,
 approvals, artifacts, gateway health, and observability without owning routing
 or provider policy.
 
 ## Status and requirements
 
-- SDK version: `0.1.0-alpha.1`
-- Runtime minimum: Node.js `22.20.0`
+- SDK version: `0.1.0-alpha.2`
+- Runtime minimum: Node.js `24.18.1`
 - Verified baseline: Node.js `24.18.1` and TypeScript `7.0.2`
 - Module format: ESM
-- Package name: `@iroute/sdk`
+- Package name: `@iroute-dev/sdk`
 
 Once published, the public alpha is installed from npm as a prerelease package.
 The source installation below remains available.
@@ -29,7 +29,7 @@ options.
 ## Install from npm
 
 ```bash
-npm install @iroute/sdk@0.1.0-alpha.1
+npm install @iroute-dev/sdk@0.1.0-alpha.2
 ```
 
 ## Install from source
@@ -47,7 +47,7 @@ The package exports `dist/index.js` and its TypeScript declarations.
 ## Create a client
 
 ```typescript
-import { IRouteClient } from '@iroute/sdk';
+import { IRouteClient } from '@iroute-dev/sdk';
 
 const client = new IRouteClient(
   new URL(process.env.IROUTE_URL ?? 'http://localhost:8080'),
@@ -69,7 +69,7 @@ testing or application-specific transport behavior.
 
 ```typescript
 import { randomUUID } from 'node:crypto';
-import type { TaskRequest } from '@iroute/sdk';
+import type { TaskRequest } from '@iroute-dev/sdk';
 
 const request = {
   taskType: 'email.draft',
@@ -93,7 +93,7 @@ appropriate only when the application is creating a new logical operation.
 ## Poll until terminal
 
 ```typescript
-import type { ExecutionStatus } from '@iroute/sdk';
+import type { ExecutionStatus } from '@iroute-dev/sdk';
 
 const terminal = new Set<ExecutionStatus>([
   'Succeeded', 'Failed', 'Cancelled', 'TimedOut'
@@ -212,7 +212,7 @@ Observability is tenant scoped. Reported cost has no currency in v1.
 ## Errors
 
 ```typescript
-import { IRouteApiError } from '@iroute/sdk';
+import { IRouteApiError } from '@iroute-dev/sdk';
 
 try {
   execution = await client.execute(request, AbortSignal.timeout(30_000));

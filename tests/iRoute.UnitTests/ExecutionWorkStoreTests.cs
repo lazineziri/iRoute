@@ -15,7 +15,8 @@ public sealed class ExecutionWorkStoreTests
         var work = new InMemoryExecutionWorkStore(executions);
         var now = DateTimeOffset.UtcNow;
         var snapshot = Snapshot(now);
-        await executions.CreateAsync(snapshot, "queue-test", TestContext.Current.CancellationToken);
+        await executions.CreateAsync(snapshot, "queue-test", null,
+            TestContext.Current.CancellationToken);
         var item = await work.EnqueueAsync(
             snapshot.ExecutionId,
             ExecutionStatus.Planning,
@@ -58,10 +59,11 @@ public sealed class ExecutionWorkStoreTests
             var factory = new SqliteContextFactory(databasePath);
             await new SchemaMigrationManager(factory).UpgradeAsync(
                 cancellationToken: TestContext.Current.CancellationToken);
-            var executions = new EfExecutionStore(factory);
+            var executions = new EfExecutionStore(factory, new NullExecutionFence());
             var now = DateTimeOffset.UtcNow;
             var snapshot = Snapshot(now);
-            await executions.CreateAsync(snapshot, "durable-queue-test", TestContext.Current.CancellationToken);
+            await executions.CreateAsync(snapshot, "durable-queue-test", null,
+            TestContext.Current.CancellationToken);
             await new EfExecutionWorkStore(factory).EnqueueAsync(
                 snapshot.ExecutionId,
                 ExecutionStatus.Planning,
@@ -75,13 +77,12 @@ public sealed class ExecutionWorkStoreTests
                 TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken));
             await executions.UpdateAsync(
-                snapshot with
-                {
-                    Status = ExecutionStatus.Queued,
-                    UpdatedAt = now.AddSeconds(1),
-                    CancellationRequestedAt = now.AddSeconds(1)
-                },
+                snapshot with { Status = ExecutionStatus.Queued, UpdatedAt = now.AddSeconds(1) },
                 TestContext.Current.CancellationToken);
+            Assert.True(await executions.TryRequestCancellationAsync(
+                snapshot.ExecutionId,
+                now.AddSeconds(1),
+                TestContext.Current.CancellationToken));
 
             var heartbeat = await restarted.RenewAsync(
                 lease,

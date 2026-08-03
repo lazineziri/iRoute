@@ -2,15 +2,15 @@
 
 iRoute is an open-source, task-aware AI execution runtime. It resolves work from trusted state first, sends only unresolved work to capabilities or models, validates the result, and materializes reusable project artifacts with evidence and cost metadata.
 
-> **Experimental alpha:** `0.1.0-alpha.1` is intended for evaluation and controlled
+> **Experimental alpha:** `0.1.0-alpha.2` is intended for evaluation and controlled
 > pilots. Breaking changes are expected before `1.0`. There is no production or
 > security-response SLA. Reference connectors are not production integrations,
 > and checked provider cost/performance figures are not production measurements.
 
 ## Current release
 
-The first adoption-ready source baseline is `0.1.0-alpha.1`. See the
-[release notes](docs/releases/0.1.0-alpha.1.md) for its verified capabilities,
+The first adoption-ready source baseline is `0.1.0-alpha.2`. See the
+[release notes](docs/releases/0.1.0-alpha.2.md) for its verified capabilities,
 known limits, and upgrade guidance.
 
 The first end-to-end P0 slice is operational for `email.draft`:
@@ -74,7 +74,7 @@ In a second terminal, start the execution and lifecycle host:
 dotnet run --project src/iRoute.Worker
 ```
 
-The default developer profile creates `iroute.db` and uses the deterministic gateway, so it needs no provider credential. In another terminal:
+The default developer profile uses the deterministic gateway, so it needs no provider credential. A relative SQLite `Data Source` is resolved against one per-user directory (`%LOCALAPPDATA%\iRoute` on Windows, `~/Library/Application Support/iRoute` on macOS, `$XDG_DATA_HOME/iRoute` on Linux) so the API and worker share one database regardless of the directory each host is started from. Set `ConnectionStrings__iRoute` to an absolute path to choose your own location. In another terminal:
 
 ```bash
 curl --request POST http://localhost:8080/v1/executions \
@@ -125,6 +125,7 @@ Useful endpoints:
 - `GET /v1/executions/{executionId}/events?after=0`
 - `POST /v1/executions/{executionId}/cancel`
 - `POST /v1/executions/{executionId}/approvals`
+- `GET /v1/executions/{executionId}/external-actions` and `POST /v1/executions/{executionId}/external-actions/{actionId}/reconcile`
 - `GET /v1/artifacts/{artifactId}`
 - `GET /v1/observability/summary?from=...&to=...&taskType=...&policyVersion=...`
 - `GET /v1/observability/executions/{executionId}`
@@ -161,9 +162,9 @@ Use environment variables or standard ASP.NET Core configuration.
 
 | Setting | Purpose | Default |
 |---|---|---|
-| `Storage__Provider` | `Memory`, `Sqlite`, or `Postgres` | `Sqlite` |
+| `Storage__Provider` | `Postgres` to deploy, or `Sqlite` for single-node development | `Sqlite` |
 | `Storage__AutoInitialize` | Create the prototype schema at startup | `true` |
-| `ConnectionStrings__iRoute` | Durable database connection | `Data Source=iroute.db` |
+| `ConnectionStrings__iRoute` | Durable database connection. A relative SQLite path resolves under the shared per-user data directory | `Data Source=iroute.db` |
 | `ModelGateway__Mode` | `Deterministic` or `Http` | `Deterministic` |
 | `ModelGateway__GatewayId` | Stable operator-defined external gateway identity | `external` |
 | `ModelGateway__Transport` | `Buffered` or bounded NDJSON `Streaming` | `Buffered` |
@@ -181,6 +182,8 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Workflow__RetryJitterRatio` | Deterministic retry jitter ratio | `0.2` |
 | `ExecutionWorker__LeaseDuration` | Distributed execution lease duration | `30 seconds` |
 | `ExecutionWorker__HeartbeatInterval` | Lease renewal and cancellation polling interval | `5 seconds` |
+| `ExecutionWorker__MaxDeliveryAttempts` | Deliveries before a repeatedly failing execution is failed terminally; `0` redelivers forever | `5` |
+| `ExecutionWorker__MaxAbandonDelay` | Ceiling on the redelivery delay, which doubles per failed delivery | `5 minutes` |
 | `Lifecycle__SweepInterval` | Delay between lifecycle worker sweeps | `5 minutes` |
 | `Lifecycle__DefaultArtifactTimeToLive` | Default lifetime assigned to new artifacts | `30 days` |
 | `Lifecycle__DefaultMemoryTimeToLive` | Default lifetime assigned to new memory records | `90 days` |

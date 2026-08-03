@@ -135,7 +135,25 @@ A policy is releasable only when every candidate case reaches a completed termin
 
 An external write requires explicit request intent, a tenant-scoped idempotency key, an allowed task capability, its configured permission scopes, and an approved durable action record. Events persist the policy version, actor, decision, and input/result references; they never intentionally persist payload bodies.
 
-A completed external action is replayed from its durable result. A conflicting reference is rejected. If the process loses certainty after reserving or starting an action, the reservation remains `Running` and the runtime returns `external_action_in_progress` rather than invoking it again. Operators must reconcile the provider using the stored idempotency reference. A future administrative workflow will support repairing the durable action state; automatic distributed reconciliation is not part of W04.
+A completed external action is replayed from its durable result. A conflicting reference is rejected. If the process loses certainty after reserving or starting an action, the reservation remains `Running` and the runtime returns `external_action_in_progress` rather than invoking it again. iRoute cannot determine what happened outside itself, so only an operator can release that reservation.
+
+### Reconciling an indeterminate action
+
+`GET /v1/executions/{executionId}/external-actions` lists the reservations for an execution whose outcome is unknown. Both endpoints are tenant-scoped and require the `approval:grant` scope, because recording an outcome asserts whether an irreversible side effect happened.
+
+Establish what actually occurred with the provider, then record it:
+
+```bash
+curl --request POST \
+  "http://localhost:8080/v1/executions/$EXECUTION_ID/external-actions/send-email/reconcile" \
+  --header 'Content-Type: application/json' \
+  --header "X-Tenant-Id: $TENANT" \
+  --header "X-Actor-Id: $OPERATOR" \
+  --header 'X-Permission-Scopes: approval:grant' \
+  --data '{"outcome":"succeeded","detail":"Provider message id 01H... confirms one delivery."}'
+```
+
+Recording `succeeded` stores the operator decision as the action result, so resubmitting the request with the same idempotency key reuses it instead of firing the action again. Recording `failed` releases the reservation so a resubmission may attempt the action once more. Either decision appends an `external_action.reconciled` event naming the deciding actor. Reconciliation is deliberately manual: automatic distributed reconciliation would have to guess, and guessing wrong sends a message twice.
 
 ## Scaling
 

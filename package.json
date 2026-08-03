@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22.20.0"
+    "node": ">=24.18.1"
   },
   "scripts": {
     "test:contracts": "node --test tools/schema-smoke.test.mjs tools/contract-compatibility.test.mjs",

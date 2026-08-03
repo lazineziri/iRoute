@@ -13,6 +13,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +29,7 @@ public final class IRouteClient {
     private final Transport transport;
 
     public IRouteClient(URI baseUri, Options options) {
-        this(baseUri, options, new JdkTransport(options.timeout()));
+        this(baseUri, options, new JdkTransport(options.timeout(), options.streamTimeout()));
     }
 
     public IRouteClient(URI baseUri, Options options, Transport transport) {
@@ -175,14 +179,27 @@ public final class IRouteClient {
         String tenantId,
         String actorId,
         List<String> permissionScopes,
-        Duration timeout) {
+        Duration timeout,
+        Duration streamTimeout) {
         public Options {
             permissionScopes = permissionScopes == null ? List.of() : List.copyOf(permissionScopes);
             timeout = timeout == null ? Duration.ofSeconds(30) : timeout;
+            // Event replay is bounded by the execution's own deadline, which the contract allows
+            // to reach 15 minutes, so it needs a far longer bound than an ordinary request.
+            streamTimeout = streamTimeout == null ? Duration.ofMinutes(15) : streamTimeout;
+        }
+
+        public Options(
+            String token,
+            String tenantId,
+            String actorId,
+            List<String> permissionScopes,
+            Duration timeout) {
+            this(token, tenantId, actorId, permissionScopes, timeout, null);
         }
 
         public static Options defaults() {
-            return new Options(null, null, null, List.of(), Duration.ofSeconds(30));
+            return new Options(null, null, null, List.of(), Duration.ofSeconds(30), null);
         }
     }
 
@@ -223,10 +240,12 @@ public final class IRouteClient {
     private static final class JdkTransport implements Transport {
         private final HttpClient client;
         private final Duration timeout;
+        private final Duration streamTimeout;
 
-        JdkTransport(Duration timeout) {
+        JdkTransport(Duration timeout, Duration streamTimeout) {
             this.client = HttpClient.newHttpClient();
             this.timeout = timeout;
+            this.streamTimeout = streamTimeout;
         }
 
         @Override
@@ -237,8 +256,33 @@ public final class IRouteClient {
                 ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(request.body());
             builder.method(request.method(), publisher);
-            var response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            return new Response(response.statusCode(), response.body());
+
+            // HttpRequest.timeout only covers the response headers. An event stream sends its
+            // headers immediately and then stays open until the execution is terminal, so without
+            // a bound on the whole exchange this call would block forever.
+            var overall = isEventStream(request) ? streamTimeout : timeout;
+            try {
+                var response = client
+                    .sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
+                    .get(overall.toMillis(), TimeUnit.MILLISECONDS);
+                return new Response(response.statusCode(), response.body());
+            } catch (TimeoutException timedOut) {
+                throw new IOException(
+                    "iRoute request timed out after " + overall + ": " + request.uri(), timedOut);
+            } catch (ExecutionException | CompletionException failed) {
+                var cause = failed.getCause();
+                if (cause instanceof IOException io) {
+                    throw io;
+                }
+                throw new IOException(cause == null ? failed.getMessage() : cause.getMessage(), cause);
+            }
+        }
+
+        private static boolean isEventStream(Request request) {
+            return request.headers().entrySet().stream().anyMatch(header ->
+                "Accept".equalsIgnoreCase(header.getKey())
+                    && header.getValue() != null
+                    && header.getValue().contains("text/event-stream"));
         }
     }
 }

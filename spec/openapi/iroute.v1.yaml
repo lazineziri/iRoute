@@ -156,6 +156,71 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+  /v1/executions/{executionId}/external-actions:
+    get:
+      operationId: listUnresolvedExternalActions
+      tags: [Executions]
+      summary: List external actions whose outcome is unknown because the worker stopped mid call.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/ActorId'
+        - $ref: '#/components/parameters/PermissionScopes'
+      responses:
+        '200':
+          description: Unresolved external actions for the execution.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UnresolvedExternalAction'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /v1/executions/{executionId}/external-actions/{actionId}/reconcile:
+    post:
+      operationId: reconcileExternalAction
+      tags: [Executions]
+      summary: Record what an indeterminate external action actually did, releasing its reservation.
+      description: >-
+        iRoute refuses to retry an action whose outcome is unknown, so it can never fire an
+        irreversible side effect twice. Only an operator who has established what happened outside
+        iRoute can release the reservation. Recording success makes a resubmission carrying the same
+        idempotency key reuse the result; recording failure allows it to be attempted again.
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+        - name: actionId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 64 }
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/ActorId'
+        - $ref: '#/components/parameters/PermissionScopes'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalActionReconciliation'
+      responses:
+        '200':
+          description: The reconciled external action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnresolvedExternalAction'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
   /v1/artifacts/{artifactId}:
     get:
       operationId: getArtifact
@@ -1053,6 +1118,7 @@ components:
         - external_action.completed
         - external_action.reused
         - external_action.failed
+        - external_action.reconciled
         - context.compiled
         - gateway.started
         - gateway.streamed
@@ -1074,6 +1140,31 @@ components:
         - execution.cancellation_requested
         - execution.completed
         - execution.failed
+    UnresolvedExternalAction:
+      type: object
+      additionalProperties: false
+      required: [actionId, capability, status, createdAt, updatedAt]
+      properties:
+        actionId: { type: string, maxLength: 64 }
+        capability: { type: string, maxLength: 200 }
+        status:
+          type: string
+          enum: [Running, Succeeded, Failed]
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ExternalActionReconciliation:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [succeeded, failed]
+          description: What the operator established actually happened outside iRoute.
+        detail:
+          type: [string, 'null']
+          maxLength: 4000
+          description: Evidence recorded with the decision.
     ErrorCode:
       type: string
       description: Stable machine-readable error code. Additive codes may be introduced in v1.

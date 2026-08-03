@@ -11,7 +11,7 @@ on:
       version:
         description: Exact release version without the v prefix
         required: true
-        default: 0.1.0-alpha.1
+        default: 0.1.0-alpha.2
         type: string
 
 permissions:
@@ -30,10 +30,20 @@ jobs:
           fetch-depth: 0
       - name: Require an immutable matching release tag
         shell: bash
+        # Inputs are passed through the environment, never interpolated into the script: these
+        # jobs hold registry publishing credentials, so a crafted version string must not be able
+        # to become shell.
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
+          set -euo pipefail
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Refusing to publish a version that is not plain semver: ${VERSION}" >&2
+            exit 1
+          fi
           test "${GITHUB_REF_TYPE}" = "tag"
-          test "${GITHUB_REF_NAME}" = "v${{ inputs.version }}"
-          test "$(node -p "require('./release.json').version")" = "${{ inputs.version }}"
+          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+          test "$(node -p "require('./release.json').version")" = "${VERSION}"
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -81,7 +91,15 @@ jobs:
           node-version: 24.18.1
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - run: npm publish artifacts/release/iroute-sdk-${{ inputs.version }}.tgz --access public
+      # The tarball name is derived from the package name by `npm pack`, so it is discovered
+      # rather than reconstructed here.
+      - name: Publish the Node.js SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="$(ls artifacts/release/*.tgz)"
+          test -f "${tarball}"
+          npm publish "${tarball}" --access public
 
   nuget:
     if: inputs.registry == 'nuget'
@@ -103,16 +121,20 @@ jobs:
         id: login
         with:
           user: ${{ vars.NUGET_USER }}
+      # iRoute.Sdk depends on iRoute.Contracts, so contracts must land first. Both the version and
+      # the minted key reach the shell through the environment rather than template interpolation.
       - name: Publish contracts before the SDK
-        run: >-
-          dotnet nuget push artifacts/release/iRoute.Contracts.${{ inputs.version }}.nupkg
-          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
-      - name: Publish the .NET SDK
-        run: >-
-          dotnet nuget push artifacts/release/iRoute.Sdk.${{ inputs.version }}.nupkg
-          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          for package in iRoute.Contracts iRoute.Sdk; do
+            dotnet nuget push "artifacts/release/${package}.${VERSION}.nupkg" \
+              --api-key "${NUGET_API_KEY}" \
+              --source https://api.nuget.org/v3/index.json
+          done
 
   pypi:
     if: inputs.registry == 'pypi'

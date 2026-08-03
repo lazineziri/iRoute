@@ -249,7 +249,7 @@ public sealed class BoundedDependencySchedulerTests
 
             var executionId = Guid.CreateVersion7();
             var now = DateTimeOffset.UtcNow;
-            var executionStore = new EfExecutionStore(factory);
+            var executionStore = new EfExecutionStore(factory, new NullExecutionFence());
             await executionStore.CreateAsync(
                 new ExecutionSnapshot(
                     executionId,
@@ -260,7 +260,8 @@ public sealed class BoundedDependencySchedulerTests
                     TenantId: "tenant-a",
                     ActorId: "test-runner"),
                 null,
-                TestContext.Current.CancellationToken);
+                null,
+            TestContext.Current.CancellationToken);
             var request = CreateRequest();
             var plan = CreatePlan([Step("completed"), Step("interrupted", "completed")]);
             var beforeCrash = new EfWorkflowCheckpointStore(factory);

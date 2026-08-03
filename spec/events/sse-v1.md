@@ -48,6 +48,7 @@ data: {"sequence":4,"executionId":"...","type":"plan.validated","occurredAt":"..
 | `external_action.completed` | The external action and its result reference were durably recorded. |
 | `external_action.reused` | A completed idempotent action result was reused without invoking the executor. |
 | `external_action.failed` | The action failed or became indeterminate; event data contains references, not payloads. |
+| `external_action.reconciled` | An operator recorded what an indeterminate action actually did outside iRoute, releasing its reservation. |
 | `context.compiled` | The bounded context manifest was created. |
 | `gateway.started` | A bounded provider-neutral gateway call began with a capability, profile, and deadline. |
 | `gateway.streamed` | A streaming call completed; data contains event/delta/character counts, never generated content. |

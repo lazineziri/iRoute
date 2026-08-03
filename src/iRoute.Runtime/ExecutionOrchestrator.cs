@@ -47,6 +47,10 @@ public sealed class ExecutionOrchestrator(
         var tenantId = RequestScope.Tenant(request);
         var actorId = RequestScope.Actor(request);
 
+        var submissionFingerprint = string.IsNullOrWhiteSpace(request.IdempotencyKey)
+            ? null
+            : fingerprint.CreateForSubmission(request);
+
         if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
         {
             var existing = await store.FindByIdempotencyKeyAsync(
@@ -55,7 +59,7 @@ public sealed class ExecutionOrchestrator(
                 cancellationToken);
             if (existing is not null)
             {
-                return existing;
+                return ReplayOrConflict(existing, request.IdempotencyKey, submissionFingerprint);
             }
         }
 
@@ -73,7 +77,26 @@ public sealed class ExecutionOrchestrator(
             snapshot,
             request.PermissionScopes ?? [],
             "execute");
-        await store.CreateAsync(snapshot, request.IdempotencyKey, cancellationToken);
+        try
+        {
+            await store.CreateAsync(
+                snapshot,
+                request.IdempotencyKey,
+                submissionFingerprint,
+                cancellationToken);
+        }
+        catch (IdempotencyConflictException) when (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+        {
+            // A concurrent submit carrying the same key won the insert. Answer with the execution
+            // that was actually created rather than failing the retry this key exists to support.
+            var winner = await store.FindByIdempotencyKeyAsync(
+                tenantId,
+                request.IdempotencyKey,
+                cancellationToken)
+                ?? throw new IdempotencyKeyReusedException(request.IdempotencyKey);
+
+            return ReplayOrConflict(winner, request.IdempotencyKey, submissionFingerprint);
+        }
         await AppendEventAsync(
             snapshot.ExecutionId,
             ExecutionEventTypes.Created,
@@ -2290,6 +2313,28 @@ public sealed class ExecutionOrchestrator(
         WorkflowStepTimedOutException or
         WorkflowStepExecutionException or
         ModelGatewayException;
+
+    /// <summary>
+    /// Answers a replayed idempotency key: the same payload returns the original execution, a
+    /// different payload is a client bug and is reported rather than silently answered with an
+    /// unrelated execution.
+    /// </summary>
+    private static ExecutionSnapshot ReplayOrConflict(
+        ExecutionSubmission existing,
+        string idempotencyKey,
+        string? submissionFingerprint)
+    {
+        // Executions recorded before submission fingerprints existed have none stored; treat those
+        // as retries so an upgrade cannot start rejecting keys that used to work.
+        if (existing.InputFingerprint is null ||
+            submissionFingerprint is null ||
+            string.Equals(existing.InputFingerprint, submissionFingerprint, StringComparison.Ordinal))
+        {
+            return existing.Execution;
+        }
+
+        throw new IdempotencyKeyReusedException(idempotencyKey);
+    }
 
     private static void Validate(TaskRequest request)
     {

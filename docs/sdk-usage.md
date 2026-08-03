@@ -11,7 +11,7 @@ remain server-side.
 | Language | Guide | Public representation |
 |---|---|---|
 | .NET | [iRoute.Sdk](../src/iRoute.Sdk.DotNet/README.md) | Typed contracts and asynchronous streams |
-| Node.js / TypeScript | [@iroute/sdk](../sdks/node/README.md) | Typed contracts and asynchronous streams |
+| Node.js / TypeScript | [@iroute-dev/sdk](../sdks/node/README.md) | Typed contracts and asynchronous streams |
 | Python | [iroute](../sdks/python/README.md) | Dictionaries and a synchronous event iterator |
 | Java | [dev.iroute:iroute-sdk](../sdks/java/README.md) | JSON strings and a buffered event list |
 | PHP | [iroute/sdk](../sdks/php/README.md) | Arrays and a buffered event generator |
@@ -19,7 +19,7 @@ remain server-side.
 
 ## Release status
 
-The source tree and release archives contain version `0.1.0-alpha.1`. Registry
+The source tree and release archives contain version `0.1.0-alpha.2`. Registry
 publication is not implied. Until a package is published, consume the SDK from a
 source checkout, a locally built package, or a path dependency as described in
 the relevant language guide.

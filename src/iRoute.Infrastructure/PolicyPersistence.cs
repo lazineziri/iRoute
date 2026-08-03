@@ -276,6 +276,22 @@ public sealed class EfExternalActionStore(IDbContextFactory<IRouteDbContext> con
         UpdatedAtUnixMilliseconds = action.UpdatedAt.ToUnixTimeMilliseconds()
     };
 
+    public async Task<IReadOnlyList<ExternalActionRecord>> ListUnresolvedAsync(
+        string tenantId,
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.ExternalActions
+            .AsNoTracking()
+            .Where(item => item.TenantId == tenantId
+                && item.ExecutionId == executionId
+                && item.Status == ExternalActionStatus.Running)
+            .OrderBy(item => item.ActionId)
+            .ToArrayAsync(cancellationToken);
+        return [.. entities.Select(ToRecord)];
+    }
+
     private static ExternalActionRecord ToRecord(ExternalActionEntity entity) => new(
         entity.ExecutionId,
         entity.TenantId,

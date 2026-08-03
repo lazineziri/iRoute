@@ -10,7 +10,7 @@ remain server-side.
 
 ## Status and requirements
 
-- SDK version: `0.1.0-alpha.1`
+- SDK version: `0.1.0-alpha.2`
 - Java baseline: Java 25 LTS
 - Maven coordinates: `dev.iroute:iroute-sdk`
 - Runtime dependencies: JDK only
@@ -34,7 +34,7 @@ options.
 <dependency>
   <groupId>dev.iroute</groupId>
   <artifactId>iroute-sdk</artifactId>
-  <version>0.1.0-alpha.1</version>
+  <version>0.1.0-alpha.2</version>
 </dependency>
 ```
 
@@ -52,7 +52,7 @@ Then add it to the application:
 <dependency>
   <groupId>dev.iroute</groupId>
   <artifactId>iroute-sdk</artifactId>
-  <version>0.1.0-alpha.1</version>
+  <version>0.1.0-alpha.2</version>
 </dependency>
 ```
 
@@ -220,8 +220,12 @@ try {
 ```
 
 `IOException` covers transport failures and `InterruptedException` preserves
-thread interruption. Configure the JDK request timeout with `Options.timeout`.
-The SDK does not retry automatically.
+thread interruption. `Options.timeout` (default 30 seconds) bounds an ordinary
+request, and `Options.streamTimeout` (default 15 minutes) bounds
+`streamEventsJson`, which buffers a replay and stays open until the execution is
+terminal. Both bound the complete exchange, not just the response headers, so a
+stalled stream raises `IOException` instead of blocking forever. The SDK does not
+retry automatically.
 
 ## Custom transport
 

@@ -26,44 +26,21 @@ public static class ServiceCollectionExtensions
         lifecyclePolicy.EnsureValid();
         services.AddSingleton(lifecyclePolicy);
         services.AddSingleton<IClock, SystemClock>();
-        var storageProvider = configuration["Storage:Provider"] ?? "Sqlite";
-        if (string.Equals(storageProvider, "Memory", StringComparison.OrdinalIgnoreCase))
+        var storageProvider = StorageProvider.Parse(configuration["Storage:Provider"]);
         {
-            services.AddSingleton<InMemoryExecutionStore>();
-            services.AddSingleton<IExecutionStore>(provider =>
-                provider.GetRequiredService<InMemoryExecutionStore>());
-            services.AddSingleton<IExecutionWorkStore, InMemoryExecutionWorkStore>();
-            services.AddSingleton<IWorkflowCheckpointStore, InMemoryWorkflowCheckpointStore>();
-            services.AddSingleton<IApprovalStore, InMemoryApprovalStore>();
-            services.AddSingleton<IExternalActionStore, InMemoryExternalActionStore>();
-            services.AddSingleton<InMemoryArtifactStore>();
-            services.AddSingleton<IArtifactStore>(provider =>
-                provider.GetRequiredService<InMemoryArtifactStore>());
-            services.AddSingleton<InMemoryMemoryStore>();
-            services.AddSingleton<IMemoryStore>(provider =>
-                provider.GetRequiredService<InMemoryMemoryStore>());
-            services.AddSingleton<ILifecycleStore, InMemoryLifecycleStore>();
-            services.AddSingleton<IObservabilityStore, InMemoryObservabilityStore>();
-            services.AddSingleton<IGatewayCircuitStore, InMemoryGatewayCircuitStore>();
-        }
-        else
-        {
-            var connectionString = configuration.GetConnectionString("iRoute")
-                ?? throw new InvalidOperationException("ConnectionStrings:iRoute is required for durable storage.");
+            var connectionString = SqliteStoragePath.ResolveForProvider(
+                storageProvider.Name,
+                configuration.GetConnectionString("iRoute")
+                    ?? throw new InvalidOperationException("ConnectionStrings:iRoute is required for durable storage."));
             services.AddPooledDbContextFactory<IRouteDbContext>(options =>
             {
-                if (string.Equals(storageProvider, "Sqlite", StringComparison.OrdinalIgnoreCase))
+                if (storageProvider.IsSqlite)
                 {
                     options.UseSqlite(connectionString);
                 }
-                else if (string.Equals(storageProvider, "Postgres", StringComparison.OrdinalIgnoreCase))
-                {
-                    options.UseNpgsql(connectionString);
-                }
                 else
                 {
-                    throw new InvalidOperationException(
-                        $"Unsupported storage provider '{storageProvider}'. Use Memory, Sqlite or Postgres.");
+                    options.UseNpgsql(connectionString);
                 }
             });
             services.AddSingleton<IExecutionStore, EfExecutionStore>();
@@ -76,6 +53,8 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<ILifecycleStore, EfLifecycleStore>();
             services.AddSingleton<IObservabilityStore, EfObservabilityStore>();
             services.AddSingleton<IGatewayCircuitStore, EfGatewayCircuitStore>();
+            services.AddSingleton(storageProvider);
+            services.AddSingleton<IExecutionFence, AsyncLocalExecutionFence>();
             services.AddSingleton<SchemaMigrationManager>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);

@@ -10,14 +10,15 @@ an SDK does not install or start the runtime.
 | Language | Registry | Coordinate |
 |---|---|---|
 | .NET | NuGet | `iRoute.Sdk` |
-| Node.js | npm | `@iroute/sdk` |
+| Node.js | npm | `@iroute-dev/sdk` |
 | Python | PyPI | `iroute` |
 | Java | Maven Central | `dev.iroute:iroute-sdk` |
 | PHP | Packagist | `iroute/sdk` |
 | Rust | crates.io | `iroute-sdk` |
 
-Exact-name registry lookups returned no published package on 2026-08-02. That
-is not a reservation: maintainers must claim every name before announcing it.
+Exact-name registry lookups returned no published package on 2026-08-02, and no
+name here is reserved: maintainers must claim each one before announcing it.
+`@iroute` on npm belongs to an unrelated account and is not available.
 
 ## Security model
 
@@ -42,8 +43,11 @@ release tag.
 
 ### npm
 
-The `@iroute` scope must belong to the maintainer account or organization. npm
-requires the first package to exist before a trusted publisher can be attached.
+The `@iroute-dev` scope must belong to the maintainer account or organization
+and must be created before the first publish. The unscoped `@iroute` scope is
+owned by an unrelated npm account, which is why the client publishes under
+`@iroute-dev/sdk`. npm requires the first package to exist before a trusted
+publisher can be attached.
 Bootstrap the verified tarball through npm's staged-publishing flow, approve it
 with account 2FA, then configure this trusted publisher:
 

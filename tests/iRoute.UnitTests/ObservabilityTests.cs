@@ -164,7 +164,7 @@ public sealed class ObservabilityTests
             }
 
             var ids = await SeedAsync(
-                new EfExecutionStore(factory),
+                new EfExecutionStore(factory, new NullExecutionFence()),
                 TestContext.Current.CancellationToken);
             var restarted = new EfObservabilityStore(factory, Options());
 
@@ -264,7 +264,7 @@ public sealed class ObservabilityTests
             TaskDefinitionVersion: 1);
         foreach (var snapshot in new[] { generated, reused, failed })
         {
-            await store.CreateAsync(snapshot, null, cancellationToken);
+            await store.CreateAsync(snapshot, null, null, cancellationToken);
             await store.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.Created,

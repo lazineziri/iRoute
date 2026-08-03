@@ -36,6 +36,7 @@ public sealed class PublicContractTaxonomyTests
             "external_action.completed",
             "external_action.reused",
             "external_action.failed",
+            "external_action.reconciled",
             "context.compiled",
             "gateway.started",
             "gateway.streamed",

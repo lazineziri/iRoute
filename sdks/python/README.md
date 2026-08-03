@@ -10,7 +10,7 @@ server-side.
 
 ## Status and requirements
 
-- SDK version: `0.1.0a1`
+- SDK version: `0.1.0a2`
 - Minimum Python: `3.12`
 - Verified baseline: Python `3.14`
 - Runtime dependencies: standard library only
@@ -32,7 +32,7 @@ options.
 ## Install from PyPI
 
 ```bash
-python -m pip install --pre iroute==0.1.0a1
+python -m pip install --pre iroute==0.1.0a2
 ```
 
 ## Install from source
@@ -218,9 +218,14 @@ except IRouteApiError as error:
     print(error.response_body)
 ```
 
-Transport timeout is configured in the client constructor. Standard-library
-network exceptions remain transport exceptions. The SDK does not automatically
-retry. Retrying a submission requires the same idempotency key.
+Transport timeout is configured in the client constructor. `timeout` (default 30
+seconds) applies to ordinary requests. `stream_events` uses `stream_timeout`,
+which defaults to `None` and waits indefinitely: the timeout applies to each
+socket read, and an execution can legitimately produce no events for minutes,
+so reusing the request timeout would abort a healthy stream. Set
+`stream_timeout` to a number to bound it. Standard-library network exceptions
+remain transport exceptions. The SDK does not automatically retry. Retrying a
+submission requires the same idempotency key.
 
 ## Method reference
 

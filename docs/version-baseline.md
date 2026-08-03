@@ -9,7 +9,7 @@ The executable baseline is the repository lock/configuration, not an aspirationa
 | EF Core | `10.0.10` | keep Microsoft EF packages aligned |
 | Npgsql EF | `10.0.3` | verify against both persistence providers |
 | OpenTelemetry | `1.17.0` | telemetry export stays opt-in |
-| Node SDK | package target Node `24.18.1`; type-check also verified on Node `22.20.0` | test supported Node lines in CI before publishing |
+| Node SDK | Node `24.18.1` is the supported floor, matching `release.json`, the root tooling, and the CI pin | test the supported Node line in CI before publishing |
 | TypeScript | `7.0.2` | locked by `package-lock.json` |
 | Python SDK | package minimum `3.12`; CI `3.14` | compile and conformance-test on the release CI baseline |
 | Java SDK | Java `25` | compile with `--release 25`, `-Xlint:all`, and `-Werror` |
@@ -18,7 +18,7 @@ The executable baseline is the repository lock/configuration, not an aspirationa
 | AJV | `8.20.0` | contract validation; `$data` mode is not enabled |
 | YAML | `2.9.0` | release/deployment manifest tests use checked repository inputs |
 
-The canonical product release is `0.1.0-alpha.1` in `release.json`. Release
+The canonical product release is `0.1.0-alpha.2` in `release.json`. Release
 readiness fails if .NET, Node.js, Python, Java, Rust, Docker, Kubernetes, release
 notes, or changelog versions diverge. PHP/Composer versions are assigned by the
 immutable Git tag.

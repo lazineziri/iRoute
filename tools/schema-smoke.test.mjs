@@ -3,6 +3,7 @@ import { glob, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import { buildRoutingComparison } from './evaluation-harness.mjs';
@@ -82,5 +83,30 @@ test('golden datasets and generated regression results validate', async () => {
   assert.equal(validateReport(report), true, ajv.errorsText(validateReport.errors));
   for (const result of results) {
     assert.equal(validateResult(result), true, `${result.caseId}/${result.policyId}: ${ajv.errorsText(validateResult.errors)}`);
+  }
+});
+
+test('error-code enums stay in sync across OpenAPI, JSON Schema, and the taxonomy', async () => {
+  const openapi = parse(
+    await readFile(resolve(repositoryRoot, 'spec/openapi/iroute.v1.yaml'), 'utf8')
+  );
+  const openapiCodes = openapi.components.schemas.ErrorCode.enum;
+  const problem = schemas.find((schema) => schema.$id.endsWith('/problem.schema.json'));
+  const taxonomy = await readFile(
+    resolve(repositoryRoot, 'spec/errors/error-taxonomy.v1.md'),
+    'utf8'
+  );
+
+  assert.deepEqual(
+    problem.properties.code.enum,
+    openapiCodes,
+    'problem.schema.json must list exactly the OpenAPI ErrorCode values, in the same order'
+  );
+
+  for (const code of openapiCodes) {
+    assert.ok(
+      taxonomy.includes(code),
+      `error-taxonomy.v1.md does not document the error code ${code}`
+    );
   }
 });

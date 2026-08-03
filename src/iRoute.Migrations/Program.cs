@@ -29,12 +29,7 @@ public static class Program
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
                 .AddEnvironmentVariables();
-            var provider = builder.Configuration["Storage:Provider"] ?? "Sqlite";
-            if (string.Equals(provider, "Memory", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException("Schema migrations require SQLite or PostgreSQL storage.");
-            }
-
+            // AddIRouteInfrastructure validates Storage:Provider and reports what to use instead.
             builder.Services.AddIRouteInfrastructure(builder.Configuration);
             using var host = builder.Build();
             var manager = host.Services.GetRequiredService<SchemaMigrationManager>();

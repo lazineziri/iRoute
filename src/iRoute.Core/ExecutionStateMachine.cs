@@ -7,7 +7,7 @@ public static class ExecutionStateMachine
     private static readonly Dictionary<ExecutionStatus, ExecutionStatus[]> Allowed =
         new Dictionary<ExecutionStatus, ExecutionStatus[]>
         {
-            [ExecutionStatus.Accepted] = [ExecutionStatus.Resolving, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
+            [ExecutionStatus.Accepted] = [ExecutionStatus.Resolving, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Resolving] = [ExecutionStatus.Planning, ExecutionStatus.Validating, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Planning] = [ExecutionStatus.Queued, ExecutionStatus.WaitingForApproval, ExecutionStatus.Running, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
             [ExecutionStatus.Queued] = [ExecutionStatus.Running, ExecutionStatus.Cancelled, ExecutionStatus.Failed, ExecutionStatus.TimedOut],
@@ -21,6 +21,15 @@ public static class ExecutionStateMachine
             [ExecutionStatus.Cancelled] = [],
             [ExecutionStatus.TimedOut] = []
         };
+
+    /// <summary>
+    /// Statuses from which no further transition is allowed.
+    /// </summary>
+    public static readonly ExecutionStatus[] TerminalStatuses =
+        [.. Allowed.Where(entry => entry.Value.Length == 0).Select(entry => entry.Key)];
+
+    public static bool IsTerminal(ExecutionStatus status) =>
+        Allowed.TryGetValue(status, out var targets) && targets.Length == 0;
 
     public static bool CanTransition(ExecutionStatus from, ExecutionStatus to) =>
         Allowed.TryGetValue(from, out var targets) && targets.Contains(to);

@@ -287,13 +287,10 @@ public sealed class ExecutionOrchestratorTests
             submitted.ExecutionId,
             TestContext.Current.CancellationToken));
         var cancellationAt = DateTimeOffset.UtcNow;
-        await store.UpdateAsync(
-            running with
-            {
-                UpdatedAt = cancellationAt,
-                CancellationRequestedAt = cancellationAt
-            },
-            TestContext.Current.CancellationToken);
+        Assert.True(await store.TryRequestCancellationAsync(
+            running.ExecutionId,
+            cancellationAt,
+            TestContext.Current.CancellationToken));
 
         heartbeatCancellation.Cancel();
         var cancelled = await processing;
@@ -330,7 +327,7 @@ public sealed class ExecutionOrchestratorTests
         {
             await new SchemaMigrationManager(factory).UpgradeAsync(
                 cancellationToken: TestContext.Current.CancellationToken);
-            var store = new EfExecutionStore(factory);
+            var store = new EfExecutionStore(factory, new NullExecutionFence());
             var checkpoints = new EfWorkflowCheckpointStore(factory);
             var gateway = new InterruptOnceModelGateway();
             var work = new EfExecutionWorkStore(factory);
@@ -421,13 +418,10 @@ public sealed class ExecutionOrchestratorTests
                 TimeSpan.FromSeconds(30),
                 TestContext.Current.CancellationToken));
             var cancellationAt = DateTimeOffset.UtcNow;
-            await store.UpdateAsync(
-                cancellable with
-                {
-                    UpdatedAt = cancellationAt,
-                    CancellationRequestedAt = cancellationAt
-                },
-                TestContext.Current.CancellationToken);
+            Assert.True(await store.TryRequestCancellationAsync(
+                cancellable.ExecutionId,
+                cancellationAt,
+                TestContext.Current.CancellationToken));
             var heartbeat = await work.RenewAsync(
                 cancellationLease,
                 cancellationAt,
@@ -1170,7 +1164,7 @@ public sealed class ExecutionOrchestratorTests
             using (var cancellations = new ExecutionCancellationRegistry())
             {
                 var orchestrator = CreateOrchestrator(
-                    new EfExecutionStore(factory),
+                    new EfExecutionStore(factory, new NullExecutionFence()),
                     new EfArtifactStore(factory),
                     cancellations,
                     checkpoints: new EfWorkflowCheckpointStore(factory),
@@ -1180,7 +1174,7 @@ public sealed class ExecutionOrchestratorTests
                     TestContext.Current.CancellationToken);
             }
 
-            var restartedStore = new EfExecutionStore(factory);
+            var restartedStore = new EfExecutionStore(factory, new NullExecutionFence());
             using var restartedCancellations = new ExecutionCancellationRegistry();
             var restarted = CreateOrchestrator(
                 restartedStore,
@@ -1230,6 +1224,11 @@ public sealed class ExecutionOrchestratorTests
             File.Delete(databasePath);
         }
     }
+
+    internal static ExecutionOrchestrator CreateTestOrchestrator(
+        IExecutionStore store,
+        ExecutionCancellationRegistry cancellations) =>
+        CreateOrchestrator(store, new InMemoryArtifactStore(), cancellations);
 
     private static ExecutionOrchestrator CreateOrchestrator(
         IExecutionStore store,

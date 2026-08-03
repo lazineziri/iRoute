@@ -12,17 +12,19 @@ public sealed class InMemoryExecutionStore : IExecutionStore
     private readonly ConcurrentDictionary<string, Guid> _idempotencyKeys = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, ConcurrentQueue<ExecutionEvent>> _events = new();
     private readonly ConcurrentDictionary<Guid, long> _eventSequences = new();
+    private readonly ConcurrentDictionary<Guid, string> _inputFingerprints = new();
 
-    public Task<ExecutionSnapshot?> FindByIdempotencyKeyAsync(
+    public Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(
         string tenantId,
         string key,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var scopedKey = CreateIdempotencyKey(tenantId, key);
-        return Task.FromResult(_idempotencyKeys.TryGetValue(scopedKey, out var id) && _executions.TryGetValue(id, out var value)
-            ? value
-            : null);
+        return Task.FromResult(
+            _idempotencyKeys.TryGetValue(scopedKey, out var id) && _executions.TryGetValue(id, out var value)
+                ? new ExecutionSubmission(value, _inputFingerprints.GetValueOrDefault(id))
+                : null);
     }
 
     public Task<ExecutionSnapshot?> GetAsync(Guid executionId, CancellationToken cancellationToken)
@@ -31,7 +33,11 @@ public sealed class InMemoryExecutionStore : IExecutionStore
         return Task.FromResult(_executions.GetValueOrDefault(executionId));
     }
 
-    public Task CreateAsync(ExecutionSnapshot execution, string? idempotencyKey, CancellationToken cancellationToken)
+    public Task CreateAsync(
+        ExecutionSnapshot execution,
+        string? idempotencyKey,
+        string? inputFingerprint,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!_executions.TryAdd(execution.ExecutionId, execution))
@@ -45,8 +51,13 @@ public sealed class InMemoryExecutionStore : IExecutionStore
             if (!_idempotencyKeys.TryAdd(scopedKey, execution.ExecutionId))
             {
                 _executions.TryRemove(execution.ExecutionId, out _);
-                throw new InvalidOperationException("The idempotency key already exists for this tenant.");
+                throw new IdempotencyConflictException(execution.TenantId, idempotencyKey);
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(inputFingerprint))
+        {
+            _inputFingerprints[execution.ExecutionId] = inputFingerprint;
         }
 
         return Task.CompletedTask;
@@ -55,8 +66,40 @@ public sealed class InMemoryExecutionStore : IExecutionStore
     public Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _executions[execution.ExecutionId] = execution;
+        lock (_statusGate)
+        {
+            // CancellationRequestedAt is store-owned: a transition computed before a cancellation
+            // arrived must not carry the stale null back over it.
+            _executions[execution.ExecutionId] =
+                _executions.TryGetValue(execution.ExecutionId, out var current)
+                    ? execution with { CancellationRequestedAt = current.CancellationRequestedAt }
+                    : execution;
+        }
+
         return Task.CompletedTask;
+    }
+
+    public Task<bool> TryRequestCancellationAsync(
+        Guid executionId,
+        DateTimeOffset requestedAt,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (!_executions.TryGetValue(executionId, out var current) ||
+                ExecutionStateMachine.IsTerminal(current.Status))
+            {
+                return Task.FromResult(false);
+            }
+
+            if (current.CancellationRequestedAt is null)
+            {
+                _executions[executionId] = current with { CancellationRequestedAt = requestedAt };
+            }
+
+            return Task.FromResult(true);
+        }
     }
 
     public async IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(
