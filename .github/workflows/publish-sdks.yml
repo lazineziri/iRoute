@@ -11,7 +11,7 @@ on:
       version:
         description: Exact release version without the v prefix
         required: true
-        default: 0.1.0-alpha.1
+        default: 0.1.0-alpha.2
         type: string
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Require an immutable matching release tag
@@ -44,16 +44,16 @@ jobs:
           test "${GITHUB_REF_TYPE}" = "tag"
           test "${GITHUB_REF_NAME}" = "v${VERSION}"
           test "$(node -p "require('./release.json').version")" = "${VERSION}"
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.18.1
           package-manager-cache: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.14'
       - run: npm ci
@@ -86,7 +86,7 @@ jobs:
         with:
           name: public-sdk-${{ github.sha }}
           path: artifacts
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.18.1
           registry-url: https://registry.npmjs.org
@@ -114,23 +114,27 @@ jobs:
         with:
           name: public-sdk-${{ github.sha }}
           path: artifacts
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - uses: NuGet/login@v1
         id: login
         with:
           user: ${{ vars.NUGET_USER }}
+      # iRoute.Sdk depends on iRoute.Contracts, so contracts must land first. Both the version and
+      # the minted key reach the shell through the environment rather than template interpolation.
       - name: Publish contracts before the SDK
-        run: >-
-          dotnet nuget push artifacts/release/iRoute.Contracts.${{ inputs.version }}.nupkg
-          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
-      - name: Publish the .NET SDK
-        run: >-
-          dotnet nuget push artifacts/release/iRoute.Sdk.${{ inputs.version }}.nupkg
-          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          for package in iRoute.Contracts iRoute.Sdk; do
+            dotnet nuget push "artifacts/release/${package}.${VERSION}.nupkg" \
+              --api-key "${NUGET_API_KEY}" \
+              --source https://api.nuget.org/v3/index.json
+          done
 
   pypi:
     if: inputs.registry == 'pypi'
@@ -158,7 +162,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Publish the Rust SDK
