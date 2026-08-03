@@ -44,7 +44,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - a tenant-scoped observability read model with redacted timelines, task/policy comparisons, and memory-hit diagnostics
 - a dependency-free operator dashboard at `/dashboard/` with bounded query windows and metadata-only timelines by default
 - versioned schema migration shared by SQLite and PostgreSQL
-- working .NET, Node.js, Python, Java, PHP, and Rust clients with shared conformance fixtures
+- working .NET, Node.js, Python, Java, PHP, and Rust clients with shared conformance fixtures, published on NuGet, npm, PyPI, Packagist, and crates.io; the Java client installs from source until Maven Central publication lands
 - a thin `iroute` CLI and runnable quick starts for every official SDK
 - non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
 - Apache-2.0 community governance, private security reporting, explicit compatibility windows, and reproducible checksummed release artifacts

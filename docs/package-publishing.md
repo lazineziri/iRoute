@@ -7,19 +7,19 @@ an SDK does not install or start the runtime.
 
 ## Public coordinates
 
-| Language | Registry | Coordinate |
-|---|---|---|
-| .NET | NuGet | `iRoute.Sdk` |
-| Node.js | npm | `@iroute-dev/sdk` |
-| Python | PyPI | `iroute` |
-| Java | Maven Central | `dev.iroute:iroute-sdk` |
-| PHP | Packagist | `iroute/sdk` |
-| Rust | crates.io | `iroute-sdk` |
+| Language | Registry | Coordinate | Status |
+|---|---|---|---|
+| .NET | NuGet | `iRoute.Sdk`, `iRoute.Contracts` | Published |
+| Node.js | npm | `@iroute-dev/sdk` | Published |
+| Python | PyPI | `iroute` | Published |
+| PHP | Packagist | `iroute/sdk` | Published |
+| Rust | crates.io | `iroute-sdk` | Published |
+| Java | Maven Central | `dev.iroute:iroute-sdk` | Planned |
 
-`0.1.0-alpha.2` is published on npm, PyPI, NuGet, and crates.io. Packagist
-awaits submission of the mirror, and Maven Central is not yet published because
-the build does not produce the signed source and javadoc artifacts Central
-requires.
+`0.1.0-alpha.2` is published on npm, PyPI, NuGet, Packagist, and crates.io.
+Maven Central is planned: the namespace is verifiable through ownership of
+`iroute.dev`, but the build does not yet produce the signed source and javadoc
+artifacts Central requires. Java is installed from source until it does.
 
 `@iroute` on npm belongs to an unrelated account, which is why the Node.js
 client is published under `@iroute-dev`.
@@ -107,6 +107,7 @@ The mirror must contain only the PHP SDK, README, LICENSE, and NOTICE.
 4. Bootstrap npm through staged publishing, then enable OIDC.
 5. Bootstrap crates.io manually, then enable OIDC.
 6. Publish the PHP mirror and submit it to Packagist.
-7. Publish Maven Central only after namespace and signing validation.
+7. Publish Maven Central once the release profile produces signed source and
+   javadoc artifacts. Tracked as planned work rather than part of this release.
 8. Install every package into an empty representative application and execute
    one request against a clean local iRoute runtime.
