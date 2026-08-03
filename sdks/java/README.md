@@ -15,8 +15,8 @@ remain server-side.
 - Maven coordinates: `dev.iroute:iroute-sdk`
 - Runtime dependencies: JDK only
 
-Once published, the public alpha is installed from Maven Central as a
-prerelease artifact. The source installation below remains available.
+This SDK is not yet on Maven Central: the build does not produce the signed
+source and javadoc artifacts Central requires. Install from source until it is.
 
 ## Start iRoute
 
@@ -28,7 +28,7 @@ The default API URL is `http://localhost:8080`. See the shared
 [SDK usage guide](../../docs/sdk-usage.md) for source-run and authentication
 options.
 
-## Install from Maven Central
+## Install from Maven Central (not yet published)
 
 ```xml
 <dependency>

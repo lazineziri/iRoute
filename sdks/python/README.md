@@ -16,8 +16,8 @@ server-side.
 - Runtime dependencies: standard library only
 - Package name: `iroute`
 
-Once published, the public alpha is installed from PyPI as a prerelease
-package. The source installation below remains available.
+The public alpha is published on PyPI. Prereleases are not selected by default,
+so `--pre` or an exact version is required. The source installation below remains available.
 
 ## Start iRoute
 

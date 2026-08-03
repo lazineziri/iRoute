@@ -16,9 +16,13 @@ an SDK does not install or start the runtime.
 | PHP | Packagist | `iroute/sdk` |
 | Rust | crates.io | `iroute-sdk` |
 
-Exact-name registry lookups returned no published package on 2026-08-02, and no
-name here is reserved: maintainers must claim each one before announcing it.
-`@iroute` on npm belongs to an unrelated account and is not available.
+`0.1.0-alpha.2` is published on npm, PyPI, NuGet, and crates.io. Packagist
+awaits submission of the mirror, and Maven Central is not yet published because
+the build does not produce the signed source and javadoc artifacts Central
+requires.
+
+`@iroute` on npm belongs to an unrelated account, which is why the Node.js
+client is published under `@iroute-dev`.
 
 ## Security model
 

@@ -13,7 +13,8 @@ or provider policy.
 - Module format: ESM
 - Package name: `@iroute-dev/sdk`
 
-Once published, the public alpha is installed from npm as a prerelease package.
+The public alpha is published on npm under the `alpha` dist-tag, so install it by
+version or by tag rather than relying on `latest`.
 The source installation below remains available.
 
 ## Start iRoute

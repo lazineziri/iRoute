@@ -15,7 +15,7 @@ server-side.
 - Required extension: `ext-curl`
 - Composer package: `iroute/sdk`
 
-Once published, the public alpha is installed from Packagist through the
+Once submitted to Packagist, the public alpha is installed through the
 official PHP mirror. The source installation below remains available.
 
 ## Start iRoute

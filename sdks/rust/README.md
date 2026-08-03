@@ -16,8 +16,8 @@ server-side.
 - Crate name: `iroute-sdk`
 - Runtime dependencies: none
 
-Once published, the public alpha is installed from crates.io as a prerelease
-crate. The source installation below remains available.
+The public alpha is published on crates.io. Cargo does not select prereleases
+automatically, so request the exact version. The source installation below remains available.
 
 ## Start iRoute
 
