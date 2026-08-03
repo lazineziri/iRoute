@@ -9,7 +9,7 @@ The executable baseline is the repository lock/configuration, not an aspirationa
 | EF Core | `10.0.10` | keep Microsoft EF packages aligned |
 | Npgsql EF | `10.0.3` | verify against both persistence providers |
 | OpenTelemetry | `1.17.0` | telemetry export stays opt-in |
-| Node SDK | package target Node `24.18.1`; type-check also verified on Node `22.20.0` | test supported Node lines in CI before publishing |
+| Node SDK | Node `24.18.1` is the supported floor, matching `release.json`, the root tooling, and the CI pin | test the supported Node line in CI before publishing |
 | TypeScript | `7.0.2` | locked by `package-lock.json` |
 | Python SDK | package minimum `3.12`; CI `3.14` | compile and conformance-test on the release CI baseline |
 | Java SDK | Java `25` | compile with `--release 25`, `-Xlint:all`, and `-Werror` |

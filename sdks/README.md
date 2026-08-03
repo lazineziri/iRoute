@@ -5,7 +5,7 @@ Official SDKs are thin protocol clients aligned with `spec/openapi/iroute.v1.yam
 | SDK | Stable build baseline | Package identifier | Complete guide |
 |---|---|---|---|
 | .NET | .NET 10 / C# 14 | `iRoute.Sdk` | [Usage](../src/iRoute.Sdk.DotNet/README.md) |
-| Node.js | Node 24.18.1 LTS / TypeScript 7.0.2 | `@iroute/sdk` | [Usage](node/README.md) |
+| Node.js | Node 24.18.1 LTS / TypeScript 7.0.2 | `@iroute-dev/sdk` | [Usage](node/README.md) |
 | Python | Python 3.14 | `iroute` | [Usage](python/README.md) |
 | Java | Java 25 LTS | `dev.iroute:iroute-sdk` | [Usage](java/README.md) |
 | PHP | PHP 8.5 | `iroute/sdk` | [Usage](php/README.md) |

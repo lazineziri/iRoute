@@ -13,7 +13,7 @@ The prerelease builder produces:
 - `iRoute.Contracts` NuGet package;
 - `iRoute.Sdk` NuGet package;
 - `iRoute.Cli` .NET tool package;
-- `@iroute/sdk` npm package tarball;
+- `@iroute-dev/sdk` npm package tarball;
 - release notes;
 - machine-readable release manifest with sizes and SHA-256 digests;
 - `SHA256SUMS` covering every distributed file.

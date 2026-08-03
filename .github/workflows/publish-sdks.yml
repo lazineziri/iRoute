@@ -30,10 +30,20 @@ jobs:
           fetch-depth: 0
       - name: Require an immutable matching release tag
         shell: bash
+        # Inputs are passed through the environment, never interpolated into the script: these
+        # jobs hold registry publishing credentials, so a crafted version string must not be able
+        # to become shell.
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
+          set -euo pipefail
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Refusing to publish a version that is not plain semver: ${VERSION}" >&2
+            exit 1
+          fi
           test "${GITHUB_REF_TYPE}" = "tag"
-          test "${GITHUB_REF_NAME}" = "v${{ inputs.version }}"
-          test "$(node -p "require('./release.json').version")" = "${{ inputs.version }}"
+          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+          test "$(node -p "require('./release.json').version")" = "${VERSION}"
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
@@ -81,7 +91,15 @@ jobs:
           node-version: 24.18.1
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - run: npm publish artifacts/release/iroute-sdk-${{ inputs.version }}.tgz --access public
+      # The tarball name is derived from the package name by `npm pack`, so it is discovered
+      # rather than reconstructed here.
+      - name: Publish the Node.js SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          tarball="$(ls artifacts/release/*.tgz)"
+          test -f "${tarball}"
+          npm publish "${tarball}" --access public
 
   nuget:
     if: inputs.registry == 'nuget'

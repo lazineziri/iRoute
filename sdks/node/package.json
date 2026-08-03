@@ -1,5 +1,5 @@
 {
-  "name": "@iroute/sdk",
+  "name": "@iroute-dev/sdk",
   "version": "0.1.0-alpha.1",
   "private": false,
   "description": "Thin Node.js client for the iRoute task-aware runtime",
