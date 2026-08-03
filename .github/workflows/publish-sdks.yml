@@ -28,22 +28,48 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Require an immutable matching release tag
+      # What gets published is pinned to the release tag, not to the ref this run was dispatched
+      # from. The workflow definition therefore lives on the default branch and can be fixed
+      # without rewriting a tag, while the published code stays immutable and signed.
+      #
+      # Inputs reach the shell through the environment, never through template interpolation:
+      # these jobs hold registry publishing credentials, so a crafted version must not become
+      # shell, and it must not reach actions/checkout as a ref either.
+      - name: Check out the signed release tag
         shell: bash
-        # Inputs are passed through the environment, never interpolated into the script: these
-        # jobs hold registry publishing credentials, so a crafted version string must not be able
-        # to become shell.
         env:
           VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
           if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Refusing to publish a version that is not plain semver: ${VERSION}" >&2
             exit 1
           fi
-          test "${GITHUB_REF_TYPE}" = "tag"
-          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+
+          tag="v${VERSION}"
+          if ! git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Refusing to publish: tag ${tag} does not exist." >&2
+            exit 1
+          fi
+
+          # An annotated, signature-verified tag is the thing being released. A lightweight or
+          # unverified tag means the release was not produced by the documented process.
+          if [[ "$(git cat-file -t "${tag}")" != "tag" ]]; then
+            echo "Refusing to publish: ${tag} is lightweight, not an annotated release tag." >&2
+            exit 1
+          fi
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(git rev-parse "${tag}")" \
+            --jq '.verification.verified')"
+          if [[ "${verified}" != "true" ]]; then
+            echo "Refusing to publish: the signature on ${tag} is not verified by GitHub." >&2
+            exit 1
+          fi
+
+          git checkout -q --detach "refs/tags/${tag}"
           test "$(node -p "require('./release.json').version")" = "${VERSION}"
+          echo "Publishing ${tag} at $(git rev-parse HEAD)"
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
@@ -165,7 +191,20 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # cargo publishes from a working tree rather than a prebuilt artifact, so this job has to
+      # check the tag out itself. Without the explicit checkout it would publish whatever the
+      # dispatched ref happens to contain.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check out the release tag
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git checkout -q --detach "refs/tags/v${VERSION}"
+          test "$(node -p "require('./release.json').version")" = "${VERSION}"
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Publish the Rust SDK
