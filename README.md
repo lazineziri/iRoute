@@ -161,7 +161,7 @@ Use environment variables or standard ASP.NET Core configuration.
 
 | Setting | Purpose | Default |
 |---|---|---|
-| `Storage__Provider` | `Memory`, `Sqlite`, or `Postgres` | `Sqlite` |
+| `Storage__Provider` | `Postgres` to deploy, or `Sqlite` for single-node development | `Sqlite` |
 | `Storage__AutoInitialize` | Create the prototype schema at startup | `true` |
 | `ConnectionStrings__iRoute` | Durable database connection. A relative SQLite path resolves under the shared per-user data directory | `Data Source=iroute.db` |
 | `ModelGateway__Mode` | `Deterministic` or `Http` | `Deterministic` |
