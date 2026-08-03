@@ -59,7 +59,7 @@ public sealed class ExecutionWorkStoreTests
             var factory = new SqliteContextFactory(databasePath);
             await new SchemaMigrationManager(factory).UpgradeAsync(
                 cancellationToken: TestContext.Current.CancellationToken);
-            var executions = new EfExecutionStore(factory);
+            var executions = new EfExecutionStore(factory, new NullExecutionFence());
             var now = DateTimeOffset.UtcNow;
             var snapshot = Snapshot(now);
             await executions.CreateAsync(snapshot, "durable-queue-test", null,

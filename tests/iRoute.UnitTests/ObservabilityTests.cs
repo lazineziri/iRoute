@@ -164,7 +164,7 @@ public sealed class ObservabilityTests
             }
 
             var ids = await SeedAsync(
-                new EfExecutionStore(factory),
+                new EfExecutionStore(factory, new NullExecutionFence()),
                 TestContext.Current.CancellationToken);
             var restarted = new EfObservabilityStore(factory, Options());
 

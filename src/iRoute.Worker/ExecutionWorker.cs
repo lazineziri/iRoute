@@ -79,6 +79,7 @@ public sealed partial class ExecutionWorker(
     IServiceScopeFactory scopes,
     IExecutionWorkStore work,
     IExecutionStore executions,
+    IExecutionFence fence,
     IClock clock,
     IOptions<ExecutionWorkerOptions> configuredOptions,
     ILogger<ExecutionWorker> logger) : BackgroundService
@@ -141,6 +142,10 @@ public sealed partial class ExecutionWorker(
         {
             using var scope = scopes.CreateScope();
             var orchestrator = scope.ServiceProvider.GetRequiredService<ExecutionOrchestrator>();
+            // Every durable write made while processing this execution is checked against the
+            // lease token, so a worker whose lease was taken over cannot interleave writes with
+            // the new owner even if its own cancellation has not fired yet.
+            using var fenced = fence.Hold(lease.LeaseToken);
             var snapshot = await orchestrator.ProcessQueuedAsync(
                 lease.ExecutionId,
                 processCancellation.Token);

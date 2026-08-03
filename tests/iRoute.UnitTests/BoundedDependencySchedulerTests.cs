@@ -249,7 +249,7 @@ public sealed class BoundedDependencySchedulerTests
 
             var executionId = Guid.CreateVersion7();
             var now = DateTimeOffset.UtcNow;
-            var executionStore = new EfExecutionStore(factory);
+            var executionStore = new EfExecutionStore(factory, new NullExecutionFence());
             await executionStore.CreateAsync(
                 new ExecutionSnapshot(
                     executionId,

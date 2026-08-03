@@ -394,7 +394,7 @@ public sealed class PolicyApprovalTests
         ExecutionCancellationRegistry cancellations,
         IExternalActionExecutor executor) =>
         CreateOrchestrator(
-            new EfExecutionStore(contextFactory),
+            new EfExecutionStore(contextFactory, new NullExecutionFence()),
             new EfArtifactStore(contextFactory),
             new EfWorkflowCheckpointStore(contextFactory),
             new EfApprovalStore(contextFactory),

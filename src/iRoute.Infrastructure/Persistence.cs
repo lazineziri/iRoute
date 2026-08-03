@@ -315,8 +315,37 @@ public sealed class ArtifactEntity
     public string? InvalidationReason { get; set; }
 }
 
-public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextFactory) : IExecutionStore
+public sealed class EfExecutionStore(
+    IDbContextFactory<IRouteDbContext> contextFactory,
+    IExecutionFence fence) : IExecutionStore
 {
+    /// <summary>
+    /// Verifies that the lease in scope still owns the execution. Runs inside the caller's
+    /// transaction so ownership cannot change between the check and the write.
+    /// </summary>
+    private async Task EnsureLeaseOwnsAsync(
+        IRouteDbContext context,
+        Guid executionId,
+        CancellationToken cancellationToken)
+    {
+        if (fence.CurrentToken is not { } token)
+        {
+            return;
+        }
+
+        var owned = await context.ExecutionWorkItems
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.ExecutionId == executionId
+                    && item.LeaseToken == token
+                    && item.State == ExecutionWorkState.Leased,
+                cancellationToken);
+        if (!owned)
+        {
+            throw new LeaseFencedException(executionId);
+        }
+    }
+
     public async Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(
         string tenantId,
         string key,
@@ -374,11 +403,14 @@ public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextF
     public async Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await EnsureLeaseOwnsAsync(context, execution.ExecutionId, cancellationToken);
         var entity = await context.Executions.SingleAsync(
             x => x.ExecutionId == execution.ExecutionId,
             cancellationToken);
         PersistenceMapping.Apply(execution, entity);
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<bool> TryRequestCancellationAsync(
@@ -459,6 +491,8 @@ public sealed class EfExecutionStore(IDbContextFactory<IRouteDbContext> contextF
                         .AsNoTracking()
                         .SingleAsync(cancellationToken);
                 }
+
+                await EnsureLeaseOwnsAsync(context, executionId, cancellationToken);
 
                 var previousSequence = await context.ExecutionEvents
                     .Where(x => x.ExecutionId == executionId)

@@ -54,6 +54,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IObservabilityStore, EfObservabilityStore>();
             services.AddSingleton<IGatewayCircuitStore, EfGatewayCircuitStore>();
             services.AddSingleton(storageProvider);
+            services.AddSingleton<IExecutionFence, AsyncLocalExecutionFence>();
             services.AddSingleton<SchemaMigrationManager>();
             services.AddHostedService<PersistenceInitializer>();
             services.AddHealthChecks().AddCheck<DurableStorageHealthCheck>("storage", tags: ["ready"]);

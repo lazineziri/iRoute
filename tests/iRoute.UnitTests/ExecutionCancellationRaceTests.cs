@@ -157,7 +157,7 @@ public sealed class ExecutionCancellationRaceTests
             var factory = new SqliteContextFactory(databasePath);
             await new SchemaMigrationManager(factory).UpgradeAsync(
                 cancellationToken: TestContext.Current.CancellationToken);
-            return new StoreHarness(new EfExecutionStore(factory), databasePath);
+            return new StoreHarness(new EfExecutionStore(factory, new NullExecutionFence()), databasePath);
         }
 
         public ValueTask DisposeAsync()

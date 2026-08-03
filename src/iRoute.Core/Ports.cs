@@ -32,6 +32,35 @@ public sealed class IdempotencyKeyReusedException(string idempotencyKey)
     public string IdempotencyKey { get; } = idempotencyKey;
 }
 
+/// <summary>
+/// Thrown when a write is attempted under a lease that no longer owns the execution.
+/// </summary>
+public sealed class LeaseFencedException(Guid executionId)
+    : Exception($"The lease held for execution '{executionId}' is no longer the owning lease.")
+{
+    public Guid ExecutionId { get; } = executionId;
+}
+
+/// <summary>
+/// Carries the lease token of the work currently being processed, so durable writes can verify
+/// ownership in the same transaction that performs them.
+/// </summary>
+/// <remarks>
+/// A worker whose lease expired can still be mid-execution when another worker takes over. Local
+/// cancellation alone cannot prevent that, because it depends on the stale worker's own clock and
+/// on it observing the token before its next write.
+/// </remarks>
+public interface IExecutionFence
+{
+    /// <summary>
+    /// The lease token in scope, or <see langword="null"/> when the caller holds no lease — the
+    /// synchronous execution path, in which no other worker can be processing the execution.
+    /// </summary>
+    Guid? CurrentToken { get; }
+
+    IDisposable Hold(Guid leaseToken);
+}
+
 public interface IExecutionStore
 {
     Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(

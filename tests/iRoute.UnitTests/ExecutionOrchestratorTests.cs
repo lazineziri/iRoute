@@ -327,7 +327,7 @@ public sealed class ExecutionOrchestratorTests
         {
             await new SchemaMigrationManager(factory).UpgradeAsync(
                 cancellationToken: TestContext.Current.CancellationToken);
-            var store = new EfExecutionStore(factory);
+            var store = new EfExecutionStore(factory, new NullExecutionFence());
             var checkpoints = new EfWorkflowCheckpointStore(factory);
             var gateway = new InterruptOnceModelGateway();
             var work = new EfExecutionWorkStore(factory);
@@ -1164,7 +1164,7 @@ public sealed class ExecutionOrchestratorTests
             using (var cancellations = new ExecutionCancellationRegistry())
             {
                 var orchestrator = CreateOrchestrator(
-                    new EfExecutionStore(factory),
+                    new EfExecutionStore(factory, new NullExecutionFence()),
                     new EfArtifactStore(factory),
                     cancellations,
                     checkpoints: new EfWorkflowCheckpointStore(factory),
@@ -1174,7 +1174,7 @@ public sealed class ExecutionOrchestratorTests
                     TestContext.Current.CancellationToken);
             }
 
-            var restartedStore = new EfExecutionStore(factory);
+            var restartedStore = new EfExecutionStore(factory, new NullExecutionFence());
             using var restartedCancellations = new ExecutionCancellationRegistry();
             var restarted = CreateOrchestrator(
                 restartedStore,
