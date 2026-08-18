@@ -13,15 +13,11 @@ The prerelease builder produces:
 - `iRoute.Contracts` NuGet package;
 - `iRoute.Sdk` NuGet package;
 - `iRoute.Cli` .NET tool package;
-- `@iroute-dev/sdk` npm package tarball;
 - release notes;
-- machine-readable release manifest with sizes and SHA-256 digests;
 - `SHA256SUMS` covering every distributed file.
 
-The Python, Java, PHP, and Rust SDKs are included in the source archive and
-validated in native CI jobs. Registry publication for any SDK is a separate,
-explicit maintainer action after package ownership and credentials are
-configured; the GitHub release workflow does not guess or claim registry names.
+The repository supports the .NET SDK only. NuGet publication is a separate,
+explicit maintainer action after the GitHub release artifacts are verified.
 
 Container images are built from the same commit using the `api`, `worker`, and
 `migrate` Dockerfile targets. Operators must publish immutable tags to their
@@ -48,17 +44,19 @@ reference before production use.
 
 ## Verify from a clean checkout
 
-Run the full installation path in [installation.md](installation.md), followed
-by the release builder in a new empty directory:
+Run the full installation path in [installation.md](installation.md), then pack
+the supported .NET artifacts into a new empty directory:
 
 ```bash
-npm run test:release
-node tools/build-release.mjs --output /tmp/iroute-release
-node tools/verify-release.mjs --input /tmp/iroute-release
-node tools/package-install-smoke.mjs --input /tmp/iroute-release
+dotnet restore iRoute.slnx
+dotnet build iRoute.slnx --configuration Release --no-restore
+dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/Clients/iRoute.Cli --configuration Release --no-restore --output /tmp/iroute-release
 ```
 
-Inspect `release-manifest.json` and verify every line in `SHA256SUMS`. Build the
+Inspect the packages and verify every line in the workflow-produced
+`SHA256SUMS`. Build the
 three Docker targets, run the SQLite container smoke test, render the Kubernetes
 base with `kubectl kustomize`, and test the PostgreSQL migration/rollback path
 against a disposable database.
@@ -77,7 +75,7 @@ change, a floating image tag, or an unreviewed migration.
    attaches the checksummed artifacts. It never publishes on a manual dry run.
 5. Download the published assets, recompute SHA-256 digests independently, and
    compare them with `SHA256SUMS`.
-6. Publish immutable container and language-registry packages only after the
+6. Publish immutable container and NuGet packages only after the
    GitHub artifacts are verified. Record their digests in the release notes or
    an attestation before announcing availability.
 

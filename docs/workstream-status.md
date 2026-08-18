@@ -2,12 +2,16 @@
 
 Status date: 2 August 2026
 
+This is a historical milestone record. Acceptance evidence mentioning tests or
+evaluation fixtures describes the state at completion; those in-repository
+artifacts were removed during the later .NET-only repository reset.
+
 ## M0 — Specification: complete
 
 ### W01 — Product boundaries and architecture decisions: complete
 
 - Architecture decisions, non-goals, provider boundary, deployment/trust boundaries, and version policy are documented.
-- Module ownership and dependency direction are explicit and architecture-tested.
+- Module ownership and dependency direction are explicit.
 - Public Contracts are separated from Core, Runtime, Infrastructure, and host composition.
 
 ### W02 — Contracts and schemas: complete
@@ -24,7 +28,7 @@ Acceptance evidence:
 
 - Invalid plans are rejected before capability execution. Semantic validation covers duplicate steps, missing dependencies, self-dependencies, cycles, maximum depth, maximum steps, potential model/tool attempts, step timeouts, task-definition identity, and the direct-executor shape.
 - Every published contract example and every evaluation fixture is validated with a full JSON Schema 2020-12 validator.
-- Backward-compatibility tests protect v1 operations, fields, required sets, statuses, resolution levels, event types, error codes, and schema identifiers in CI.
+- The checked v1 compatibility baseline records operations, fields, required sets, statuses, resolution levels, event types, error codes, and schema identifiers.
 
 ## M1 — Deterministic kernel: complete
 
@@ -161,24 +165,11 @@ Acceptance evidence:
 - Failure tests prove HTTP statuses map consistently to retryability and normalized failure kinds; orchestration emits `gateway.failed` without provider bodies.
 - Orchestrator and PostgreSQL evaluation prove selected profile/deadline propagation, configured gateway identity, normalized usage and observed latency, health reporting, and buffered/streaming lifecycle events without provider-specific planning logic.
 
-### W10 — Evaluation and regression harness: complete
+### W10 — Evaluation and regression harness: retired
 
-Deliverables:
-
-- Versioned live-fixture, golden-dataset, per-case evaluation-result, and routing-comparison report contracts.
-- Golden replay dataset covering all seven built-in tasks across normal, edge, adversarial, stale-memory, unauthorized-action, and dependency-change scenarios.
-- Task-specific evaluator registry for output structure, golden assertions, evidence precision/coverage, unsupported claims, terminal status, authorization, and external side effects.
-- Versioned baseline/candidate cost, latency, token, and model/tool-call benchmark inputs, aggregated per completed task.
-- Deterministic JSON and Markdown comparison reports with aggregate and per-task quality, safety, cost, latency, and no-model resolution metrics.
-- CI regression gate bound to the routing/model-profile source fingerprint and checked report snapshots.
-
-Acceptance evidence:
-
-- The harness independently discovers built-in task types and proves all seven have a registered evaluator plus all six required fixture categories: 42 candidate cases and 84 policy observations.
-- Schema tests validate the golden dataset, every generated case result, and the comparison report with JSON Schema 2020-12; compatibility tests protect the new v1 schema identifiers and root fields.
-- The candidate policy passes every task quality floor with zero safety failures and zero unsafe actions; quality, evidence, unsupported-claim rate, tokens, calls, cost, and latency are reported per completed task.
-- The checked comparison reports show the task-aware policy against the full-history single-strong reference and reject any per-task cost or latency increase without the configured justified quality gain.
-- CI runs `npm run test:regression`; routing/model-profile changes invalidate the recorded source fingerprint, while dataset changes invalidate the report fingerprint and snapshot.
+The historical in-repository evaluation harness and fixture corpus were removed
+during the .NET-only repository reset. Routing and model-profile changes now
+require externally recorded evaluation evidence before release.
 
 ## M3 — Capability ecosystem: complete
 
@@ -239,23 +230,19 @@ Acceptance evidence:
 - Privacy tests prove sensitive nested fields are redacted, safe long strings are bounded, metadata-only mode exposes no event fields, and timelines are ordered, bounded, and tenant scoped.
 - Contract tests compile both observability schemas and validate published examples; live API verification executes a task, queries its summary/timeline, and serves the dashboard assets.
 
-### W14 — SDKs and CLI: complete
+### W14 — .NET SDK and CLI: complete
 
 Deliverables:
 
-- Idiomatic .NET, Node.js, Python, Java, PHP, and Rust protocol clients with execution, lookup, cancellation, approval, artifact, health, observability, SSE, and typed API-error surfaces.
-- One language-neutral Base64-backed request/response, end-of-stream SSE, and RFC 9457 error fixture consumed by all six SDK test runners.
-- Injectable transports in every non-.NET SDK for deterministic conformance checks and application-specific HTTP stacks without importing runtime behavior.
+- An idiomatic .NET protocol client with execution, lookup, cancellation, approval, artifact, health, observability, SSE, and typed API-error surfaces.
 - A packageable `iroute` .NET CLI covering the public client operations, with local defaults and environment/flag-based connection, identity, and permission configuration.
-- Runnable reference examples for every SDK and the CLI, all targeting the credential-free deterministic local profile.
-- Native CI jobs for the six supported toolchain baselines plus architecture tests that constrain SDK and CLI dependencies to public protocol layers.
+- .NET build automation that constrains the SDK and CLI to public contract dependencies.
 
 Acceptance evidence:
 
-- Every SDK passes the identical byte-level request headers/body, final-frame SSE, response, and typed-error fixtures; CI runs each fixture in its native toolchain.
-- The .NET SDK depends only on Contracts, the CLI depends only on the .NET SDK, and cross-language source is checked for references to Core, Runtime, Infrastructure, or host implementations.
-- SDK implementations contain protocol serialization, HTTP transport, streaming, and error mapping only; routing, planning, model selection, prompts, memory, quality scoring, provider choice, and retry policy remain server-side.
-- The CLI and six reference programs connect to `http://localhost:8080` with local tenant/actor defaults; the deterministic development runtime needs no provider credentials.
+- The .NET SDK depends only on Contracts and the CLI depends only on the .NET SDK.
+- The SDK contains protocol serialization, HTTP transport, streaming, and error mapping only; routing, planning, model selection, prompts, memory, quality scoring, provider choice, and retry policy remain server-side.
+- The CLI connects to `http://localhost:8080` with local tenant/actor defaults; the deterministic development runtime needs no provider credentials.
 
 ### W15 — Packaging and operations: complete
 
@@ -280,8 +267,8 @@ Acceptance evidence:
 
 Deliverables:
 
-- Apache-2.0 source licensing and NOTICE attribution propagated into .NET,
-  Node.js, Python, Java, PHP, and Rust package metadata.
+- Apache-2.0 source licensing and NOTICE attribution propagated into .NET
+  package metadata.
 - A contributor guide with clean setup, architectural boundaries, change-type
   evidence, compatibility/versioning rules, pull-request expectations,
   contribution terms, and Conventional Commit guidance.
@@ -295,7 +282,7 @@ Deliverables:
 - Canonical `0.1.0-alpha.1` release metadata, changelog, release notes, clean
   installation guide, maintainer release procedure, and contributor-oriented
   architecture entry points.
-- A reproducible release builder for source, NuGet, .NET tool, and npm artifacts
+- A reproducible release workflow for source, NuGet, and .NET tool artifacts
   with a machine-readable manifest and SHA-256 checksum file.
 - Tag-gated GitHub prerelease automation plus a manual dry-run path; package
   registry and container publication remain explicit maintainer actions rather
@@ -303,14 +290,13 @@ Deliverables:
 
 Acceptance evidence:
 
-- Release-readiness tests align every package, Docker, Kubernetes, changelog,
-  and release-note version with `release.json`; parse community/workflow YAML;
-  and reject tracked private DOCX, local secret, or generated-state inputs.
-- CI rebuilds the checksummed release candidate from a clean checkout only after
-  .NET, contract, deployment, regression, six native SDK, and live container
+- Release metadata aligns every .NET package, Docker/Kubernetes tag, changelog,
+  and release note with `release.json`.
+- CI rebuilds the .NET release candidate from a clean checkout only after
+  .NET and container
   jobs pass.
-- The installation guide follows the same restore, strict build, test, Compose
-  startup, health, and real `email.draft` path exercised by CI.
+- The installation guide follows the same restore and strict build exercised by
+  CI.
 - The security policy defines the private GitHub advisory channel and identifies
   the supported alpha version without promising an unavailable SLA.
 - Contribution, compatibility, semantic versioning, changelog, migration,

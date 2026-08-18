@@ -26,8 +26,8 @@ Within `/v1` and the v1 schemas:
   are not removed or renamed.
 - Existing types, meanings, defaults, formats, and validation ranges are not
   changed incompatibly.
-- Optional fields may be added. They stay optional until all official SDKs pass
-  the shared conformance suite.
+- Optional fields may be added. They stay optional until the official .NET SDK
+  passes its conformance suite.
 - Consumers must ignore unknown object fields and event types and safely surface
   unknown enum/status/error values.
 - A security correction may narrow accepted input only when the advisory and
@@ -52,14 +52,14 @@ Security support is defined separately in [SECURITY.md](../SECURITY.md).
 
 ## SDK compatibility
 
-Official SDK versions track the runtime release train and protocol major.
+The official .NET SDK tracks the runtime release train and protocol major.
 
-- SDKs contain protocol transport and typed mappings, not routing behavior.
+- The SDK contains protocol transport and typed mappings, not routing behavior.
 - A v1 SDK must tolerate additive v1 response fields and events.
-- Each SDK release passes the same conformance fixtures.
+- Each SDK release passes the checked .NET conformance fixture.
 - A client may lag a newly added optional operation, but existing operations
   must continue to work with a newer additive v1 server.
-- SDK language/runtime baselines can change in a prerelease only with a
+- The SDK runtime baseline can change in a prerelease only with a
   changelog entry. Stable baseline changes require a documented deprecation.
 
 ## Stored state and migrations
@@ -92,13 +92,11 @@ gateway, and production connectors remain operator-owned integrations.
 
 ## Compatibility gate
 
-Run these before proposing a public-contract or release change:
+Run this before proposing a public-contract or release change:
 
 ```bash
-npm run test:contracts
-npm run test:sdks
-npm run test:release
+dotnet build iRoute.slnx --configuration Release
 ```
 
-The contract snapshot enforces the existing v1 surface; shared SDK fixtures
-enforce client behavior; the release gate enforces version and package metadata.
+Review the v1 contract snapshot, OpenAPI document, JSON Schemas, and .NET SDK
+mapping together. Intentional breaking changes require a new public API major.

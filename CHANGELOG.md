@@ -7,7 +7,25 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- The active repository is now a strictly .NET codebase containing the runtime,
+  hosts, contracts, .NET SDK, CLI, migrations, and deployment assets.
+- The remaining projects are grouped into explicit Core, Application,
+  Infrastructure, Hosts, and Clients layers while preserving assembly and NuGet
+  identities.
+- Code within each project now follows feature folders, including separated
+  execution, routing, validation, endpoint, gateway, and persistence adapter
+  concerns; former catch-all runtime and infrastructure services were split.
+- CI and release publication now restore, build, pack, and analyze only .NET
+  projects; NuGet is the only supported language-package registry.
+
+### Removed
+
+- Removed the Node.js, Python, Java, PHP, and Rust SDK implementations, package
+  manifests, examples, native CI jobs, and registry publishing jobs.
+- Removed the in-repository test projects, evaluation corpus, JavaScript tooling,
+  SDK examples, and Node dependency tree as part of the repository reset.
 
 ## [0.1.0-alpha.3] - 2026-08-18
 

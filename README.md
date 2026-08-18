@@ -35,7 +35,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
 - multiple registered generic gateway deployments with deterministic policy fallback and durable per-deployment circuit breaking
 - fenced half-open probes, Retry-After-aware open intervals, exhaustion evidence, and gateway/deployment resilience metrics
-- versioned golden evaluation across every built-in task, task-specific quality/safety scoring, cost/latency benchmarks, and a source-bound routing regression gate
+- an explicit requirement for externally recorded quality, safety, cost, and latency evidence before routing-policy releases
 - one normalized capability contract with reference email, calendar, read-only database, registered OpenAPI, registered MCP, and typed agent-result connectors
 - connector projection before model context, bounded outputs/deadlines, classified failures, and write reuse through the approval/idempotency boundary
 - configurable artifact/memory TTLs, lineage and tenant quotas, dependency-safe cold archival, and bounded archive retention
@@ -44,8 +44,8 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - a tenant-scoped observability read model with redacted timelines, task/policy comparisons, and memory-hit diagnostics
 - a dependency-free operator dashboard at `/dashboard/` with bounded query windows and metadata-only timelines by default
 - versioned schema migration shared by SQLite and PostgreSQL
-- working .NET, Node.js, Python, Java, PHP, and Rust clients with shared conformance fixtures, published on NuGet, npm, PyPI, Packagist, and crates.io; the Java client installs from source until Maven Central publication lands
-- a thin `iroute` CLI and runnable quick starts for every official SDK
+- one supported, typed .NET client published as `iRoute.Sdk` on NuGet
+- a thin `iroute` CLI and runnable .NET SDK quick start
 - non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
 - Apache-2.0 community governance, private security reporting, explicit compatibility windows, and reproducible checksummed release artifacts
 
@@ -58,20 +58,20 @@ For a clean clone or source archive, follow the [installation guide](docs/instal
 Prerequisite: .NET SDK `10.0.100` or newer on the .NET 10 line. The repository is currently verified with SDK `10.0.102`.
 
 iRoute has one runtime and two distribution surfaces. The API, execution worker,
-and migration job run as containers. Applications install one thin language SDK
-to call that runtime. Installing an SDK does not embed or start iRoute, and
+and migration job run as containers. .NET applications install the thin
+`iRoute.Sdk` package to call that runtime. Installing the SDK does not embed or start iRoute, and
 self-hosters may call the HTTP API directly without an SDK.
 
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --no-restore
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Hosts/iRoute.Api -- --urls http://localhost:8080
 ```
 
 In a second terminal, start the execution and lifecycle host:
 
 ```bash
-dotnet run --project src/iRoute.Worker
+dotnet run --project src/Hosts/iRoute.Worker
 ```
 
 The default developer profile uses the deterministic gateway, so it needs no provider credential. A relative SQLite `Data Source` is resolved against one per-user directory (`%LOCALAPPDATA%\iRoute` on Windows, `~/Library/Application Support/iRoute` on macOS, `$XDG_DATA_HOME/iRoute` on Linux) so the API and worker share one database regardless of the directory each host is started from. Set `ConnectionStrings__iRoute` to an absolute path to choose your own location. In another terminal:
@@ -90,14 +90,13 @@ The first request returns HTTP `202` with a durable execution ID, normally in `Q
 The CLI uses the same local defaults and delegates to the .NET SDK:
 
 ```bash
-dotnet run --project src/iRoute.Cli -- \
+dotnet run --project src/Clients/iRoute.Cli -- \
   execute --request @examples/email-draft.json --idempotency-key cli-example-001
 ```
 
-See the [SDK quick starts](examples/sdks/README.md) for runnable .NET, Node.js,
-Python, Java, PHP, and Rust examples. Complete installation, execution lifecycle,
-streaming, cancellation, approval, artifact, observability, and error guides are
-indexed in [SDK usage](docs/sdk-usage.md).
+Complete .NET installation, execution lifecycle, streaming, cancellation,
+approval, artifact, observability, and error guidance is in
+[SDK usage](docs/sdk-usage.md).
 
 Open `http://localhost:8080/dashboard/` to inspect persisted executions, provider-route resilience, redacted timelines, quality, reported cost, latency, token usage, and memory hits. A connected empty state means that no execution matches the selected tenant and time range; it does not mean the API is broken. In the local development profile, enter the same `X-Tenant-Id` value used for execution requests. JWT deployments can provide a bearer token in the dashboard session; credentials are not persisted by the page.
 
@@ -106,7 +105,7 @@ Dashboard cost is the normalized value reported by the configured gateway. The C
 The worker host processes durable executions and also enforces TTL, quota, archival, and deletion policies asynchronously:
 
 ```bash
-dotnet run --project src/iRoute.Worker
+dotnet run --project src/Hosts/iRoute.Worker
 ```
 
 For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, execution/lifecycle worker, migration job, and database together.
@@ -135,24 +134,13 @@ Useful endpoints:
 ## Verification
 
 ```bash
-dotnet run --project tests/iRoute.UnitTests --no-build -- -reporter quiet
-dotnet run --project tests/iRoute.ArchitectureTests --no-build -- -reporter quiet
-npm run test:contracts
-npm run test:deployment
-npm run test:regression
-npm run test:sdks
-npm run test:release
+dotnet restore iRoute.slnx
+dotnet build iRoute.slnx --configuration Release --no-restore
 ```
 
-With the API running, execute the initial behavioral evaluation fixture:
-
-```bash
-node tools/run-evaluation.mjs
-```
-
-The offline W10 gate needs no API or provider. `npm run test:regression` validates 42 candidate cases across all built-in tasks, compares the task-aware policy with the full-history single-strong reference, and verifies the checked reports under `eval/reports`. See [the evaluation guide](eval/README.md).
-
-To exercise `ModelGateway__Mode=Http` without a provider dependency, start `node tools/gateway-conformance-server.mjs`, point the API at `http://127.0.0.1:5092`, and run the same evaluation. Set `ModelGateway__Transport=Streaming` to use bounded NDJSON streaming. `node tools/check-gateway-contract.mjs` verifies an external endpoint directly; run it against separate buffered and streaming gateways to prove contract parity. Gateway and normalized capability request/result/failure schemas are under `spec/schemas`.
+Gateway and normalized capability request/result/failure schemas are under
+`spec/schemas`. Validate external gateway implementations against those public
+contracts before enabling them.
 
 The same sanitized server can exercise W18 locally. Run separate instances by setting `IROUTE_GATEWAY_PORT` and `IROUTE_GATEWAY_ID`; set `IROUTE_GATEWAY_FAILURE_STATUS=429`, `IROUTE_GATEWAY_RETRY_AFTER_SECONDS=30`, and optionally `IROUTE_GATEWAY_FAILURE_COUNT=1` on the primary. Register both loopback URLs under `ModelGateway__Deployments__0` and `__1`, then inspect the execution SSE/timeline and observability summary for circuit, attempt, and fallback evidence. This harness contains no provider SDK, credential, or Azure-specific assumption.
 
@@ -178,7 +166,7 @@ Use environment variables or standard ASP.NET Core configuration.
 | `Workflow__QueueCapacity` | Maximum queued ready steps per scheduling round | `16` |
 | `Workflow__MaxParallelSteps` | Runtime ceiling on parallel steps per execution | `4` |
 | `Workflow__RetryBaseDelayMilliseconds` | Initial classified-retry delay | `100` |
-| `Workflow__RetryMaxDelayMilliseconds` | Maximum retry and `Retry-After` delay | `5,000` |
+| `Workflow__RetryMaxDelayMilliseconds` | Maximum locally calculated retry delay; a longer provider `Retry-After` remains authoritative | `5,000` |
 | `Workflow__RetryJitterRatio` | Deterministic retry jitter ratio | `0.2` |
 | `ExecutionWorker__LeaseDuration` | Distributed execution lease duration | `30 seconds` |
 | `ExecutionWorker__HeartbeatInterval` | Lease renewal and cancellation polling interval | `5 seconds` |
@@ -218,6 +206,24 @@ For resilient HTTP routing, configure `ModelGateway__Deployments__0__...`, `Mode
 
 ## Architecture and source of truth
 
-The dependency rule is `Contracts <- Core <- Runtime <- Infrastructure <- Hosts`; SDKs depend only on the public protocol. See [the architecture guide](docs/architecture.md), [operations guide](docs/operations.md), [contract versioning rules](docs/contract-versioning.md), [SSE event contract](spec/events/sse-v1.md), [error taxonomy](spec/errors/error-taxonomy.v1.md), and [canonical product/engineering specification](docs/iRoute-Product-Engineering-Specification.md).
+The repository is organized by architectural responsibility rather than by
+language. All projects and build tooling are .NET; the API owns its small set of
+static dashboard assets:
 
-Public language-neutral contracts live in [OpenAPI](spec/openapi/iroute.v1.yaml) and [JSON Schema](spec/schemas). The [documentation map](docs/README.md) links the canonical Markdown sources. Adoption and maintenance are governed by the [compatibility promise](docs/compatibility.md), [contributor guide](CONTRIBUTING.md), [security policy](SECURITY.md), and [release process](docs/releasing.md). iRoute Core, contracts, official SDKs, and self-hosting remain Apache 2.0.
+```text
+src/
+├── Core/            contracts and domain policy
+├── Application/     execution use cases and orchestration
+├── Infrastructure/  persistence, gateways, connectors, and telemetry
+├── Hosts/           API, worker, and migration composition roots
+└── Clients/         .NET SDK and CLI
+```
+
+`Runtime` and `Infrastructure` are sibling implementations over `Core`; neither
+may depend on a host. Hosts compose them at the outer boundary. The .NET SDK
+depends only on public contracts, and the CLI delegates to that SDK. See [the
+architecture guide](docs/architecture.md), [operations guide](docs/operations.md),
+[contract versioning rules](docs/contract-versioning.md), [SSE event contract](spec/events/sse-v1.md),
+[error taxonomy](spec/errors/error-taxonomy.v1.md), and [canonical product/engineering specification](docs/iRoute-Product-Engineering-Specification.md).
+
+Public language-neutral contracts live in [OpenAPI](spec/openapi/iroute.v1.yaml) and [JSON Schema](spec/schemas). The [documentation map](docs/README.md) links the canonical Markdown sources. Adoption and maintenance are governed by the [compatibility promise](docs/compatibility.md), [contributor guide](CONTRIBUTING.md), [security policy](SECURITY.md), and [release process](docs/releasing.md). iRoute Core, contracts, the .NET SDK, and self-hosting remain Apache 2.0.

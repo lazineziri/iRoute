@@ -27,27 +27,22 @@ For the standard development loop:
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --no-restore
-npm ci
-npm ci --prefix sdks/node
-dotnet test --solution iRoute.slnx --no-build --no-restore
-npm run test:contracts
-npm run test:deployment
-npm run test:regression
-npm run test:sdks
 ```
 
-Some SDK conformance runners require their native toolchains. CI is the final
-authority for .NET, Node.js, Python, Java, PHP, and Rust coverage.
+CI restores and builds the complete supported .NET runtime and client surface.
 
 ## Architecture rules
 
 Read [docs/architecture.md](docs/architecture.md) before changing runtime code.
-The dependency direction is `Contracts <- Core <- Runtime <- Infrastructure <-
-Hosts`; official SDKs depend only on the public protocol.
+`Runtime` and `Infrastructure` are sibling layers over `Contracts` and `Core`.
+Only hosts may compose both layers. The .NET SDK depends only on public
+contracts, and the CLI depends on the SDK.
 
-- Update OpenAPI and JSON Schemas before changing SDK wire behavior.
+- Update OpenAPI and JSON Schemas before changing .NET SDK wire behavior.
 - Keep provider-specific protocols behind the generic model gateway.
 - Keep transport and persistence concerns out of Core.
+- Follow the `layer/project/feature` source layout and do not add unrelated
+  logic to a project root or catch-all services file.
 - Treat connector responses as untrusted until projected and validated.
 - Preserve tenant scoping at every persistence and query boundary.
 - Add an ADR for a durable architectural or product-boundary decision.
@@ -69,21 +64,21 @@ and enforced against the v1 snapshot. In short:
 Every user-visible change adds an entry under `Unreleased` in
 [CHANGELOG.md](CHANGELOG.md). Maintainers assign the release version.
 
-## Tests expected by change type
+## Verification expected by change type
 
 | Change | Minimum evidence |
 |---|---|
-| Core/runtime behavior | Unit tests and architecture tests |
-| Public HTTP or event contract | OpenAPI/Schema examples and compatibility tests |
-| Routing or model profile | Unit tests and the evaluation regression gate |
-| Persistence or migration | SQLite tests, migration upgrade/rollback tests, and PostgreSQL CI evidence |
-| SDK or CLI | Shared conformance fixtures and native-toolchain tests |
-| Container or Kubernetes | Deployment tests and the live container smoke test |
-| Security boundary | Negative/adversarial tests and threat explanation in the pull request |
+| Core/runtime behavior | Successful strict .NET build and focused review evidence |
+| Public HTTP or event contract | Updated OpenAPI and JSON Schema definitions |
+| Routing or model profile | Documented evaluation evidence |
+| Persistence or migration | Reviewed SQLite/PostgreSQL migration evidence |
+| .NET SDK or CLI | Successful .NET build and protocol review |
+| Container or Kubernetes | Successful image builds and manifest review |
+| Security boundary | Threat explanation and adversarial review in the pull request |
 
-Tests must prove the failure path as well as the intended path. Do not update a
-golden result merely to silence a regression without explaining the new
-measurement.
+Verification evidence must cover the failure path as well as the intended path.
+Do not change a published contract snapshot merely to silence a regression
+without explaining the compatibility impact.
 
 ## Pull requests
 
@@ -91,11 +86,11 @@ Use the pull request template. A reviewable pull request:
 
 1. Explains the problem and the chosen boundary.
 2. Links its issue or ADR when required.
-3. Includes tests and documentation in the same change.
+3. Includes proportional verification evidence and documentation in the same change.
 4. Calls out public-contract, migration, security, privacy, cost, and rollback
    impact explicitly.
-5. Passes formatting, strict build, unit, architecture, contract, deployment,
-   evaluation, SDK, dependency-review, and secret-scanning gates that apply.
+5. Passes the strict build, packaging, container, dependency-review,
+   secret-scanning, and other gates that apply.
 
 Use Conventional Commit subjects such as `feat(runtime): ...`, `fix(sdk): ...`,
 or `docs(operations): ...`. Maintainers may squash a pull request while

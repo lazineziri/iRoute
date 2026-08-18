@@ -1,28 +1,22 @@
-# SDK usage
+# .NET SDK usage
 
-iRoute ships six protocol clients for the v1 HTTP and SSE API. They configure
-identity headers or bearer authentication, serialize requests, expose execution
-operations, consume events, and map HTTP problem details. Routing, provider
+iRoute ships one supported .NET client for the v1 HTTP and SSE API. It configures
+identity headers or bearer authentication, serializes requests, exposes execution
+operations, consumes events, and maps HTTP problem details. Routing, provider
 selection, fallback, memory, validation, durable retries, and workflow execution
 remain server-side.
 
-## Language guides
+## Client guide
 
 | Language | Guide | Public representation |
 |---|---|---|
-| .NET | [iRoute.Sdk](../src/iRoute.Sdk.DotNet/README.md) | Typed contracts and asynchronous streams |
-| Node.js / TypeScript | [@iroute-dev/sdk](../sdks/node/README.md) | Typed contracts and asynchronous streams |
-| Python | [iroute](../sdks/python/README.md) | Dictionaries and a synchronous event iterator |
-| Java | [dev.iroute:iroute-sdk](../sdks/java/README.md) | JSON strings and a buffered event list |
-| PHP | [iroute/sdk](../sdks/php/README.md) | Arrays and a buffered event generator |
-| Rust | [iroute-sdk](../sdks/rust/README.md) | JSON strings and a buffered event vector |
+| .NET | [iRoute.Sdk](../src/Clients/iRoute.Sdk.DotNet/README.md) | Typed contracts and asynchronous streams |
 
 ## Release status
 
-The source tree and release archives contain version `0.1.0-alpha.3`. Registry
-publication is not implied. Until a package is published, consume the SDK from a
-source checkout, a locally built package, or a path dependency as described in
-the relevant language guide.
+The source tree and release archives contain version `0.1.0-alpha.3`. The
+supported client is published as `iRoute.Sdk` on NuGet and can also be consumed
+from a source checkout or a locally built package.
 
 Breaking source and configuration changes are expected before `1.0`. The v1 wire
 contract follows the repository's [compatibility promise](compatibility.md).
@@ -40,12 +34,12 @@ To run from source, use two terminals from the repository root:
 
 ```bash
 ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
+  dotnet run --project src/Hosts/iRoute.Api -- --urls http://localhost:8080
 ```
 
 ```bash
 ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/iRoute.Worker
+  dotnet run --project src/Hosts/iRoute.Worker
 ```
 
 The deterministic development gateway requires no provider credential. The API
@@ -55,7 +49,7 @@ ordinary queued model work will not finish without a worker.
 
 ## Shared client configuration
 
-Every reference example understands these environment variables:
+The reference example understands these environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -82,7 +76,7 @@ terminal statuses:
 
 All other statuses are non-terminal. `WaitingForApproval` requires an explicit
 approval decision before work can resume. Clients can either poll the execution
-or consume its event stream. The SDKs intentionally do not provide a hidden
+or consume its event stream. The SDK intentionally does not provide a hidden
 `waitUntilDone` policy: applications choose their polling interval, deadline,
 and reconnection behavior.
 
@@ -98,7 +92,7 @@ retrying the same logical operation.
 
 ## Task request reference
 
-Every language serializes the same `TaskRequest` fields:
+The SDK serializes the public `TaskRequest` fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
@@ -164,11 +158,8 @@ processed sequence and reconnect with that value as `afterSequence`. Replay
 returns only newer events. Consumers must ignore unknown event types and fields
 because v1 may add them.
 
-The .NET, Node, and Python clients consume the response incrementally. The Java,
-PHP, and dependency-free Rust reference transports buffer the response and then
-parse its SSE frames. Their APIs remain contract-compatible, but applications
-that need long-lived live streaming should inject or add an incremental HTTP
-transport.
+The .NET client consumes the response incrementally and supports long-lived SSE
+streams with cancellation.
 
 See the authoritative [SSE contract](../spec/events/sse-v1.md).
 
@@ -214,7 +205,7 @@ Preserve `status`, `code`, `title`, `detail`, and the raw response body. An
 execution can also fail after submission; inspect `ExecutionSnapshot.error` in
 terminal snapshots.
 
-SDKs do not retry submissions, polls, cancellations, or approvals automatically.
+The SDK does not retry submissions, polls, cancellations, or approvals automatically.
 Application retries must respect idempotency, deadlines, `retryable`, and any
 HTTP `Retry-After` value. Provider retries and cross-deployment fallback belong
 to the iRoute worker/gateway layer and must not be duplicated in the client.
@@ -223,8 +214,7 @@ See the authoritative [error taxonomy](../spec/errors/error-taxonomy.v1.md).
 
 ## Common operations
 
-Every SDK exposes these operations, using idiomatic names documented in its
-language guide:
+The .NET SDK exposes these operations with typed request and response contracts:
 
 | Operation | Endpoint |
 |---|---|

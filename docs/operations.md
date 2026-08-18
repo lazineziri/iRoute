@@ -25,7 +25,7 @@ New records without an explicit expiry receive `Lifecycle:DefaultArtifactTimeToL
 
 Archival and deletion are deliberately separate phases. A sweep first writes a tenant-scoped archive containing the source entity, dependency references, and content hash. Only an archive that existed before the current sweep and is older than `DeleteAfterArchive` can authorize physical source deletion. Deletion removes incoming and outgoing dependency edges and repairs supersession pointers. The archive remains until the source is gone and either `ArchiveRetention` elapses or the tenant archive quota requires oldest-first removal. `DanglingDependencyEdgeCount` must remain zero after every sweep.
 
-Run `src/iRoute.Worker` continuously for durable profiles; the Compose profile starts it beside the API. Until distributed worker leasing is implemented, run one lifecycle worker per database. Sweep completion logs expose only counts—expired, archived, deleted, protected, purged, remaining records, and dangling edges—not archived payloads. A failed sweep rolls back its durable transaction and is retried on the next interval.
+Run `src/Hosts/iRoute.Worker` continuously for durable profiles; the Compose profile starts it beside the API. Until distributed worker leasing is implemented, run one lifecycle worker per database. Sweep completion logs expose only counts—expired, archived, deleted, protected, purged, remaining records, and dangling edges—not archived payloads. A failed sweep rolls back its durable transaction and is retried on the next interval.
 
 All direct reads, archives, deletions, and invalidation queries require a tenant scope at the persistence boundary. Never implement an administrative cleanup or repair job with an unscoped artifact, memory, archive, or dependency query. PostgreSQL serializable transactions protect version allocation and lifecycle mutation; treat serialization conflicts as retryable job failures rather than inventing a version. Keep API TTL values aligned with worker values so newly written expiry timestamps match the operating policy.
 
@@ -123,11 +123,14 @@ Read-only steps may execute immediately after task policy succeeds. Reversible a
 
 The built-in model profiles are synthetic and declare `MeasurementSource: Synthetic`; their quality, cost, and latency values are deterministic evaluation inputs rather than production observations. Use `Unverified` for a real provider or model whose profile values have not been verified. Use `Measured` only with a `ModelProfileMeasurement` containing the provider, model, measurement timestamp, and positive sample count. Set `QualityIsDeclaredNotMeasured` when live calibration measured cost or latency but did not independently evaluate output quality. Invalid source/measurement combinations fail routing eligibility, and the source plus measurement record are preserved in the durable routing decision.
 
-Run `npm run test:regression` for every routing-policy or model-profile change. CI validates the golden dataset and generated result/report contracts, requires all six scenario categories for every task discovered in the built-in registry, evaluates the baseline and candidate observations, and compares the generated output byte-for-byte with the checked JSON and Markdown reports.
+For every routing-policy or model-profile change, record fresh evaluation
+evidence outside the repository and review quality, safety, cost, and latency
+deltas before release. Do not describe synthetic inputs as production
+measurements. Keep environment-specific observations outside the repository
+when they contain customer data, credentials, provider payloads, or proprietary
+pricing.
 
-The candidate policy source fingerprint covers `RoutingAndPlanning.cs` and the built-in task/model-profile registry. A mismatch is intentional fail-closed behavior: record fresh observations, update the dataset fingerprint, inspect quality/safety/cost/latency deltas, then run `npm run eval:write`. Do not regenerate reports without updating observations from a real evaluation run. The committed benchmark inputs support deterministic regression; they are not production latency or cost SLOs. Keep environment-specific measurements outside the repository when they contain customer data, credentials, provider payloads, or proprietary pricing.
-
-A policy is releasable only when every candidate case reaches a completed terminal result, meets its task quality floor, produces no unsupported claims or unsafe actions, and does not increase per-task cost or latency without at least the configured justified quality gain. The live `node tools/run-evaluation.mjs` suite remains required for runtime, persistence, and external-gateway behavior that an offline replay cannot prove.
+A policy is releasable only when every reviewed candidate case reaches a completed terminal result, meets its task quality floor, produces no unsupported claims or unsafe actions, and does not increase per-task cost or latency without at least the configured justified quality gain.
 
 ## Identity
 
@@ -212,10 +215,10 @@ The `migrate` service must complete successfully before either API or worker sta
 The migration executable reads standard .NET configuration and supports status, forward upgrade, and explicit rollback:
 
 ```bash
-dotnet run --project src/iRoute.Migrations -- status
-dotnet run --project src/iRoute.Migrations -- up
-dotnet run --project src/iRoute.Migrations -- up 20260802010000_GatewayCircuitBreaker
-dotnet run --project src/iRoute.Migrations -- down 20260801010000_RoutingDecisionCheckpoint --confirm
+dotnet run --project src/Hosts/iRoute.Migrations -- status
+dotnet run --project src/Hosts/iRoute.Migrations -- up
+dotnet run --project src/Hosts/iRoute.Migrations -- up 20260802010000_GatewayCircuitBreaker
+dotnet run --project src/Hosts/iRoute.Migrations -- down 20260801010000_RoutingDecisionCheckpoint --confirm
 ```
 
 Set `Storage__Provider` and `ConnectionStrings__iRoute` for the target database. `status` reports the provider, current migration, applied migrations, pending migrations, unknown applied migrations, and whether the binary and database are current. `up` refuses to move backward. `down` refuses to run without both an explicit target and `--confirm` because reverse migrations may destroy data.

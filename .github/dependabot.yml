@@ -5,21 +5,6 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: npm
-    directory: /sdks/node
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: cargo
-    directory: /sdks/rust
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
   - package-ecosystem: docker
     directory: /deploy
     schedule:

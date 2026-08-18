@@ -1,18 +1,14 @@
 # Clean installation
 
 This is the supported installation path for `0.1.0-alpha.3`. Start from a clean
-clone or source archive; do not copy `bin`, `obj`, `node_modules`, databases, or
+clone or source archive; do not copy `bin`, `obj`, databases, or
 local secret files from another environment.
 
 ## Prerequisites
 
 - .NET SDK `10.0.100` or newer on the .NET 10 line
-- Node.js `24.18.1` for the complete contract/SDK toolchain
 - Docker with Compose v2 for the local container path
 - Git for a source checkout
-
-Python, Java, PHP, and Rust are required only when developing their respective
-SDKs. Their exact CI baselines are in [version-baseline.md](version-baseline.md).
 
 ## Source installation
 
@@ -20,22 +16,10 @@ From the repository root:
 
 ```bash
 dotnet --version
-node --version
 docker version
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --configuration Release --no-restore
-npm ci
-npm ci --prefix sdks/node
-dotnet test --solution iRoute.slnx --configuration Release --no-build --no-restore
-npm run test:contracts
-npm run test:deployment
-npm run test:regression
-npm run test:sdks
-npm run test:release
 ```
-
-The SDK runner skips a native language locally when its toolchain is absent;
-the official CI jobs cover every supported language before release.
 
 Direct source runs that use `DevelopmentHeaders` must explicitly set
 `ASPNETCORE_ENVIRONMENT=Development`. The API rejects development identity
@@ -93,8 +77,6 @@ using them. In particular:
   are pending; run the migration image `status` command.
 - A .NET SDK outside the `global.json` policy fails before compilation; install
   a compatible .NET 10 SDK.
-- Node dependency drift is resolved with `npm ci`, never by editing a lockfile
-  manually.
 - Do not work around a contract or regression failure by regenerating a golden
   baseline without reviewing the behavioral change.
 
