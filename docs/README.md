@@ -4,6 +4,7 @@ The canonical, reviewable project documentation is maintained as Markdown.
 
 - [Product and engineering specification](iRoute-Product-Engineering-Specification.md)
 - [Architecture](architecture.md)
+- [Modern .NET foundations decision](adr/ADR-005-modern-dotnet-foundations.md)
 - [Operations](operations.md)
 - [Clean installation](installation.md)
 - [Compatibility promise](compatibility.md)

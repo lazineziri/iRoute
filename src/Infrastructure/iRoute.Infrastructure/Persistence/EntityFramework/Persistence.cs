@@ -1208,22 +1208,22 @@ internal static class PersistenceMapping
         ExecutionSnapshot snapshot,
         string? idempotencyKey,
         string? inputFingerprint) => new()
-    {
-        ExecutionId = snapshot.ExecutionId,
-        TenantId = snapshot.TenantId,
-        ActorId = snapshot.ActorId,
-        ProjectId = snapshot.ProjectId,
-        TaskType = snapshot.TaskType,
-        TaskDefinitionVersion = snapshot.TaskDefinitionVersion,
-        Status = snapshot.Status,
-        CreatedAtUnixMilliseconds = snapshot.CreatedAt.ToUnixTimeMilliseconds(),
-        UpdatedAtUnixMilliseconds = snapshot.UpdatedAt.ToUnixTimeMilliseconds(),
-        CancellationRequestedAtUnixMilliseconds = snapshot.CancellationRequestedAt?.ToUnixTimeMilliseconds(),
-        IdempotencyKey = idempotencyKey,
-        InputFingerprint = inputFingerprint,
-        OutcomeJson = Serialize(snapshot.Outcome),
-        ErrorJson = Serialize(snapshot.Error)
-    };
+        {
+            ExecutionId = snapshot.ExecutionId,
+            TenantId = snapshot.TenantId,
+            ActorId = snapshot.ActorId,
+            ProjectId = snapshot.ProjectId,
+            TaskType = snapshot.TaskType,
+            TaskDefinitionVersion = snapshot.TaskDefinitionVersion,
+            Status = snapshot.Status,
+            CreatedAtUnixMilliseconds = snapshot.CreatedAt.ToUnixTimeMilliseconds(),
+            UpdatedAtUnixMilliseconds = snapshot.UpdatedAt.ToUnixTimeMilliseconds(),
+            CancellationRequestedAtUnixMilliseconds = snapshot.CancellationRequestedAt?.ToUnixTimeMilliseconds(),
+            IdempotencyKey = idempotencyKey,
+            InputFingerprint = inputFingerprint,
+            OutcomeJson = Serialize(snapshot.Outcome),
+            ErrorJson = Serialize(snapshot.Error)
+        };
 
     public static void Apply(ExecutionSnapshot snapshot, ExecutionEntity entity)
     {

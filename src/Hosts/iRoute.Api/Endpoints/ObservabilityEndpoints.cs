@@ -37,11 +37,11 @@ public static class ObservabilityEndpoints
         HttpRequest request,
         IOptions<IRouteIdentityOptions> identityOptions,
         IObservabilityStore store,
-        IClock clock,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         var identity = RequestIdentity.Resolve(request, identityOptions.Value);
-        var end = to ?? clock.UtcNow;
+        var end = to ?? clock.GetUtcNow();
         var start = from ?? end.Subtract(TimeSpan.FromHours(24));
         try
         {

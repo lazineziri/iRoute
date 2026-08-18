@@ -14,7 +14,7 @@ public sealed record ProjectMemoryMaterialization(
 public sealed class ProjectMemoryMaterializer(
     IMemoryStore memories,
     IArtifactStore artifacts,
-    IClock clock)
+    TimeProvider clock)
 {
     public async Task<IReadOnlyList<ProjectMemoryMaterialization>> MaterializeAsync(
         TaskRequest request,
@@ -25,7 +25,7 @@ public sealed class ProjectMemoryMaterializer(
         var materialized = new List<ProjectMemoryMaterialization>();
         foreach (var candidate in ExtractCandidates(request.Input))
         {
-            var now = clock.UtcNow;
+            var now = clock.GetUtcNow();
             var contentHash = CanonicalJson.Hash(candidate.Value);
             var evidence = new EvidenceReference(
                 "request.input",

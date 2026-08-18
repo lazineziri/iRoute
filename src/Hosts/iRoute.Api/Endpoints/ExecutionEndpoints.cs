@@ -9,7 +9,14 @@ namespace iRoute.Api;
 
 public static class ExecutionEndpoints
 {
-    private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions EventJsonOptions = CreateEventJsonOptions();
+
+    private static JsonSerializerOptions CreateEventJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.TypeInfoResolverChain.Add(IRouteApiJsonContext.Default);
+        return options;
+    }
 
     public static IEndpointRouteBuilder MapIRouteEndpoints(
         this IEndpointRouteBuilder endpoints,
@@ -199,7 +206,7 @@ public static class ExecutionEndpoints
         IOptions<IRouteIdentityOptions> identityOptions,
         IExecutionStore store,
         IExternalActionStore externalActions,
-        IClock clock,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         var identity = RequestIdentity.Resolve(request, identityOptions.Value);
@@ -242,7 +249,7 @@ public static class ExecutionEndpoints
             return Results.NotFound();
         }
 
-        var now = clock.UtcNow;
+        var now = clock.GetUtcNow();
         var detail = string.IsNullOrWhiteSpace(reconciliation.Detail)
             ? $"Reconciled by '{identity.ActorId}'."
             : reconciliation.Detail;
@@ -347,7 +354,7 @@ public static class ExecutionEndpoints
         IWorkflowCheckpointStore checkpoints,
         IExecutionWorkStore executionWork,
         IExecutionCancellationRegistry cancellationRegistry,
-        IClock clock,
+        TimeProvider clock,
         CancellationToken cancellationToken)
     {
         var snapshot = await store.GetAsync(executionId, cancellationToken);
@@ -365,7 +372,7 @@ public static class ExecutionEndpoints
                 $"Execution '{executionId}' is already {snapshot.Status}.");
         }
 
-        var requestedAt = clock.UtcNow;
+        var requestedAt = clock.GetUtcNow();
         if (!await store.TryRequestCancellationAsync(executionId, requestedAt, cancellationToken))
         {
             // The worker reached a terminal state between the read above and this write.
@@ -444,6 +451,7 @@ public static class ExecutionEndpoints
         HttpRequest request,
         IOptions<IRouteIdentityOptions> identityOptions,
         IExecutionStore store,
+        TimeProvider clock,
         HttpResponse response,
         CancellationToken cancellationToken)
     {
@@ -459,7 +467,7 @@ public static class ExecutionEndpoints
         response.Headers.CacheControl = "no-cache";
         response.Headers.Append("X-Accel-Buffering", "no");
         var terminalPollsWithoutEvent = 0;
-        var lastWriteAt = DateTimeOffset.UtcNow;
+        var lastWriteAt = clock.GetUtcNow();
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -476,7 +484,7 @@ public static class ExecutionEndpoints
                     $"data: {JsonSerializer.Serialize(executionEvent, EventJsonOptions)}\n\n",
                     cancellationToken);
                 await response.Body.FlushAsync(cancellationToken);
-                lastWriteAt = DateTimeOffset.UtcNow;
+                lastWriteAt = clock.GetUtcNow();
             }
 
             snapshot = await store.GetAsync(executionId, cancellationToken);
@@ -495,14 +503,14 @@ public static class ExecutionEndpoints
                 terminalPollsWithoutEvent = 0;
             }
 
-            if (!wroteEvent && DateTimeOffset.UtcNow - lastWriteAt >= TimeSpan.FromSeconds(15))
+            if (!wroteEvent && clock.GetUtcNow() - lastWriteAt >= TimeSpan.FromSeconds(15))
             {
                 await response.WriteAsync(": keep-alive\n\n", cancellationToken);
                 await response.Body.FlushAsync(cancellationToken);
-                lastWriteAt = DateTimeOffset.UtcNow;
+                lastWriteAt = clock.GetUtcNow();
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken);
         }
     }
 

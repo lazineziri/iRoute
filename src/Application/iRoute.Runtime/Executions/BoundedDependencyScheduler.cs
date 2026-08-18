@@ -6,15 +6,6 @@ using iRoute.Core;
 
 namespace iRoute.Runtime;
 
-public sealed record WorkflowSchedulerOptions
-{
-    public int QueueCapacity { get; init; } = 16;
-    public int MaxParallelSteps { get; init; } = 4;
-    public int RetryBaseDelayMilliseconds { get; init; } = 100;
-    public int RetryMaxDelayMilliseconds { get; init; } = 5000;
-    public double RetryJitterRatio { get; init; } = 0.2;
-}
-
 public delegate Task<JsonElement> WorkflowStepHandler(
     ExecutionPlanStep step,
     IReadOnlyDictionary<string, JsonElement> dependencyOutputs,
@@ -44,7 +35,7 @@ public sealed class WorkflowStepTimedOutException(string stepId, int timeoutMill
 public sealed class BoundedDependencyScheduler(
     IWorkflowCheckpointStore checkpoints,
     IExecutionStore executions,
-    IClock clock,
+    TimeProvider clock,
     WorkflowSchedulerOptions options) : IDisposable
 {
     private readonly SemaphoreSlim _eventWriteLock = new(1, 1);
@@ -81,7 +72,7 @@ public sealed class BoundedDependencyScheduler(
             request,
             plan,
             routing,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             cancellationToken);
         var hadPriorExecution = initialization.Checkpoint.Steps.Any(step =>
             step.Attempt > 0 || step.Status != WorkflowStepStatus.Pending);
@@ -96,7 +87,7 @@ public sealed class BoundedDependencyScheduler(
 
         var recovered = await checkpoints.RecoverInterruptedStepsAsync(
             executionId,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             cancellationToken);
         if (!initialization.Created && (hadPriorExecution || recovered > 0))
         {
@@ -307,7 +298,7 @@ public sealed class BoundedDependencyScheduler(
     {
         while (true)
         {
-            var startedAt = clock.UtcNow;
+            var startedAt = clock.GetUtcNow();
             var checkpoint = await checkpoints.StartStepAsync(
                 executionId,
                 step.Id,
@@ -328,7 +319,7 @@ public sealed class BoundedDependencyScheduler(
                     dependency => outputs[dependency].Clone(),
                     StringComparer.Ordinal);
                 var output = await handler(step, dependencyOutputs, timeout.Token);
-                var completedAt = clock.UtcNow;
+                var completedAt = clock.GetUtcNow();
                 await checkpoints.CompleteStepAsync(
                     executionId,
                     step.Id,
@@ -470,7 +461,7 @@ public sealed class BoundedDependencyScheduler(
         await checkpoints.ResetStepForRetryAsync(
             executionId,
             step.Id,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             CancellationToken.None);
         states[step.Id] = WorkflowStepStatus.Pending;
         await AppendEventAsync(
@@ -485,7 +476,7 @@ public sealed class BoundedDependencyScheduler(
                 failure = exception.GetType().Name
             },
             CancellationToken.None);
-        await Task.Delay(delay, cancellationToken);
+        await Task.Delay(delay, clock, cancellationToken);
         return true;
     }
 
@@ -542,7 +533,7 @@ public sealed class BoundedDependencyScheduler(
             stepId,
             status,
             problem,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             cancellationToken);
         await AppendEventAsync(
             executionId,
@@ -560,7 +551,7 @@ public sealed class BoundedDependencyScheduler(
         await checkpoints.CancelIncompleteStepsAsync(
             executionId,
             problem,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             CancellationToken.None);
         cancellationToken.ThrowIfCancellationRequested();
     }
@@ -577,7 +568,7 @@ public sealed class BoundedDependencyScheduler(
             await executions.AppendEventAsync(
                 executionId,
                 eventType,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 JsonSerializer.SerializeToElement(data),
                 cancellationToken);
         }

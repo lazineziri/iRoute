@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using iRoute.Contracts;
 using iRoute.Core;
 
@@ -5,7 +6,7 @@ namespace iRoute.Infrastructure;
 
 public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
 {
-    private static readonly IReadOnlyDictionary<string, TaskDefinition> Definitions =
+    private static readonly FrozenDictionary<string, TaskDefinition> Definitions =
         new Dictionary<string, TaskDefinition>(StringComparer.OrdinalIgnoreCase)
         {
             ["email.draft"] = new(
@@ -61,7 +62,7 @@ public sealed class BuiltInTaskDefinitionRegistry : ITaskDefinitionRegistry
                 DefaultMaxToolCalls: 3,
                 AllowedCapabilities: ["project.memory.read"],
                 PermissionScopes: ["project:read"])
-        };
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     public Task<TaskDefinition?> FindAsync(string taskType, CancellationToken cancellationToken)
     {

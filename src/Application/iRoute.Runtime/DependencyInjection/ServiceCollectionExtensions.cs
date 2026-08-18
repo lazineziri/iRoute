@@ -1,18 +1,19 @@
-using Microsoft.Extensions.DependencyInjection;
 using iRoute.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace iRoute.Runtime;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddIRouteRuntime(
-        this IServiceCollection services,
-        WorkflowSchedulerOptions? schedulerOptions = null)
+    public static IServiceCollection AddIRouteRuntime(this IServiceCollection services)
     {
         services.AddScoped<ExecutionOrchestrator>();
         services.AddScoped<ProjectMemoryMaterializer>();
         services.AddSingleton<BoundedDependencyScheduler>();
-        services.AddSingleton(schedulerOptions ?? new WorkflowSchedulerOptions());
+        services.AddSingleton<IValidateOptions<WorkflowSchedulerOptions>, WorkflowSchedulerOptionsValidator>();
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<WorkflowSchedulerOptions>>().Value);
         services.AddSingleton<IExecutionPlanValidator, ExecutionPlanValidator>();
         services.AddSingleton<IEscalationPolicy, MeasuredEscalationPolicy>();
         services.AddSingleton<ICapabilityMatcher, MeasuredCapabilityMatcher>();

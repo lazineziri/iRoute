@@ -19,6 +19,11 @@ additional public-contract promises in `docs/compatibility.md`.
   concerns; former catch-all runtime and infrastructure services were split.
 - CI and release publication now restore, build, pack, and analyze only .NET
   projects; NuGet is the only supported language-package registry.
+- Runtime time and delay handling now uses the BCL `TimeProvider`; host settings
+  use startup-validated options; known SDK, API, and gateway JSON boundaries use
+  source-generated metadata; and immutable registries use frozen collections.
+- Central build policy now enforces recommended .NET analyzers, code-style
+  analysis, warnings as errors, and repository-wide formatting conventions.
 
 ### Removed
 

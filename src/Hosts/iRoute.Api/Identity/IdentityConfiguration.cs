@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace iRoute.Api;
 
-public sealed record IRouteIdentityOptions
+internal sealed record IRouteIdentityOptions
 {
     public const string SectionName = "Identity";
     public const string DevelopmentHeadersMode = "DevelopmentHeaders";
@@ -39,29 +39,20 @@ internal static class IdentityConfiguration
         var options = configuration
             .GetSection(IRouteIdentityOptions.SectionName)
             .Get<IRouteIdentityOptions>() ?? new();
-        if (!string.Equals(options.Mode, IRouteIdentityOptions.DevelopmentHeadersMode, StringComparison.OrdinalIgnoreCase) &&
-            !options.UsesJwt)
+        var validator = new IRouteIdentityOptionsValidator(environmentName);
+        var validation = validator.Validate(Options.DefaultName, options);
+        if (validation.Failed)
         {
-            throw new InvalidOperationException(
-                $"Unsupported Identity:Mode '{options.Mode}'. Use DevelopmentHeaders or Jwt.");
+            throw new OptionsValidationException(
+                Options.DefaultName,
+                typeof(IRouteIdentityOptions),
+                validation.Failures);
         }
 
-        if (string.Equals(options.Mode, IRouteIdentityOptions.DevelopmentHeadersMode, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(environmentName, Environments.Development, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "Identity:Mode=DevelopmentHeaders is permitted only when the host environment is Development. " +
-                "Configure Identity:Mode=Jwt outside Development.");
-        }
-
-        if (options.UsesJwt &&
-            (string.IsNullOrWhiteSpace(options.Authority) || string.IsNullOrWhiteSpace(options.Audience)))
-        {
-            throw new InvalidOperationException(
-                "Identity:Authority and Identity:Audience are required when Identity:Mode is Jwt.");
-        }
-
-        services.Configure<IRouteIdentityOptions>(configuration.GetSection(IRouteIdentityOptions.SectionName));
+        services.AddSingleton<IValidateOptions<IRouteIdentityOptions>>(validator);
+        services.AddOptions<IRouteIdentityOptions>()
+            .Bind(configuration.GetSection(IRouteIdentityOptions.SectionName))
+            .ValidateOnStart();
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(jwt =>
             {
@@ -82,6 +73,40 @@ internal static class IdentityConfiguration
     private static bool HasNonEmptyClaim(ClaimsPrincipal principal, string claimType) =>
         principal.Claims.Any(claim =>
             claim.Type == claimType && !string.IsNullOrWhiteSpace(claim.Value));
+}
+
+internal sealed class IRouteIdentityOptionsValidator(string environmentName)
+    : IValidateOptions<IRouteIdentityOptions>
+{
+    public ValidateOptionsResult Validate(string? name, IRouteIdentityOptions options)
+    {
+        if (!string.Equals(
+                options.Mode,
+                IRouteIdentityOptions.DevelopmentHeadersMode,
+                StringComparison.OrdinalIgnoreCase) &&
+            !options.UsesJwt)
+        {
+            return ValidateOptionsResult.Fail(
+                $"Unsupported Identity:Mode '{options.Mode}'. Use DevelopmentHeaders or Jwt.");
+        }
+
+        if (string.Equals(
+                options.Mode,
+                IRouteIdentityOptions.DevelopmentHeadersMode,
+                StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(environmentName, Environments.Development, StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidateOptionsResult.Fail(
+                "Identity:Mode=DevelopmentHeaders is permitted only when the host environment is Development. " +
+                "Configure Identity:Mode=Jwt outside Development.");
+        }
+
+        return options.UsesJwt &&
+            (string.IsNullOrWhiteSpace(options.Authority) || string.IsNullOrWhiteSpace(options.Audience))
+                ? ValidateOptionsResult.Fail(
+                    "Identity:Authority and Identity:Audience are required when Identity:Mode is Jwt.")
+                : ValidateOptionsResult.Success;
+    }
 }
 
 internal static class RequestIdentity

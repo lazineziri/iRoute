@@ -45,5 +45,11 @@ runtime topology and ownership rules.
   resilience, capabilities, and observability do not share catch-all files.
 - A file may contain several small types when they form one cohesive contract;
   unrelated services must be split by responsibility.
+- Prefer BCL and hosting primitives: `TimeProvider`, validated options,
+  System.Text.Json source generation, frozen immutable lookups,
+  `BackgroundService`, `HttpClientFactory`, generated logging, health checks,
+  and OpenTelemetry.
+- Do not add transport-level retries around the gateway resilience layer. Model
+  attempts, costs, and deadlines are product policy and must remain explicit.
 - Keep the established assembly namespaces and public package identities stable.
   Folder names communicate ownership without breaking consumers.

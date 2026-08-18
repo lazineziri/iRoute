@@ -7,7 +7,7 @@ namespace iRoute.Runtime;
 public sealed class ExactResultResolver(
     IArtifactStore artifacts,
     IInputFingerprint fingerprint,
-    IClock clock) : INoModelResolver
+    TimeProvider clock) : INoModelResolver
 {
     public string Name => "exact-cache";
     public int Order => 0;
@@ -31,7 +31,7 @@ public sealed class ExactResultResolver(
                 definition.Version,
                 fingerprint.Create(request, definition.Version),
                 logicalKey,
-                clock.UtcNow),
+                clock.GetUtcNow()),
             cancellationToken);
         if (artifact is null)
         {
@@ -63,7 +63,7 @@ public sealed class ExactResultResolver(
 
 public sealed class FactDecisionResolver(
     IMemoryStore memories,
-    IClock clock) : INoModelResolver
+    TimeProvider clock) : INoModelResolver
 {
     public string Name => "fact-decision";
     public int Order => 10;
@@ -122,7 +122,7 @@ public sealed class FactDecisionResolver(
                 request.ProjectId,
                 kind.Value,
                 key.Trim(),
-                clock.UtcNow),
+                clock.GetUtcNow()),
             cancellationToken);
         if (memory is null)
         {
@@ -169,7 +169,7 @@ public sealed class FactDecisionResolver(
 
 public sealed class ArtifactLookupResolver(
     IArtifactStore artifacts,
-    IClock clock) : INoModelResolver
+    TimeProvider clock) : INoModelResolver
 {
     public string Name => "artifact-lookup";
     public int Order => 20;
@@ -195,7 +195,7 @@ public sealed class ArtifactLookupResolver(
                 RequestScope.Tenant(request),
                 artifactId,
                 cancellationToken);
-            if (!ResolutionChecks.IsEligibleArtifact(artifact, request, definition, clock.UtcNow))
+            if (!ResolutionChecks.IsEligibleArtifact(artifact, request, definition, clock.GetUtcNow()))
             {
                 artifact = null;
             }
@@ -210,7 +210,7 @@ public sealed class ArtifactLookupResolver(
                     definition.Version,
                     definition.ArtifactType,
                     logicalKey.Trim(),
-                    clock.UtcNow),
+                    clock.GetUtcNow()),
                 cancellationToken);
         }
         else
@@ -253,7 +253,7 @@ public sealed class ArtifactLookupResolver(
 
 public sealed class DeterministicHandlerResolver(
     IEnumerable<IDeterministicTaskHandler> handlers,
-    IClock clock) : INoModelResolver
+    TimeProvider clock) : INoModelResolver
 {
     public string Name => "deterministic-handler";
     public int Order => 30;
@@ -297,7 +297,7 @@ public sealed class DeterministicHandlerResolver(
                 "The matching deterministic handler evaluated the input.");
         }
 
-        if (result.ExpiresAt is { } expiresAt && expiresAt <= clock.UtcNow)
+        if (result.ExpiresAt is { } expiresAt && expiresAt <= clock.GetUtcNow())
         {
             return ResolutionChecks.Rejected(
                 ResolutionDecisionCodes.HandlerStale,
@@ -313,7 +313,7 @@ public sealed class DeterministicHandlerResolver(
                 "deterministic-handler",
                 handler.Name,
                 CanonicalJson.Hash(result.Output),
-                clock.UtcNow))
+                clock.GetUtcNow()))
             .DistinctBy(item => (item.Kind, item.Reference))
             .ToArray();
         return ResolutionChecks.Accepted(

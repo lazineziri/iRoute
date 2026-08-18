@@ -2,10 +2,10 @@ using iRoute.Core;
 
 namespace iRoute.Worker;
 
-public sealed partial class LifecycleWorker(
+internal sealed partial class LifecycleWorker(
     ILifecycleStore lifecycle,
     LifecyclePolicy policy,
-    IClock clock,
+    TimeProvider clock,
     ILogger<LifecycleWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -13,7 +13,7 @@ public sealed partial class LifecycleWorker(
         policy.EnsureValid();
         while (!stoppingToken.IsCancellationRequested)
         {
-            var startedAt = clock.UtcNow;
+            var startedAt = clock.GetUtcNow();
             LogLifecycleSweepStarted(logger, startedAt);
             try
             {
@@ -39,7 +39,7 @@ public sealed partial class LifecycleWorker(
                 LogLifecycleSweepFailed(logger, exception);
             }
 
-            await Task.Delay(policy.SweepInterval, stoppingToken);
+            await Task.Delay(policy.SweepInterval, clock, stoppingToken);
         }
     }
 

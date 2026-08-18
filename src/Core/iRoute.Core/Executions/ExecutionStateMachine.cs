@@ -1,10 +1,11 @@
+using System.Collections.Frozen;
 using iRoute.Contracts;
 
 namespace iRoute.Core;
 
 public static class ExecutionStateMachine
 {
-    private static readonly Dictionary<ExecutionStatus, ExecutionStatus[]> Allowed =
+    private static readonly FrozenDictionary<ExecutionStatus, ExecutionStatus[]> Allowed =
         new Dictionary<ExecutionStatus, ExecutionStatus[]>
         {
             [ExecutionStatus.Accepted] = [ExecutionStatus.Resolving, ExecutionStatus.Failed, ExecutionStatus.Cancelled, ExecutionStatus.TimedOut],
@@ -20,13 +21,15 @@ public static class ExecutionStateMachine
             [ExecutionStatus.Failed] = [],
             [ExecutionStatus.Cancelled] = [],
             [ExecutionStatus.TimedOut] = []
-        };
+        }.ToFrozenDictionary();
 
     /// <summary>
     /// Statuses from which no further transition is allowed.
     /// </summary>
-    public static readonly ExecutionStatus[] TerminalStatuses =
-        [.. Allowed.Where(entry => entry.Value.Length == 0).Select(entry => entry.Key)];
+    public static FrozenSet<ExecutionStatus> TerminalStatuses { get; } =
+        Allowed.Where(entry => entry.Value.Length == 0)
+            .Select(entry => entry.Key)
+            .ToFrozenSet();
 
     public static bool IsTerminal(ExecutionStatus status) =>
         Allowed.TryGetValue(status, out var targets) && targets.Length == 0;

@@ -76,31 +76,31 @@ internal static class Cli
         switch (arguments.Command)
         {
             case "execute":
-            {
-                var requestPath = arguments.Option("--request");
-                TaskRequest request;
-                if (requestPath is not null)
                 {
-                    request = ParseRequest(ReadValue(requestPath));
-                    if (arguments.Option("--idempotency-key") is { } idempotencyKey)
+                    var requestPath = arguments.Option("--request");
+                    TaskRequest request;
+                    if (requestPath is not null)
                     {
-                        request = request with { IdempotencyKey = idempotencyKey };
+                        request = ParseRequest(ReadValue(requestPath));
+                        if (arguments.Option("--idempotency-key") is { } idempotencyKey)
+                        {
+                            request = request with { IdempotencyKey = idempotencyKey };
+                        }
                     }
+                    else
+                    {
+                        var taskType = arguments.Positional(0, "execute requires a task type or --request.");
+                        using var inputDocument = ParseInput(ReadValue(arguments.RequireOption("--input")));
+                        var input = inputDocument.RootElement.Clone();
+                        request = new TaskRequest(
+                            taskType,
+                            input,
+                            ProjectId: arguments.Option("--project"),
+                            IdempotencyKey: arguments.Option("--idempotency-key"));
+                    }
+                    Write(await client.ExecuteAsync(request));
+                    return 0;
                 }
-                else
-                {
-                    var taskType = arguments.Positional(0, "execute requires a task type or --request.");
-                    using var inputDocument = ParseInput(ReadValue(arguments.RequireOption("--input")));
-                    var input = inputDocument.RootElement.Clone();
-                    request = new TaskRequest(
-                        taskType,
-                        input,
-                        ProjectId: arguments.Option("--project"),
-                        IdempotencyKey: arguments.Option("--idempotency-key"));
-                }
-                Write(await client.ExecuteAsync(request));
-                return 0;
-            }
             case "get":
                 Write(await client.GetAsync(ParseId(arguments.Positional(0, "get requires an execution ID."))));
                 return 0;

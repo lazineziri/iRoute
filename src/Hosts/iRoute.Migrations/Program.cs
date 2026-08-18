@@ -1,6 +1,5 @@
 using System.Text.Json;
 using iRoute.Infrastructure;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

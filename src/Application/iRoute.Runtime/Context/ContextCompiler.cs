@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using iRoute.Contracts;
@@ -8,7 +9,7 @@ namespace iRoute.Runtime;
 public sealed partial class BoundedContextCompiler(
     IMemoryStore memories,
     IArtifactStore artifacts,
-    IClock clock) : IContextCompiler
+    TimeProvider clock) : IContextCompiler
 {
     private const int MaximumHistoryItems = 3;
     private const int MaximumArtifactSections = 4;
@@ -24,7 +25,7 @@ public sealed partial class BoundedContextCompiler(
     private const int SummaryRank = 350;
     private const int HistoryRank = 300;
     private const int StoredHistoryRank = 250;
-    private static readonly HashSet<string> ContextSourceProperties = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> ContextSourceProperties = new[]
     {
         "activeDecisions",
         "decisions",
@@ -36,7 +37,7 @@ public sealed partial class BoundedContextCompiler(
         "summaries",
         "projectHistory",
         "contextArtifacts"
-    };
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     public async Task<CompiledContext> CompileAsync(
         TaskRequest request,
@@ -64,7 +65,7 @@ public sealed partial class BoundedContextCompiler(
         if (!string.IsNullOrWhiteSpace(request.ProjectId))
         {
             var activeMemory = await memories.ListActiveAsync(
-                new ActiveMemoryQuery(RequestScope.Tenant(request), request.ProjectId, clock.UtcNow),
+                new ActiveMemoryQuery(RequestScope.Tenant(request), request.ProjectId, clock.GetUtcNow()),
                 cancellationToken);
             candidates.AddRange(activeMemory.Select(CreateMemoryCandidate));
         }
@@ -396,7 +397,7 @@ public sealed partial class BoundedContextCompiler(
         string.Equals(artifact.ProjectId ?? string.Empty, projectId ?? string.Empty, StringComparison.Ordinal) &&
         artifact.IsActive &&
         artifact.LifecycleStatus == ArtifactLifecycleStatus.Active &&
-        (artifact.ExpiresAt is null || artifact.ExpiresAt > clock.UtcNow);
+        (artifact.ExpiresAt is null || artifact.ExpiresAt > clock.GetUtcNow());
 
     private static IEnumerable<(string? Name, JsonElement Value)> SelectArtifactSections(
         ArtifactRecord artifact,
@@ -549,7 +550,7 @@ public sealed partial class BoundedContextCompiler(
         }
 
         var expiresAt = ReadDateTimeOffset(value, "expiresAt");
-        return expiresAt is not null && expiresAt <= clock.UtcNow
+        return expiresAt is not null && expiresAt <= clock.GetUtcNow()
             ? "Excluded because the source is expired."
             : null;
     }
