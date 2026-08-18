@@ -1,6 +1,6 @@
 {
   "name": "@iroute-dev/sdk",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "private": false,
   "description": "Thin Node.js client for the iRoute task-aware runtime",
   "homepage": "https://iroute.dev/docs/sdk/node",
@@ -32,7 +32,7 @@
     "provenance": true
   },
   "devDependencies": {
-    "@types/node": "26.1.2",
+    "@types/node": "26.2.0",
     "typescript": "7.0.2"
   }
 }

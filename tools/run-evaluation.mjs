@@ -45,7 +45,7 @@ for (const fixture of cases) {
       if (first.outcome?.usage?.modelCalls > 0) {
         const routing = first.outcome?.routing;
         if (!routing) throw new Error('generated outcome omitted routing decision');
-        assertEqual(routing.policyVersion, 'routing.w08.v1', 'routing policy version');
+        assertEqual(routing.policyVersion, 'routing.w18.v1', 'routing policy version');
         assertEqual(routing.path, 'Direct', 'routing path');
         assertEqual(routing.plannerInvoked, false, 'direct planner invocation');
         assertEqual(routing.planningCalls, 0, 'direct planning calls');
@@ -219,7 +219,7 @@ try {
   const decision = events.find(item => item.type === 'routing.decided');
   const escalation = events.find(item => item.type === 'routing.escalated');
   if (!decision || !escalation) throw new Error('W08 routing audit events were incomplete');
-  assertEqual(decision.data?.policyVersion, 'routing.w08.v1', 'W08 event policy version');
+  assertEqual(decision.data?.policyVersion, 'routing.w18.v1', 'W08 event policy version');
   assertEqual(decision.data?.selectedProfileId, routing.selectedProfileId, 'W08 event profile');
   assertEqual(escalation.data?.escalated, true, 'W08 event escalation');
   console.log('PASS w08-routing-and-escalation');

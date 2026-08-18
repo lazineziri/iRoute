@@ -123,7 +123,16 @@ public sealed record RoutingCandidateEvaluation(
     decimal Uncertainty,
     decimal Reliability,
     decimal Availability,
-    decimal Score);
+    decimal Score,
+    ModelProfileSource? MeasurementSource = null,
+    ModelProfileMeasurement? Measurement = null);
+
+public sealed record ModelProfileMeasurement(
+    string Provider,
+    string Model,
+    DateTimeOffset MeasuredAt,
+    int SampleCount,
+    bool QualityIsDeclaredNotMeasured = true);
 
 public sealed record ModelGatewayRequest(
     string Capability,
@@ -442,6 +451,14 @@ public enum ModelTier
     Small,
     Strong,
     Verifier
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ModelProfileSource>))]
+public enum ModelProfileSource
+{
+    Synthetic,
+    Unverified,
+    Measured
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ModelGatewayTransport>))]

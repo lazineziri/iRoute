@@ -44,6 +44,27 @@ test('every published contract example validates', async () => {
   }
 });
 
+test('model-profile provenance combinations fail closed', async () => {
+  const validate = ajv.getSchema('https://schemas.iroute.dev/v1/model-profile.schema.json');
+  assert.ok(validate);
+  const profile = JSON.parse(await readFile(
+    resolve(repositoryRoot, 'spec/examples/v1/model-profile.text-generation-small.json'),
+    'utf8'
+  ));
+
+  assert.equal(validate({ ...profile, measurementSource: 'Measured' }), false);
+  assert.equal(validate({
+    ...profile,
+    measurement: {
+      provider: 'placeholder',
+      model: 'placeholder',
+      measuredAt: '2026-08-18T09:30:00Z',
+      sampleCount: 1,
+      qualityIsDeclaredNotMeasured: true
+    }
+  }), false);
+});
+
 test('every evaluation fixture validates', async () => {
   const validate = ajv.getSchema('https://schemas.iroute.dev/v1/evaluation-fixture.schema.json');
   assert.ok(validate);

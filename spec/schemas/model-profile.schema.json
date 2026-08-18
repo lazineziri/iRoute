@@ -39,6 +39,35 @@
     "maxInputTokens": { "type": "integer", "minimum": 1 },
     "maxOutputTokens": { "type": "integer", "minimum": 1 },
     "healthy": { "type": "boolean" },
-    "measurementSource": { "type": "string", "minLength": 1, "maxLength": 200 }
-  }
+    "measurementSource": { "enum": ["Synthetic", "Unverified", "Measured"] },
+    "measurement": {
+      "oneOf": [
+        { "$ref": "model-profile-measurement.schema.json" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "measurementSource": { "const": "Measured" } },
+        "required": ["measurementSource"]
+      },
+      "then": {
+        "required": ["measurement"],
+        "properties": {
+          "measurement": { "$ref": "model-profile-measurement.schema.json" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "measurementSource": { "enum": ["Synthetic", "Unverified"] } },
+        "required": ["measurementSource"]
+      },
+      "then": {
+        "properties": { "measurement": { "type": "null" } }
+      }
+    }
+  ]
 }

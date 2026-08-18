@@ -28,15 +28,16 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
                 $"Capability '{deniedStep.Capability}' is not allow-listed for task '{definition.TaskType}'.");
         }
 
-        var step = plan.Steps[0];
-        if (step.SideEffectClass != definition.SideEffectClass)
+        var step = SelectPolicyStep(plan);
+        var effectiveSideEffect = plan.Steps.Max(item => item.SideEffectClass);
+        if (effectiveSideEffect > definition.SideEffectClass)
         {
             return Denied(
                 step.Capability,
-                step.SideEffectClass,
+                effectiveSideEffect,
                 definition.EffectivePermissionScopes,
                 ErrorCodes.CapabilityNotAllowed,
-                "The plan side-effect class does not match the trusted task definition.");
+                "The plan side-effect class exceeds the trusted task definition.");
         }
 
         var grantedScopes = (request.PermissionScopes ?? [])
@@ -54,19 +55,19 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
                 CurrentPolicyVersion,
                 PolicyDecisionKind.Denied,
                 step.Capability,
-                step.SideEffectClass,
+                effectiveSideEffect,
                 requiredScopes,
                 missingScopes,
                 ErrorCodes.PermissionScopeDenied,
                 "The authenticated actor does not have every permission scope required by the task.");
         }
 
-        var writesExternally = step.SideEffectClass >= SideEffectClass.ReversibleWrite;
+        var writesExternally = effectiveSideEffect >= SideEffectClass.ReversibleWrite;
         if (writesExternally && request.Constraints?.AllowExternalWrites is not true)
         {
             return Denied(
                 step.Capability,
-                step.SideEffectClass,
+                effectiveSideEffect,
                 requiredScopes,
                 ErrorCodes.ExternalWriteNotAllowed,
                 "The request did not explicitly allow external writes.");
@@ -76,17 +77,17 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
         {
             return Denied(
                 step.Capability,
-                step.SideEffectClass,
+                effectiveSideEffect,
                 requiredScopes,
                 ErrorCodes.ExternalActionIdempotencyRequired,
                 "External writes require a tenant-scoped idempotency key.");
         }
 
         var requiresApproval = definition.ApprovalRequired ||
-            step.SideEffectClass == SideEffectClass.IrreversibleWrite;
+            effectiveSideEffect == SideEffectClass.IrreversibleWrite;
         if (!requiresApproval)
         {
-            return Allowed(step.Capability, step.SideEffectClass, requiredScopes);
+            return Allowed(step.Capability, effectiveSideEffect, requiredScopes);
         }
 
         if (approval is null || approval.Status == ApprovalStatus.Pending)
@@ -95,20 +96,26 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
                 CurrentPolicyVersion,
                 PolicyDecisionKind.ApprovalRequired,
                 step.Capability,
-                step.SideEffectClass,
+                effectiveSideEffect,
                 requiredScopes,
                 [],
                 Reason: "The trusted task policy requires explicit approval before this action executes.");
         }
 
         return approval.Status == ApprovalStatus.Approved
-            ? Allowed(step.Capability, step.SideEffectClass, requiredScopes)
+            ? Allowed(step.Capability, effectiveSideEffect, requiredScopes)
             : Denied(
                 step.Capability,
-                step.SideEffectClass,
+                effectiveSideEffect,
                 requiredScopes,
                 ErrorCodes.ApprovalDenied,
                 "The proposed external action was denied.");
+    }
+
+    private static ExecutionPlanStep SelectPolicyStep(ExecutionPlan plan)
+    {
+        var effectiveSideEffect = plan.Steps.Max(step => step.SideEffectClass);
+        return plan.Steps.Last(step => step.SideEffectClass == effectiveSideEffect);
     }
 
     public PolicyEvaluation EvaluateApproval(

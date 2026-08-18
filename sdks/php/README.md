@@ -9,7 +9,7 @@ server-side.
 
 ## Status and requirements
 
-- SDK version: `0.1.0-alpha.2`
+- SDK version: `0.1.0-alpha.3`
 - Minimum PHP: `8.3`
 - Verified baseline: PHP `8.5`
 - Required extension: `ext-curl`
@@ -31,7 +31,7 @@ options.
 ## Install from Packagist
 
 ```bash
-composer require iroute/sdk:0.1.0-alpha.2
+composer require iroute/sdk:0.1.0-alpha.3
 ```
 
 ## Install from source

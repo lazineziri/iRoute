@@ -52,6 +52,8 @@ public sealed class RoutingAndPlanningTests
         Assert.Equal(0.84m, small.ExpectedQuality);
         Assert.Equal(0.004m, small.ExpectedCost);
         Assert.Equal(900, small.ExpectedLatencyMilliseconds);
+        Assert.Equal(ModelProfileSource.Synthetic, small.MeasurementSource);
+        Assert.Null(small.Measurement);
     }
 
     [Fact]
@@ -97,7 +99,7 @@ public sealed class RoutingAndPlanningTests
     }
 
     [Fact]
-    public async Task ModelProfileRegistryIsMeasuredAndCheapestFirst()
+    public async Task ModelProfileRegistryHasExplicitSyntheticProvenanceAndIsCheapestFirst()
     {
         var profiles = await new BuiltInModelProfileRegistry().ListAsync(
             "text.generation",
@@ -108,11 +110,57 @@ public sealed class RoutingAndPlanningTests
         Assert.True(profiles[0].EstimatedCost < profiles[1].EstimatedCost);
         Assert.All(profiles, item =>
         {
-            Assert.Equal("evaluation", item.MeasurementSource);
+            Assert.Equal(ModelProfileSource.Synthetic, item.MeasurementSource);
+            Assert.Null(item.Measurement);
             Assert.InRange(item.ExpectedQuality, 0m, 1m);
             Assert.InRange(item.Reliability, 0m, 1m);
             Assert.InRange(item.Availability, 0m, 1m);
         });
+    }
+
+    [Fact]
+    public async Task MeasuredProfilePreservesMeasurementRecordInRoutingDecision()
+    {
+        var measurement = new ModelProfileMeasurement(
+            "azure-openai",
+            "gpt-5.4",
+            new DateTimeOffset(2026, 8, 18, 9, 30, 0, TimeSpan.Zero),
+            20,
+            QualityIsDeclaredNotMeasured: true);
+        var profile = ProfileWithProvenance(ModelProfileSource.Measured, measurement);
+        var selector = new DirectPathSelector(
+            new MeasuredCapabilityMatcher(new SingleModelProfileRegistry(profile)),
+            new MeasuredEscalationPolicy());
+
+        var result = Assert.IsType<RoutingResult>(await selector.TrySelectAsync(
+            EmailRequest(0.8m),
+            EmailDefinition(),
+            TestContext.Current.CancellationToken));
+
+        var candidate = Assert.Single(result.Decision.Candidates);
+        Assert.True(candidate.Eligible);
+        Assert.Equal("eligible measured model profile", candidate.Reason);
+        Assert.Equal(ModelProfileSource.Measured, candidate.MeasurementSource);
+        Assert.Equal(measurement, candidate.Measurement);
+    }
+
+    [Fact]
+    public async Task MeasuredProfileWithoutMeasurementRecordIsIneligible()
+    {
+        var matcher = new MeasuredCapabilityMatcher(new SingleModelProfileRegistry(
+            ProfileWithProvenance(ModelProfileSource.Measured)));
+
+        var match = await matcher.MatchAsync(
+            EmailRequest(0.8m),
+            EmailDefinition(),
+            "text.generation",
+            TestContext.Current.CancellationToken);
+
+        var candidate = Assert.Single(match.Candidates);
+        Assert.False(candidate.Eligible);
+        Assert.Contains("missing measurement metadata", candidate.Reason);
+        Assert.Equal(ModelProfileSource.Measured, candidate.MeasurementSource);
+        Assert.Null(candidate.Measurement);
     }
 
     private static TaskRequest EmailRequest(decimal qualityFloor) => new(
@@ -130,6 +178,24 @@ public sealed class RoutingAndPlanningTests
         SideEffectClass.None,
         "email.draft",
         AllowedCapabilities: ["text.generation"]);
+
+    private static ModelProfile ProfileWithProvenance(
+        ModelProfileSource source,
+        ModelProfileMeasurement? measurement = null) => new(
+        "text.generation.provenance-test-v1",
+        "text.generation",
+        ModelTier.Small,
+        ["email.draft"],
+        0.84m,
+        0.004m,
+        900,
+        0.06m,
+        0.98m,
+        0.99m,
+        8_000,
+        1_500,
+        MeasurementSource: source,
+        Measurement: measurement);
 
     private static TaskRequest CompositeRequest(int maxDepth) => new(
         "composite.answer",
@@ -193,6 +259,23 @@ public sealed class RoutingAndPlanningTests
                     0.99m,
                     8_000,
                     1_000)]
+                : [];
+            return Task.FromResult(profiles);
+        }
+    }
+
+    private sealed class SingleModelProfileRegistry(ModelProfile profile) : IModelProfileRegistry
+    {
+        public Task<IReadOnlyList<ModelProfile>> ListAsync(
+            string capability,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<ModelProfile> profiles = string.Equals(
+                capability,
+                profile.Capability,
+                StringComparison.Ordinal)
+                ? [profile]
                 : [];
             return Task.FromResult(profiles);
         }

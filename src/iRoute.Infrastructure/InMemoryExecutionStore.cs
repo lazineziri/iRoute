@@ -79,6 +79,28 @@ public sealed class InMemoryExecutionStore : IExecutionStore
         return Task.CompletedTask;
     }
 
+    public Task<ExecutionSnapshot?> TryTransitionAsync(
+        Guid executionId,
+        ExecutionStatus expectedStatus,
+        ExecutionStatus targetStatus,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_statusGate)
+        {
+            if (!_executions.TryGetValue(executionId, out var current) ||
+                current.Status != expectedStatus)
+            {
+                return Task.FromResult<ExecutionSnapshot?>(null);
+            }
+
+            var updated = current with { Status = targetStatus, UpdatedAt = updatedAt };
+            _executions[executionId] = updated;
+            return Task.FromResult<ExecutionSnapshot?>(updated);
+        }
+    }
+
     public Task<bool> TryRequestCancellationAsync(
         Guid executionId,
         DateTimeOffset requestedAt,

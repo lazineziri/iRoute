@@ -89,6 +89,19 @@ public interface IExecutionStore
     Task UpdateAsync(ExecutionSnapshot execution, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Atomically transitions an execution only when its persisted status still matches
+    /// <paramref name="expectedStatus"/>. This is the durable claim used by resumable inline
+    /// workflows, where more than one caller may replay the same command concurrently.
+    /// </summary>
+    /// <returns>The updated snapshot, or <see langword="null"/> when the status no longer matches.</returns>
+    Task<ExecutionSnapshot?> TryTransitionAsync(
+        Guid executionId,
+        ExecutionStatus expectedStatus,
+        ExecutionStatus targetStatus,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Records a cancellation request without touching any other column.
     /// </summary>
     /// <returns>
@@ -661,7 +674,8 @@ public sealed record ModelProfile(
     int MaxInputTokens,
     int MaxOutputTokens,
     bool Healthy = true,
-    string MeasurementSource = "evaluation");
+    ModelProfileSource MeasurementSource = ModelProfileSource.Synthetic,
+    ModelProfileMeasurement? Measurement = null);
 
 public sealed record CapabilityCandidate(
     string Capability,
@@ -677,7 +691,9 @@ public sealed record CapabilityCandidate(
     decimal Uncertainty,
     decimal Reliability,
     decimal Availability,
-    decimal Score)
+    decimal Score,
+    ModelProfileSource? MeasurementSource = null,
+    ModelProfileMeasurement? Measurement = null)
 {
     public RoutingCandidateEvaluation ToContract() => new(
         Capability,
@@ -691,7 +707,9 @@ public sealed record CapabilityCandidate(
         Uncertainty,
         Reliability,
         Availability,
-        Score);
+        Score,
+        MeasurementSource,
+        Measurement);
 }
 
 public sealed record CapabilityMatchResult(

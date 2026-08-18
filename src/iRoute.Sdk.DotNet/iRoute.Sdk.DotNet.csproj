@@ -3,10 +3,10 @@
     <AssemblyName>iRoute.Sdk.DotNet</AssemblyName>
     <RootNamespace>iRoute.Sdk.DotNet</RootNamespace>
     <PackageId>iRoute.Sdk</PackageId>
-    <Version>0.1.0-alpha.2</Version>
+    <Version>0.1.0-alpha.3</Version>
     <Description>Thin .NET client for the iRoute task-aware runtime.</Description>
     <PackageTags>ai;llm;router;sdk;task-aware</PackageTags>
-    <PackageReleaseNotes>First alpha release of the v1 protocol client.</PackageReleaseNotes>
+    <PackageReleaseNotes>Adds typed model-profile provenance fields to the v1 protocol client.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
