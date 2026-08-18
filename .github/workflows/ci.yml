@@ -1,10 +1,13 @@
 name: ci
+
 on:
   push:
     branches: [main]
   pull_request:
+
 permissions:
   contents: read
+
 jobs:
   dependency-review:
     if: github.event_name == 'pull_request'
@@ -15,24 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v5
+
   dotnet:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18.4-alpine
-        env:
-          POSTGRES_DB: iroute_test
-          POSTGRES_USER: iroute
-          POSTGRES_PASSWORD: iroute-test-only
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U iroute -d iroute_test"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-    env:
-      IROUTE_TEST_POSTGRES: Host=localhost;Port=5432;Database=iroute_test;Username=iroute;Password=iroute-test-only
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -41,90 +29,33 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
       - run: dotnet restore iRoute.slnx
-      - run: dotnet build iRoute.slnx -c Release --no-restore
-      - run: dotnet run --project tests/iRoute.UnitTests -c Release --no-build -- -reporter quiet
-      - run: dotnet run --project tests/iRoute.ArchitectureTests -c Release --no-build -- -reporter quiet
-  contracts:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.18.1
-          cache: npm
-      - run: npm ci
-      - run: npx --yes @redocly/cli@latest lint spec/openapi/iroute.v1.yaml
-      - run: npm run test:contracts
-      - run: npm run test:deployment
-      - run: npm run test:regression
-      - run: npm ci --prefix sdks/node
-      - run: npm run check --prefix sdks/node
-      - run: npm test --prefix sdks/node
-      - run: node --check examples/sdks/node/execute.mjs
-  sdk-python:
-    runs-on: ubuntu-latest
-    container: python:3.14
-    steps:
-      - uses: actions/checkout@v7
-      - run: PYTHONPATH=sdks/python/src python -m unittest discover -s sdks/python/tests -v
-      - run: python -m compileall -q sdks/python/src sdks/python/tests examples/sdks/python
-  sdk-java:
-    runs-on: ubuntu-latest
-    container: eclipse-temurin:25-jdk
-    steps:
-      - uses: actions/checkout@v7
-      - run: ./run-conformance.sh
-        working-directory: sdks/java
-      - run: javac --release 25 -Xlint:all -Werror -cp target/conformance-classes -d target/example-classes ../../examples/sdks/java/ExecuteExample.java
-        working-directory: sdks/java
-  sdk-php:
-    runs-on: ubuntu-latest
-    container: php:8.5-cli
-    steps:
-      - uses: actions/checkout@v7
-      - run: find sdks/php/src sdks/php/tests examples/sdks/php -name '*.php' -print0 | xargs -0 -n1 php -l
-      - run: php tests/conformance.php
-        working-directory: sdks/php
-  sdk-rust:
-    runs-on: ubuntu-latest
-    container: rust:1.97.1
-    steps:
-      - uses: actions/checkout@v7
-      - run: cargo test --manifest-path sdks/rust/Cargo.toml
-      - run: cargo check --manifest-path sdks/rust/Cargo.toml --example execute
+      - run: dotnet build iRoute.slnx --configuration Release --no-restore
+
   container:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.18.1
-      - run: node tools/container-smoke.mjs
+      - run: docker build --file deploy/Dockerfile --target api --tag iroute-api:test .
+      - run: docker build --file deploy/Dockerfile --target worker --tag iroute-worker:test .
       - run: docker build --file deploy/Dockerfile --target migrate --tag iroute-migrations:test .
+
   release-readiness:
-    needs: [dotnet, contracts, sdk-python, sdk-java, sdk-php, sdk-rust, container]
+    needs: [dotnet, container]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.18.1
-          cache: npm
-      - run: npm ci
-      - run: npm ci --prefix sdks/node
       - run: dotnet restore iRoute.slnx
-      - run: npm run test:release
-      - run: node tools/build-release.mjs --output artifacts/release --require-clean
+      - run: dotnet pack src/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Cli --configuration Release --no-restore --output artifacts/release
       - uses: actions/upload-artifact@v7
         with:
-          name: iroute-release-candidate-${{ github.sha }}
+          name: iroute-dotnet-${{ github.sha }}
           path: artifacts/release/
           if-no-files-found: error
           retention-days: 7

@@ -1,0 +1,104 @@
+name: publish-nuget
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact release version without the v prefix
+        required: true
+        default: 0.1.0-alpha.3
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-nuget-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check out the signed release tag
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Refusing to publish a version that is not plain semver: ${VERSION}" >&2
+            exit 1
+          fi
+
+          tag="v${VERSION}"
+          if ! git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Refusing to publish: tag ${tag} does not exist." >&2
+            exit 1
+          fi
+          if [[ "$(git cat-file -t "${tag}")" != "tag" ]]; then
+            echo "Refusing to publish: ${tag} is lightweight, not annotated." >&2
+            exit 1
+          fi
+
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/$(git rev-parse "${tag}")" --jq '.verification.verified')"
+          if [[ "${verified}" != "true" ]]; then
+            echo "Refusing to publish: the signature on ${tag} is not verified by GitHub." >&2
+            exit 1
+          fi
+
+          git checkout -q --detach "refs/tags/${tag}"
+          declared="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' release.json)"
+          test "${declared}" = "${VERSION}"
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: Directory.Packages.props
+      - run: dotnet restore iRoute.slnx
+      - run: dotnet build iRoute.slnx --configuration Release --no-restore
+      - run: dotnet pack src/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dotnet-packages-${{ github.sha }}
+          path: artifacts/release/*.nupkg
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dotnet-packages-${{ github.sha }}
+          path: artifacts/release
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+      - name: Publish contracts before the SDK
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          for package in iRoute.Contracts iRoute.Sdk; do
+            dotnet nuget push "artifacts/release/${package}.${VERSION}.nupkg" \
+              --api-key "${NUGET_API_KEY}" \
+              --source https://api.nuget.org/v3/index.json
+          done

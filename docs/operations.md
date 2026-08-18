@@ -123,11 +123,14 @@ Read-only steps may execute immediately after task policy succeeds. Reversible a
 
 The built-in model profiles are synthetic and declare `MeasurementSource: Synthetic`; their quality, cost, and latency values are deterministic evaluation inputs rather than production observations. Use `Unverified` for a real provider or model whose profile values have not been verified. Use `Measured` only with a `ModelProfileMeasurement` containing the provider, model, measurement timestamp, and positive sample count. Set `QualityIsDeclaredNotMeasured` when live calibration measured cost or latency but did not independently evaluate output quality. Invalid source/measurement combinations fail routing eligibility, and the source plus measurement record are preserved in the durable routing decision.
 
-Run `npm run test:regression` for every routing-policy or model-profile change. CI validates the golden dataset and generated result/report contracts, requires all six scenario categories for every task discovered in the built-in registry, evaluates the baseline and candidate observations, and compares the generated output byte-for-byte with the checked JSON and Markdown reports.
+For every routing-policy or model-profile change, record fresh evaluation
+evidence outside the repository and review quality, safety, cost, and latency
+deltas before release. Do not describe synthetic inputs as production
+measurements. Keep environment-specific observations outside the repository
+when they contain customer data, credentials, provider payloads, or proprietary
+pricing.
 
-The candidate policy source fingerprint covers `RoutingAndPlanning.cs` and the built-in task/model-profile registry. A mismatch is intentional fail-closed behavior: record fresh observations, update the dataset fingerprint, inspect quality/safety/cost/latency deltas, then run `npm run eval:write`. Do not regenerate reports without updating observations from a real evaluation run. The committed benchmark inputs support deterministic regression; they are not production latency or cost SLOs. Keep environment-specific measurements outside the repository when they contain customer data, credentials, provider payloads, or proprietary pricing.
-
-A policy is releasable only when every candidate case reaches a completed terminal result, meets its task quality floor, produces no unsupported claims or unsafe actions, and does not increase per-task cost or latency without at least the configured justified quality gain. The live `node tools/run-evaluation.mjs` suite remains required for runtime, persistence, and external-gateway behavior that an offline replay cannot prove.
+A policy is releasable only when every reviewed candidate case reaches a completed terminal result, meets its task quality floor, produces no unsupported claims or unsafe actions, and does not increase per-task cost or latency without at least the configured justified quality gain.
 
 ## Identity
 

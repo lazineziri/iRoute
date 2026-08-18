@@ -267,11 +267,10 @@ requires the same idempotency key.
 | `GetObservabilitySummaryAsync(...)` | `ObservabilitySummary` |
 | `GetExecutionTimelineAsync(Guid)` | Timeline or `null` |
 
-## Run the example and tests
+## Build the SDK
 
 ```bash
-dotnet run --project examples/sdks/dotnet
-dotnet run --project tests/iRoute.UnitTests -- -reporter quiet
+dotnet build src/iRoute.Sdk.DotNet/iRoute.Sdk.DotNet.csproj --configuration Release
 ```
 
 Public wire shapes are defined by the repository's

@@ -154,22 +154,9 @@ flowchart LR
 
 The gateway layer is the single owner of model-deployment fallback. Workflow model steps therefore have one scheduler attempt; tool retries retain the W17 scheduler policy. Each attempt targets an operator-registered generic HTTP route and carries no provider-specific request fields. SQLite and PostgreSQL persist circuit state, while a fenced half-open probe lease ensures only one worker tests a recovering deployment. Candidate and attempt evidence becomes durable execution events and low-cardinality metrics. Adaptive routing and online learning are separate future policy layers.
 
-W10 makes routing changes measurable before they reach runtime:
-
-```mermaid
-flowchart LR
-    A["Built-in task registry"] --> B["Golden coverage audit"]
-    C["Normal and adversarial fixtures"] --> D["Task-specific evaluators"]
-    E["Recorded policy observations"] --> D
-    F["Cost and latency benchmarks"] --> G["Per-task metrics"]
-    D --> G
-    B --> H["Regression gate"]
-    G --> H
-    I["Routing source fingerprint"] --> H
-    H --> J["Checked JSON and Markdown report"]
-```
-
-The offline evaluator discovers the built-in task list independently from Infrastructure and requires a registered evaluator plus all six fixture categories for each task. It computes quality, evidence precision/coverage, unsupported-claim rate, external-action safety, tokens, calls, cost, and latency per completed task. Candidate policy sources are hashed into the dataset and checked report, so a routing or model-profile edit invalidates CI until fresh observations are recorded. The gate rejects quality below the task floor, safety failures, and cost or latency increases without a configured quality gain.
+Routing and model-profile changes require externally recorded evaluation evidence
+covering quality, safety, cost, latency, and unsupported claims before release.
+The repository intentionally contains no evaluation harness or fixture corpus.
 
 W11 gives every non-model transport one normalized execution boundary:
 
@@ -236,7 +223,7 @@ flowchart TD
     B --> C["Runtime"]
     C --> D["Infrastructure"]
     D --> E["API and Worker"]
-    A --> F["Native SDKs"]
+    A --> F[".NET SDK"]
     F --> G["CLI"]
 ```
 
@@ -252,7 +239,7 @@ Arrows mean “may be depended upon by.” Reverse references are forbidden.
 | Infrastructure | persistence, HTTP gateway, telemetry projection | product policy decisions |
 | API | HTTP/SSE, observability views, static dashboard, and composition | business logic |
 | Worker | durable jobs and lifecycle host | duplicate runtime rules |
-| SDKs | idiomatic clients | routing, prompts, memory logic |
+| .NET SDK | idiomatic client | routing, prompts, memory logic |
 | CLI | local/operator commands delegated to an SDK | duplicate HTTP, routing, or runtime logic |
 
 ## State transition
@@ -289,7 +276,7 @@ Every transition is persisted and emits an ordered event. Terminal states are im
 
 ## Persistence profiles
 
-There are two storage providers. `Postgres` is the deployment target and the only provider that supports more than one execution worker, because durable leases, event sequencing, and gateway circuit state are all coordinated through the database. `Sqlite` is the single-node development and evaluation profile; it serialises every write through one file and cannot coordinate workers across hosts, so the host logs a warning when it is used outside `Development`. Both providers store executions, work items and leases, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, external-action reservations, and per-deployment circuit state through the same ports. PostgreSQL tests cover concurrent work claims and half-open probe claims, fencing, lease expiry, takeover, workflow recovery, and cancellation; restart tests also cover approval-gated action resumption, routing-decision preservation, circuit reconstruction, project-state lifecycle parity, and two-phase archival/deletion.
+There are two storage providers. `Postgres` is the deployment target and the only provider that supports more than one execution worker, because durable leases, event sequencing, and gateway circuit state are all coordinated through the database. `Sqlite` is the single-node development and evaluation profile; it serialises every write through one file and cannot coordinate workers across hosts, so the host logs a warning when it is used outside `Development`. Both providers store executions, work items and leases, validated plans and routing decisions, per-step attempts and outputs, events, artifacts, memory records, dependency edges, lifecycle archives, approvals, external-action reservations, and per-deployment circuit state through the same ports. The persistence design includes guarded claims, lease fencing, expiry and takeover, workflow recovery, cancellation, approval resumption, routing-decision preservation, circuit reconstruction, project-state lifecycle parity, and two-phase archival/deletion.
 
 `Storage:AutoInitialize` applies checked-in EF migrations only in local profiles. Production API and worker processes disable it and depend on the one-shot migration image. Readiness fails while known migrations are pending. The initial migration contains provider-specific SQL so SQLite uses its native storage representation while PostgreSQL uses native UUID and boolean columns. Future changes must follow expand-and-contract migration rules.
 
@@ -318,13 +305,13 @@ The API has two explicit identity profiles. `DevelopmentHeaders` accepts local t
 - New model providers belong behind the generic gateway.
 - New gateway routes register provider identity only as operational metadata; provider SDKs and wire protocols never enter Core or Runtime.
 - New storage profiles implement state ports and must pass the same isolation and consistency suite.
-- New SDKs are derived from the versioned OpenAPI contract and wrapped idiomatically.
+- The .NET SDK is derived from the versioned public contract and wrapped idiomatically.
 - New adaptive policies require offline evaluation and rollback.
 
 ## Adopter and contributor entry points
 
 The public adoption boundary is the v1 OpenAPI/JSON Schema surface, official
-SDKs, CLI, documented configuration, health endpoints, and release artifacts.
+the .NET SDK, CLI, documented configuration, health endpoints, and release artifacts.
 An adopter does not need Core, Runtime, Infrastructure, or provider internals to
 execute and observe a task. The clean path is:
 
@@ -340,7 +327,7 @@ flowchart LR
 Contributors should enter at the narrowest owning module: wire shape in
 Contracts/specification, invariants and ports in Core, orchestration in Runtime,
 adapters and persistence in Infrastructure, composition in hosts, and transport
-ergonomics in SDKs. A change that crosses these ownership lines needs an
+ergonomics in the .NET SDK. A change that crosses these ownership lines needs an
 explicit explanation and, for a durable boundary decision, an ADR.
 
 Release tooling is outside the runtime dependency graph. `release.json` is the

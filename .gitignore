@@ -49,37 +49,11 @@ secrets.json
 *.pem
 *.key
 
-# Node.js and generated SDK output
-node_modules/
-dist/
-dist-test/
-*.tsbuildinfo
-.npm/
-.pnpm-store/
-.yarn/
-
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-build/
-*.egg-info/
-
-# Java, Rust, and PHP
-.gradle/
-target/
-vendor/
-
 # Logs, temporary files, and local tooling output
 *.log
 *.tmp
 *.temp
 .cache/
-.codex-review/
 
 # Local source brief (the canonical specification is maintained in Markdown)
 /Task-Aware-LLM-Router-Project-Definition.docx

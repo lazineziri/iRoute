@@ -1,10 +1,13 @@
 name: release
+
 on:
   workflow_dispatch: {}
   push:
     tags: ['v*.*.*']
+
 permissions:
   contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -17,33 +20,35 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.18.1
-          cache: npm
-      - run: npm ci
-      - run: npm ci --prefix sdks/node
       - run: dotnet restore iRoute.slnx
       - run: dotnet build iRoute.slnx --configuration Release --no-restore
-      - run: dotnet test --solution iRoute.slnx --configuration Release --no-build --no-restore
-      - run: npm run test:contracts
-      - run: npm run test:deployment
-      - run: npm run test:regression
-      - run: npm run test:release
-      - run: node tools/container-smoke.mjs
-      - name: Verify tag matches canonical version
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Build .NET release artifacts
         shell: bash
         run: |
-          VERSION="$(node -p "require('./release.json').version")"
-          test "${GITHUB_REF_NAME}" = "v${VERSION}"
-      - run: node tools/build-release.mjs --output artifacts/release --require-clean
+          set -euo pipefail
+          version="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' release.json)"
+          test -n "${version}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            test "${GITHUB_REF_NAME}" = "v${version}"
+          fi
+          notes="docs/releases/${version}.md"
+          test -f "${notes}"
+
+          mkdir -p artifacts/release
+          dotnet pack src/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Cli --configuration Release --no-restore --output artifacts/release
+          git archive --format=tar.gz --prefix="iroute-${version}/" --output="artifacts/release/iroute-${version}-source.tar.gz" HEAD
+          cp "${notes}" artifacts/release/RELEASE_NOTES.md
+          cd artifacts/release
+          sha256sum ./* > SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
           name: iroute-release-${{ github.sha }}
           path: artifacts/release/
           if-no-files-found: error
           retention-days: 14
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: verify

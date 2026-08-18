@@ -8,7 +8,7 @@
 - **Core runtime:** .NET 10 LTS / ASP.NET Core
 - **Primary objective:** Maximum validated task completion at the lowest justified token, cost, latency, and infrastructure budget.
 
-> Decision: iRoute Core, the public protocol, and official SDKs are free for everyone under Apache 2.0. Commercial revenue is built around managed cloud, enterprise operations, governance, support, SLAs, and professional services.
+> Decision: iRoute Core, the public protocol, and the official .NET SDK are free for everyone under Apache 2.0. Commercial revenue is built around managed cloud, enterprise operations, governance, support, SLAs, and professional services.
 
 ## 1. Executive definition
 
@@ -43,7 +43,7 @@ Without this layer, applications send too much history to one large model, retry
 5. Separate planning from tool execution, permission enforcement, and side effects.
 6. Make every result traceable to source versions, policies, capabilities, attempts, validation, and usage.
 7. Run in one lightweight container for evaluation and scale horizontally without changing public contracts.
-8. Offer idiomatic SDKs while maintaining one execution engine and one language-neutral protocol.
+8. Offer an idiomatic .NET SDK while maintaining one execution engine and one language-neutral protocol.
 
 ## 4. Explicit non-goals
 
@@ -52,7 +52,7 @@ Without this layer, applications send too much history to one large model, retry
 - Claiming universally perfect or always-best output.
 - Creating a general autonomous-agent platform in the first release.
 - Allowing models to issue arbitrary SQL or arbitrary HTTP calls.
-- Reimplementing execution logic in Node, Python, Java, PHP, or Rust.
+- Reimplementing execution logic outside the .NET runtime.
 - Automatically inserting complete conversation history into prompts.
 - Requiring Redis, Kubernetes, a vector database, or an external queue for the developer profile.
 - Sending prompts, responses, or telemetry to iRoute-controlled services by default.
@@ -323,7 +323,7 @@ Tenant, organization, project, user, and execution scope must be present in dura
 
 `Contracts <- Core <- Runtime <- Infrastructure <- API/Worker`
 
-Contracts contains stable wire types only. Core contains domain rules and ports. Runtime contains use cases and orchestration. Infrastructure implements storage, network, and telemetry ports. API and Worker are composition roots. SDKs depend on the public protocol, not internal assemblies.
+Contracts contains stable wire types only. Core contains domain rules and ports. Runtime contains use cases and orchestration. Infrastructure implements storage, network, and telemetry ports. API and Worker are composition roots. The .NET SDK depends on public contracts, not internal runtime assemblies.
 
 ### 16.3 Modular monolith first
 
@@ -407,26 +407,24 @@ A routing policy cannot merge if it reduces quality below the floor, increases u
 
 ## 22. SDK strategy
 
-One engine serves .NET, Node.js, Python, Java, PHP, and Rust. SDKs provide authentication, typed requests and results, SSE consumption, cancellation, retries safe under idempotency rules, and idiomatic errors. They contain no task planning or routing behavior.
+One .NET engine serves the public HTTP and SSE protocol. The supported .NET SDK
+provides authentication, typed requests and results, SSE consumption,
+cancellation, idempotency-safe request handling, and idiomatic errors. It
+contains no task planning or routing behavior.
 
 Production baselines as of 31 July 2026:
 
 | SDK | Baseline |
 |---|---|
 | .NET | .NET 10 LTS / C# 14 |
-| Node.js | Node 24.18.1 LTS / TypeScript 7.0.2 |
-| Python | Python 3.14.6 stable line |
-| Java | Java 25 LTS |
-| PHP | PHP 8.5.8 |
-| Rust | Rust 1.97.1 / Edition 2024 |
 
-SDK releases use semantic versioning and share conformance fixtures. A generated foundation may be wrapped by a small handwritten idiomatic layer.
+SDK releases use semantic versioning and remain aligned with the public protocol.
 
 ## 23. Open-source and commercial model
 
 ### 23.1 Free core
 
-iRoute Core, self-hosting, public contracts, official SDKs, basic storage profiles, evaluation framework, and required operational telemetry remain Apache 2.0 and usable commercially without permission.
+iRoute Core, self-hosting, public contracts, the official .NET SDK, basic storage profiles, evaluation framework, and required operational telemetry remain Apache 2.0 and usable commercially without permission.
 
 ### 23.2 Commercial products
 
@@ -470,7 +468,7 @@ SOC 2, ISO 27001, HIPAA, PCI DSS, sector-specific rules, and regulated data comm
 1. Email, calendar, read-only database, OpenAPI, MCP, and agent-result capabilities.
 2. Lifecycle cleanup, invalidation, deletion propagation, and archival.
 3. OpenTelemetry, execution diagnostics, and cost/quality views.
-4. .NET and Node SDKs, followed by Python, Java, PHP, and Rust.
+4. The official .NET SDK and CLI.
 5. SQLite and PostgreSQL profiles, container images, migrations, and upgrade procedures.
 6. Security review, threat model, contribution process, and signed releases.
 
@@ -490,7 +488,7 @@ The first public MVP is acceptable only when:
 
 - the quick start runs locally without a paid dependency;
 - all public examples validate against OpenAPI and JSON Schema;
-- every SDK passes common conformance fixtures;
+- the official .NET SDK remains aligned with the public protocol;
 - exact and deterministic paths demonstrably avoid generation;
 - context manifests and usage are inspectable;
 - external writes cannot execute without required authorization and idempotency;
@@ -507,7 +505,7 @@ The first public MVP is acceptable only when:
 |---|---|
 | Orchestration costs more than it saves | direct path, planning tax metric, per-task evaluation |
 | Stale memory returns a confident wrong answer | dependency graph, freshness rules, source versions, invalidation |
-| Router becomes a provider-adapter project | generic gateway boundary and architecture tests |
+| Router becomes a provider-adapter project | generic gateway boundary and dependency-direction review |
 | Model output triggers unsafe action | typed plans, policy engine, approvals, idempotency |
 | Too many modules slow early delivery | modular monolith and P0 vertical slice |
 | SDK behavior drifts | one OpenAPI/schema source and conformance suite |
@@ -527,7 +525,7 @@ The first public MVP is acceptable only when:
 - State: versioned artifacts, facts, decisions, evidence, and dependencies.
 - Execution: memory-first and deterministic-first.
 - Provider integration: generic external gateway.
-- License: Apache 2.0 for core and SDKs.
+- License: Apache 2.0 for core and the .NET SDK.
 - Commercialization: cloud, enterprise operations, support, and services.
 - Delivery planning: milestones until capacity is known.
 - Compliance: control baseline without certification claims.
@@ -556,12 +554,6 @@ The repository pins stable versions available on 31 July 2026 and excludes previ
 | Npgsql EF provider | 10.0.3 |
 | PostgreSQL | 18.4 |
 | OpenTelemetry .NET | 1.17.0 |
-| Node.js SDK target | 24.18.1 LTS |
-| TypeScript | 7.0.2 |
-| Python SDK target | 3.14 stable line |
-| Java SDK target | 25 LTS |
-| PHP SDK target | 8.5 stable line |
-| Rust SDK target | 1.97.1 / Edition 2024 |
 
 Patch versions are updated through automated dependency pull requests and CI. Major upgrades require compatibility evidence and an ADR.
 
@@ -576,7 +568,7 @@ Patch versions are updated through automated dependency pull requests and CI. Ma
 7. Implement the generic gateway and a gateway conformance test server.
 8. Build the `email.draft` vertical slice using prior project state, deterministic lookups, generation only for unresolved content, validation, and artifact materialization.
 9. Add the single-model baseline and evaluation report.
-10. Publish the developer container and .NET/Node preview SDKs only after the release gates pass.
+10. Publish the developer container and .NET preview SDK only after the release gates pass.
 
 ## Appendix A. Task definition template
 
@@ -605,10 +597,5 @@ A task family is done only when its contracts, handlers, permissions, validation
 - .NET 10.0.10 release notes: https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.10/10.0.10.md
 - NuGet Gallery: https://www.nuget.org/
 - PostgreSQL release news: https://www.postgresql.org/about/news/
-- Node.js releases: https://nodejs.org/en/about/previous-releases
-- Python downloads: https://www.python.org/downloads/
-- Java SE support roadmap: https://www.oracle.com/java/technologies/java-se-support-roadmap.html
-- PHP releases: https://www.php.net/releases/
-- Rust releases: https://blog.rust-lang.org/releases/
 - Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
 - Open Source Definition: https://opensource.org/osd
