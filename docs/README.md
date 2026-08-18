@@ -14,7 +14,7 @@ The canonical, reviewable project documentation is maintained as Markdown.
 - [Version baseline](version-baseline.md)
 - [Workstream status](workstream-status.md)
 - [.NET SDK usage](sdk-usage.md)
-- [.NET SDK reference](../src/iRoute.Sdk.DotNet/README.md)
+- [.NET SDK reference](../src/Clients/iRoute.Sdk.DotNet/README.md)
 - [Container and Kubernetes profiles](../deploy/README.md)
 - [Architecture decision records](adr/)
 

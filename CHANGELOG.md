@@ -11,6 +11,12 @@ additional public-contract promises in `docs/compatibility.md`.
 
 - The active repository is now a strictly .NET codebase containing the runtime,
   hosts, contracts, .NET SDK, CLI, migrations, and deployment assets.
+- The remaining projects are grouped into explicit Core, Application,
+  Infrastructure, Hosts, and Clients layers while preserving assembly and NuGet
+  identities.
+- Code within each project now follows feature folders, including separated
+  execution, routing, validation, endpoint, gateway, and persistence adapter
+  concerns; former catch-all runtime and infrastructure services were split.
 - CI and release publication now restore, build, pack, and analyze only .NET
   projects; NuGet is the only supported language-package registry.
 

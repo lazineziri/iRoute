@@ -1,7 +1,7 @@
 # Clean installation
 
 This is the supported installation path for `0.1.0-alpha.3`. Start from a clean
-clone or source archive; do not copy `bin`, `obj`, `node_modules`, databases, or
+clone or source archive; do not copy `bin`, `obj`, databases, or
 local secret files from another environment.
 
 ## Prerequisites

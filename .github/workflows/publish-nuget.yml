@@ -62,8 +62,8 @@ jobs:
           cache-dependency-path: Directory.Packages.props
       - run: dotnet restore iRoute.slnx
       - run: dotnet build iRoute.slnx --configuration Release --no-restore
-      - run: dotnet pack src/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
-      - run: dotnet pack src/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
       - uses: actions/upload-artifact@v7
         with:
           name: dotnet-packages-${{ github.sha }}

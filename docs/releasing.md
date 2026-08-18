@@ -50,9 +50,9 @@ the supported .NET artifacts into a new empty directory:
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --configuration Release --no-restore
-dotnet pack src/iRoute.Contracts --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/iRoute.Sdk.DotNet --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/iRoute.Cli --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/Clients/iRoute.Cli --configuration Release --no-restore --output /tmp/iroute-release
 ```
 
 Inspect the packages and verify every line in the workflow-produced

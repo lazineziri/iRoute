@@ -10,7 +10,7 @@ remain server-side.
 
 | Language | Guide | Public representation |
 |---|---|---|
-| .NET | [iRoute.Sdk](../src/iRoute.Sdk.DotNet/README.md) | Typed contracts and asynchronous streams |
+| .NET | [iRoute.Sdk](../src/Clients/iRoute.Sdk.DotNet/README.md) | Typed contracts and asynchronous streams |
 
 ## Release status
 
@@ -34,12 +34,12 @@ To run from source, use two terminals from the repository root:
 
 ```bash
 ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
+  dotnet run --project src/Hosts/iRoute.Api -- --urls http://localhost:8080
 ```
 
 ```bash
 ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/iRoute.Worker
+  dotnet run --project src/Hosts/iRoute.Worker
 ```
 
 The deterministic development gateway requires no provider credential. The API

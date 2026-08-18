@@ -321,9 +321,12 @@ Tenant, organization, project, user, and execution scope must be present in dura
 
 ### 16.2 Codebase dependency direction
 
-`Contracts <- Core <- Runtime <- Infrastructure <- API/Worker`
-
-Contracts contains stable wire types only. Core contains domain rules and ports. Runtime contains use cases and orchestration. Infrastructure implements storage, network, and telemetry ports. API and Worker are composition roots. The .NET SDK depends on public contracts, not internal runtime assemblies.
+Contracts contains stable wire types only. Core contains domain rules and ports.
+Runtime and Infrastructure are sibling layers over Contracts and Core: Runtime
+contains use cases and orchestration, while Infrastructure implements storage,
+network, and telemetry ports. API and Worker compose both layers; Migrations
+composes Infrastructure only. The .NET SDK depends on public contracts, not
+internal runtime assemblies, and the CLI depends on the SDK.
 
 ### 16.3 Modular monolith first
 

@@ -25,7 +25,7 @@ New records without an explicit expiry receive `Lifecycle:DefaultArtifactTimeToL
 
 Archival and deletion are deliberately separate phases. A sweep first writes a tenant-scoped archive containing the source entity, dependency references, and content hash. Only an archive that existed before the current sweep and is older than `DeleteAfterArchive` can authorize physical source deletion. Deletion removes incoming and outgoing dependency edges and repairs supersession pointers. The archive remains until the source is gone and either `ArchiveRetention` elapses or the tenant archive quota requires oldest-first removal. `DanglingDependencyEdgeCount` must remain zero after every sweep.
 
-Run `src/iRoute.Worker` continuously for durable profiles; the Compose profile starts it beside the API. Until distributed worker leasing is implemented, run one lifecycle worker per database. Sweep completion logs expose only counts—expired, archived, deleted, protected, purged, remaining records, and dangling edges—not archived payloads. A failed sweep rolls back its durable transaction and is retried on the next interval.
+Run `src/Hosts/iRoute.Worker` continuously for durable profiles; the Compose profile starts it beside the API. Until distributed worker leasing is implemented, run one lifecycle worker per database. Sweep completion logs expose only counts—expired, archived, deleted, protected, purged, remaining records, and dangling edges—not archived payloads. A failed sweep rolls back its durable transaction and is retried on the next interval.
 
 All direct reads, archives, deletions, and invalidation queries require a tenant scope at the persistence boundary. Never implement an administrative cleanup or repair job with an unscoped artifact, memory, archive, or dependency query. PostgreSQL serializable transactions protect version allocation and lifecycle mutation; treat serialization conflicts as retryable job failures rather than inventing a version. Keep API TTL values aligned with worker values so newly written expiry timestamps match the operating policy.
 
@@ -215,10 +215,10 @@ The `migrate` service must complete successfully before either API or worker sta
 The migration executable reads standard .NET configuration and supports status, forward upgrade, and explicit rollback:
 
 ```bash
-dotnet run --project src/iRoute.Migrations -- status
-dotnet run --project src/iRoute.Migrations -- up
-dotnet run --project src/iRoute.Migrations -- up 20260802010000_GatewayCircuitBreaker
-dotnet run --project src/iRoute.Migrations -- down 20260801010000_RoutingDecisionCheckpoint --confirm
+dotnet run --project src/Hosts/iRoute.Migrations -- status
+dotnet run --project src/Hosts/iRoute.Migrations -- up
+dotnet run --project src/Hosts/iRoute.Migrations -- up 20260802010000_GatewayCircuitBreaker
+dotnet run --project src/Hosts/iRoute.Migrations -- down 20260801010000_RoutingDecisionCheckpoint --confirm
 ```
 
 Set `Storage__Provider` and `ConnectionStrings__iRoute` for the target database. `status` reports the provider, current migration, applied migrations, pending migrations, unknown applied migrations, and whether the binary and database are current. `up` refuses to move backward. `down` refuses to run without both an explicit target and `--confirm` because reverse migrations may destroy data.

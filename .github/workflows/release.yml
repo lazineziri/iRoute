@@ -35,9 +35,9 @@ jobs:
           test -f "${notes}"
 
           mkdir -p artifacts/release
-          dotnet pack src/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
-          dotnet pack src/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
-          dotnet pack src/iRoute.Cli --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/Clients/iRoute.Cli --configuration Release --no-restore --output artifacts/release
           git archive --format=tar.gz --prefix="iroute-${version}/" --output="artifacts/release/iroute-${version}-source.tar.gz" HEAD
           cp "${notes}" artifacts/release/RELEASE_NOTES.md
           cd artifacts/release

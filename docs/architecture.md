@@ -1,5 +1,33 @@
 # iRoute architecture
 
+## Repository structure
+
+The repository is one .NET codebase. Directories under `src` describe
+architectural boundaries, not packaging or programming languages:
+
+| Directory | Projects | Responsibility |
+|---|---|---|
+| `src/Core` | `iRoute.Contracts`, `iRoute.Core` | Public wire types, domain rules, policies, and ports |
+| `src/Application` | `iRoute.Runtime` | Use cases, orchestration, routing, scheduling, and materialization |
+| `src/Infrastructure` | `iRoute.Infrastructure` | Persistence, gateways, connectors, telemetry, and port implementations |
+| `src/Hosts` | `iRoute.Api`, `iRoute.Worker`, `iRoute.Migrations` | Executable composition roots and process configuration |
+| `src/Clients` | `iRoute.Sdk.DotNet`, `iRoute.Cli` | Public .NET client and commands built on that client |
+
+The modular monolith has two independent middle layers. Application coordinates
+product behavior; Infrastructure implements Core ports. Hosts are the only
+place where both are assembled. Moving an implementation between these
+directories requires changing its responsibility, not merely its namespace.
+
+Within each project, code follows the same feature-first rule. Application
+separates executions, routing, resolution, policies, context, validation,
+project state, and observability. Infrastructure separates capabilities,
+gateways, routing registries, observability, dependency injection, and
+persistence; persistence then separates Entity Framework, in-memory adapters,
+and schema migrations. Host project roots contain composition only, with API
+endpoints, identity, and worker processes in their own folders. Catch-all
+`Services` or `Helpers` files are not an accepted destination for unrelated
+logic.
+
 ## Runtime topology
 
 ```mermaid
@@ -220,11 +248,19 @@ The durable execution snapshot and event stream remain the query source for the 
 ```mermaid
 flowchart TD
     A["Contracts"] --> B["Core"]
-    B --> C["Runtime"]
-    C --> D["Infrastructure"]
-    D --> E["API and Worker"]
-    A --> F[".NET SDK"]
-    F --> G["CLI"]
+    A --> C["Runtime / Application"]
+    B --> C
+    A --> D["Infrastructure"]
+    B --> D
+    A --> E["API host"]
+    B --> E
+    C --> E
+    D --> E
+    C --> F["Worker host"]
+    D --> F
+    D --> G["Migration host"]
+    A --> H[".NET SDK"]
+    H --> I["CLI"]
 ```
 
 Arrows mean “may be depended upon by.” Reverse references are forbidden.
@@ -239,6 +275,7 @@ Arrows mean “may be depended upon by.” Reverse references are forbidden.
 | Infrastructure | persistence, HTTP gateway, telemetry projection | product policy decisions |
 | API | HTTP/SSE, observability views, static dashboard, and composition | business logic |
 | Worker | durable jobs and lifecycle host | duplicate runtime rules |
+| Migrations | schema-management process and configuration | persistence behavior outside Infrastructure |
 | .NET SDK | idiomatic client | routing, prompts, memory logic |
 | CLI | local/operator commands delegated to an SDK | duplicate HTTP, routing, or runtime logic |
 

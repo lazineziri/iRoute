@@ -28,6 +28,7 @@ coverage.*
 BenchmarkDotNet.Artifacts/
 
 # Local runtime databases and journals
+/.local/
 *.db
 *.db-journal
 *.db-shm

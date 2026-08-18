@@ -65,13 +65,13 @@ self-hosters may call the HTTP API directly without an SDK.
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --no-restore
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/iRoute.Api -- --urls http://localhost:8080
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Hosts/iRoute.Api -- --urls http://localhost:8080
 ```
 
 In a second terminal, start the execution and lifecycle host:
 
 ```bash
-dotnet run --project src/iRoute.Worker
+dotnet run --project src/Hosts/iRoute.Worker
 ```
 
 The default developer profile uses the deterministic gateway, so it needs no provider credential. A relative SQLite `Data Source` is resolved against one per-user directory (`%LOCALAPPDATA%\iRoute` on Windows, `~/Library/Application Support/iRoute` on macOS, `$XDG_DATA_HOME/iRoute` on Linux) so the API and worker share one database regardless of the directory each host is started from. Set `ConnectionStrings__iRoute` to an absolute path to choose your own location. In another terminal:
@@ -90,7 +90,7 @@ The first request returns HTTP `202` with a durable execution ID, normally in `Q
 The CLI uses the same local defaults and delegates to the .NET SDK:
 
 ```bash
-dotnet run --project src/iRoute.Cli -- \
+dotnet run --project src/Clients/iRoute.Cli -- \
   execute --request @examples/email-draft.json --idempotency-key cli-example-001
 ```
 
@@ -105,7 +105,7 @@ Dashboard cost is the normalized value reported by the configured gateway. The C
 The worker host processes durable executions and also enforces TTL, quota, archival, and deletion policies asynchronously:
 
 ```bash
-dotnet run --project src/iRoute.Worker
+dotnet run --project src/Hosts/iRoute.Worker
 ```
 
 For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, execution/lifecycle worker, migration job, and database together.
@@ -206,6 +206,24 @@ For resilient HTTP routing, configure `ModelGateway__Deployments__0__...`, `Mode
 
 ## Architecture and source of truth
 
-The dependency rule is `Contracts <- Core <- Runtime <- Infrastructure <- Hosts`; the .NET SDK depends only on public contracts. See [the architecture guide](docs/architecture.md), [operations guide](docs/operations.md), [contract versioning rules](docs/contract-versioning.md), [SSE event contract](spec/events/sse-v1.md), [error taxonomy](spec/errors/error-taxonomy.v1.md), and [canonical product/engineering specification](docs/iRoute-Product-Engineering-Specification.md).
+The repository is organized by architectural responsibility rather than by
+language. All projects and build tooling are .NET; the API owns its small set of
+static dashboard assets:
+
+```text
+src/
+├── Core/            contracts and domain policy
+├── Application/     execution use cases and orchestration
+├── Infrastructure/  persistence, gateways, connectors, and telemetry
+├── Hosts/           API, worker, and migration composition roots
+└── Clients/         .NET SDK and CLI
+```
+
+`Runtime` and `Infrastructure` are sibling implementations over `Core`; neither
+may depend on a host. Hosts compose them at the outer boundary. The .NET SDK
+depends only on public contracts, and the CLI delegates to that SDK. See [the
+architecture guide](docs/architecture.md), [operations guide](docs/operations.md),
+[contract versioning rules](docs/contract-versioning.md), [SSE event contract](spec/events/sse-v1.md),
+[error taxonomy](spec/errors/error-taxonomy.v1.md), and [canonical product/engineering specification](docs/iRoute-Product-Engineering-Specification.md).
 
 Public language-neutral contracts live in [OpenAPI](spec/openapi/iroute.v1.yaml) and [JSON Schema](spec/schemas). The [documentation map](docs/README.md) links the canonical Markdown sources. Adoption and maintenance are governed by the [compatibility promise](docs/compatibility.md), [contributor guide](CONTRIBUTING.md), [security policy](SECURITY.md), and [release process](docs/releasing.md). iRoute Core, contracts, the .NET SDK, and self-hosting remain Apache 2.0.
