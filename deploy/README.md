@@ -1,16 +1,16 @@
 # Deployment profiles
 
-iRoute publishes three non-root targets from one Dockerfile:
+iRoute publishes three non-root process modes from one runtime image:
 
 | Target | Process | Intended use |
 |---|---|---|
-| `api` | `iRoute.Api` | HTTP, SSE, health, OpenAPI, and dashboard |
-| `worker` | `iRoute.Worker` | Durable execution worker and optional lifecycle worker |
-| `migrate` | `iRoute.Migrations` | Explicit schema status, upgrade, and rollback |
+| `api` | `iroute serve` | HTTP, SSE, health, OpenAPI, dashboard, and optional local workers |
+| `worker` | `iroute worker` | Durable execution worker and optional lifecycle worker |
+| `migrate` | `iroute migrate` | Explicit schema status, upgrade, and rollback |
 
 ## SQLite API and worker
 
-This profile starts an API and worker, persists their shared SQLite database under `/var/lib/iroute`,
+This profile starts one runtime process with embedded workers, persists SQLite under `/var/lib/iroute`,
 uses the deterministic gateway, runs explicitly in the Development environment,
 and needs no provider credential:
 

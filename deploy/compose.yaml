@@ -9,6 +9,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       Storage__Provider: Postgres
       Storage__AutoInitialize: "false"
+      Runtime__RunBackgroundWorkers: "false"
       ConnectionStrings__iRoute: Host=postgres;Port=5432;Database=iroute;Username=iroute;Password=${IROUTE_DB_PASSWORD:-local-development-only}
       ModelGateway__Mode: ${IROUTE_MODEL_GATEWAY_MODE:-Deterministic}
       ModelGateway__BaseUrl: ${IROUTE_MODEL_GATEWAY_URL:-}

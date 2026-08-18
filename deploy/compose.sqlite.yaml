@@ -10,6 +10,7 @@ services:
       Storage__Provider: Sqlite
       Storage__AutoInitialize: "true"
       ConnectionStrings__iRoute: Data Source=/var/lib/iroute/iroute.db
+      Runtime__RunBackgroundWorkers: "true"
       ModelGateway__Mode: Deterministic
       Identity__Mode: DevelopmentHeaders
       Observability__PayloadMode: MetadataOnly
@@ -25,30 +26,6 @@ services:
       timeout: 3s
       retries: 12
       start_period: 20s
-    restart: unless-stopped
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-  worker:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-      target: worker
-    environment:
-      Storage__Provider: Sqlite
-      Storage__AutoInitialize: "false"
-      ConnectionStrings__iRoute: Data Source=/var/lib/iroute/iroute.db
-      ModelGateway__Mode: Deterministic
-      ExecutionWorker__Enabled: "true"
-      Lifecycle__Enabled: "true"
-    depends_on:
-      api:
-        condition: service_healthy
-    volumes:
-      - sqlite-data:/var/lib/iroute
     restart: unless-stopped
     init: true
     read_only: true

@@ -23,6 +23,7 @@ jobs:
       - run: dotnet restore iRoute.slnx
       - run: dotnet format iRoute.slnx --verify-no-changes --severity warn --no-restore
       - run: dotnet build iRoute.slnx --configuration Release --no-restore
+      - run: dotnet test --solution iRoute.slnx --configuration Release --no-build
       - name: Build .NET release artifacts
         shell: bash
         run: |
@@ -36,9 +37,11 @@ jobs:
           test -f "${notes}"
 
           mkdir -p artifacts/release
-          dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
-          dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
-          dotnet pack src/Clients/iRoute.Cli --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Common --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Services --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Data --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Core --configuration Release --no-restore --output artifacts/release
+          dotnet pack src/iRoute.Runtime --configuration Release --no-restore --output artifacts/release
           git archive --format=tar.gz --prefix="iroute-${version}/" --output="artifacts/release/iroute-${version}-source.tar.gz" HEAD
           cp "${notes}" artifacts/release/RELEASE_NOTES.md
           cd artifacts/release

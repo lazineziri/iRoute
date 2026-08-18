@@ -6,7 +6,7 @@ on:
       version:
         description: Exact release version without the v prefix
         required: true
-        default: 0.1.0-alpha.3
+        default: 0.1.0-alpha.4
         type: string
 
 permissions:
@@ -63,8 +63,12 @@ jobs:
       - run: dotnet restore iRoute.slnx
       - run: dotnet format iRoute.slnx --verify-no-changes --severity warn --no-restore
       - run: dotnet build iRoute.slnx --configuration Release --no-restore
-      - run: dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output artifacts/release
-      - run: dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output artifacts/release
+      - run: dotnet test --solution iRoute.slnx --configuration Release --no-build
+      - run: dotnet pack src/iRoute.Common --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Services --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Data --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Core --configuration Release --no-restore --output artifacts/release
+      - run: dotnet pack src/iRoute.Runtime --configuration Release --no-restore --output artifacts/release
       - uses: actions/upload-artifact@v7
         with:
           name: dotnet-packages-${{ github.sha }}
@@ -91,14 +95,14 @@ jobs:
         id: login
         with:
           user: ${{ vars.NUGET_USER }}
-      - name: Publish contracts before the SDK
+      - name: Publish the dependency chain before the runtime tool
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
-          for package in iRoute.Contracts iRoute.Sdk; do
+          for package in iRoute.Common iRoute.Services iRoute.Data iRoute.Core iRoute; do
             dotnet nuget push "artifacts/release/${package}.${VERSION}.nupkg" \
               --api-key "${NUGET_API_KEY}" \
               --source https://api.nuget.org/v3/index.json
