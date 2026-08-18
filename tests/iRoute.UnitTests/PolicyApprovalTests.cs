@@ -10,6 +10,47 @@ namespace iRoute.UnitTests;
 public sealed class PolicyApprovalTests
 {
     [Fact]
+    public void ReadOnlyModelOnlyPlanIsAllowedByPlanWidePolicy()
+    {
+        var definition = new TaskDefinition(
+            "model.readonly",
+            1,
+            "text.generation",
+            800,
+            0.8m,
+            false,
+            SideEffectClass.ReadOnly,
+            "model.readonly",
+            AllowedCapabilities: ["text.generation"],
+            RequiredCapabilities: ["text.generation"]);
+        var plan = new ExecutionPlan(
+            "model.readonly@1:test",
+            1,
+            definition.TaskType,
+            definition.Version,
+            [
+                new ExecutionPlanStep(
+                    "execute",
+                    ExecutionStepKind.Model,
+                    "text.generation",
+                    [],
+                    SideEffectClass.None,
+                    5000,
+                    ProfileId: "text.generation.small.eval-v1")
+            ],
+            new ExecutionPlanBudget(1, 1, 0, 1, 1, 5000));
+
+        var policy = new TaskPolicyEngine().Evaluate(
+            new TaskRequest(definition.TaskType, JsonSerializer.SerializeToElement(new { })),
+            definition,
+            plan);
+
+        Assert.Equal(PolicyDecisionKind.Allowed, policy.Decision);
+        Assert.Equal("text.generation", policy.Capability);
+        Assert.Equal(SideEffectClass.None, policy.SideEffectClass);
+    }
+
+    [Fact]
     public async Task MissingPermissionScopeDeniesActionAndWritesAuditEvents()
     {
         using var fixture = CreateFixture();
@@ -176,6 +217,133 @@ public sealed class PolicyApprovalTests
         Assert.Single(events, item => item.Type == ExecutionEventTypes.ExternalActionCompleted);
         Assert.Contains(events, item => item.Type == ExecutionEventTypes.CapabilityDenied);
         Assert.DoesNotContain(events, item => item.Data.GetRawText().Contains("investor@example.com", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task MultiStepReadOnlyPlanCreatesApprovalForFinalAction()
+    {
+        var definition = new TaskDefinition(
+            "calendar.compare_with_database",
+            1,
+            "database.read",
+            800,
+            0.8m,
+            true,
+            SideEffectClass.ReadOnly,
+            "calendar.database-comparison",
+            DefaultMaxModelCalls: 0,
+            AllowedCapabilities: ["calendar.read", "database.read"],
+            PermissionScopes: ["calendar:read", "database:read"],
+            ApprovalRequired: true,
+            RequiredCapabilities: ["calendar.read", "database.read"],
+            DefaultMaxToolCalls: 2,
+            DefaultMaxTaskDepth: 2);
+        var plan = new ExecutionPlan(
+            "calendar.compare_with_database@1:test",
+            1,
+            definition.TaskType,
+            definition.Version,
+            [
+                new ExecutionPlanStep(
+                    "step-1",
+                    ExecutionStepKind.Tool,
+                    "calendar.read",
+                    [],
+                    SideEffectClass.ReadOnly,
+                    5000),
+                new ExecutionPlanStep(
+                    "execute",
+                    ExecutionStepKind.Tool,
+                    "database.read",
+                    ["step-1"],
+                    SideEffectClass.ReadOnly,
+                    5000)
+            ],
+            new ExecutionPlanBudget(2, 0, 2, 1, 2, 10000));
+        using var fixture = CreateFixture(
+            new FixedTaskRouter(plan),
+            new SingleTaskDefinitionRegistry(definition));
+
+        var waiting = await fixture.Orchestrator.ExecuteAsync(
+            new TaskRequest(
+                definition.TaskType,
+                JsonSerializer.SerializeToElement(new
+                {
+                    timezone = "Europe/Tirane",
+                    queryId = "project-status"
+                }),
+                ProjectId: "project-1",
+                IdempotencyKey: "multi-step-approval",
+                Constraints: new TaskConstraints(MaxModelCalls: 0, MaxToolCalls: 2, MaxTaskDepth: 2),
+                TenantId: "tenant-a",
+                ActorId: "requester",
+                PermissionScopes: ["calendar:read", "database:read"]),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.WaitingForApproval, waiting.Status);
+        var approval = Assert.IsType<ApprovalRecord>(await fixture.Approvals.GetAsync(
+            waiting.ExecutionId,
+            "execute",
+            TestContext.Current.CancellationToken));
+        Assert.Equal("database.read", approval.Capability);
+        Assert.Equal(SideEffectClass.ReadOnly, approval.SideEffectClass);
+    }
+
+    [Fact]
+    public async Task ConcurrentInlineApprovalReplayClaimsExecutionOnlyOnce()
+    {
+        var executions = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        var approvalStore = new InMemoryApprovalStore();
+        var actions = new InMemoryExternalActionStore();
+        var executor = new BlockingExternalActionExecutor();
+        using var policy = new CoordinatedApprovedPolicyEngine();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            executions,
+            artifacts,
+            checkpoints,
+            approvalStore,
+            actions,
+            cancellations,
+            executor,
+            policyEngine: policy);
+        var waiting = await orchestrator.ExecuteAsync(
+            CreateSendRequest(["email:send"]),
+            TestContext.Current.CancellationToken);
+        var decision = new ApprovalDecision("execute", true, "Concurrent replay test.");
+
+        var first = Task.Run(() => orchestrator.SubmitApprovalAsync(
+            waiting.ExecutionId,
+            decision,
+            "tenant-a",
+            "approver",
+            ["email:send", TaskPolicyEngine.ApprovalPermissionScope],
+            TestContext.Current.CancellationToken));
+        var second = Task.Run(() => orchestrator.SubmitApprovalAsync(
+            waiting.ExecutionId,
+            decision,
+            "tenant-a",
+            "approver",
+            ["email:send", TaskPolicyEngine.ApprovalPermissionScope],
+            TestContext.Current.CancellationToken));
+        await executor.Started.Task.WaitAsync(
+            TimeSpan.FromSeconds(10),
+            TestContext.Current.CancellationToken);
+        executor.Release.TrySetResult();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.All(results, result => Assert.Equal(waiting.ExecutionId, result.Execution.ExecutionId));
+        Assert.Equal(1, executor.InvocationCount);
+        var final = Assert.IsType<ExecutionSnapshot>(await executions.GetAsync(
+            waiting.ExecutionId,
+            TestContext.Current.CancellationToken));
+        Assert.Equal(ExecutionStatus.Succeeded, final.Status);
+        var events = await ReadEventsAsync(executions, waiting.ExecutionId);
+        Assert.Single(events, item => item.Type == ExecutionEventTypes.ExternalActionCompleted);
+        Assert.Single(events, item => item.Type == ExecutionEventTypes.ArtifactMaterialized);
+        Assert.Single(events, item => item.Type == ExecutionEventTypes.Completed);
     }
 
     [Fact]
@@ -364,7 +532,9 @@ public sealed class PolicyApprovalTests
         }
     }
 
-    private static Fixture CreateFixture(ITaskRouter? taskRouter = null)
+    private static Fixture CreateFixture(
+        ITaskRouter? taskRouter = null,
+        ITaskDefinitionRegistry? taskDefinitions = null)
     {
         var executions = new InMemoryExecutionStore();
         var artifacts = new InMemoryArtifactStore();
@@ -382,7 +552,8 @@ public sealed class PolicyApprovalTests
                 actions,
                 cancellations,
                 executor,
-                taskRouter),
+                taskRouter,
+                taskDefinitions: taskDefinitions),
             executions,
             approvals,
             executor,
@@ -411,9 +582,11 @@ public sealed class PolicyApprovalTests
         ExecutionCancellationRegistry cancellations,
         IExternalActionExecutor executor,
         ITaskRouter? taskRouter = null,
-        IExecutionWorkStore? executionWork = null)
+        IExecutionWorkStore? executionWork = null,
+        ITaskDefinitionRegistry? taskDefinitions = null,
+        ITaskPolicyEngine? policyEngine = null)
     {
-        var definitions = new BuiltInTaskDefinitionRegistry();
+        var definitions = taskDefinitions ?? new BuiltInTaskDefinitionRegistry();
         var fingerprint = new Sha256InputFingerprint();
         var clock = new SystemClock();
         var memories = new InMemoryMemoryStore();
@@ -430,7 +603,7 @@ public sealed class PolicyApprovalTests
             definitions,
             taskRouter ?? CreateTaskRouter(),
             new ExecutionPlanValidator(),
-            new TaskPolicyEngine(),
+            policyEngine ?? new TaskPolicyEngine(),
             checkpoints,
             approvals,
             actions,
@@ -531,6 +704,71 @@ public sealed class PolicyApprovalTests
         }
     }
 
+    private sealed class BlockingExternalActionExecutor : IExternalActionExecutor
+    {
+        private int _invocationCount;
+
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int InvocationCount => Volatile.Read(ref _invocationCount);
+
+        public async Task<ExternalActionResult> ExecuteAsync(
+            ExternalActionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _invocationCount);
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return new ExternalActionResult(
+                JsonSerializer.SerializeToElement(new
+                {
+                    receiptId = "concurrent-approval-receipt",
+                    status = "accepted",
+                    capability = request.Capability
+                }),
+                [new EvidenceReference("external-action", "receipt:concurrent-approval")]);
+        }
+    }
+
+    private sealed class CoordinatedApprovedPolicyEngine : ITaskPolicyEngine, IDisposable
+    {
+        private readonly TaskPolicyEngine _inner = new();
+        private readonly ManualResetEventSlim _bothApprovedEvaluations = new(false);
+        private int _approvedEvaluations;
+
+        public PolicyEvaluation Evaluate(
+            TaskRequest request,
+            TaskDefinition definition,
+            ExecutionPlan plan,
+            ApprovalRecord? approval = null)
+        {
+            var result = _inner.Evaluate(request, definition, plan, approval);
+            if (approval?.Status == ApprovalStatus.Approved)
+            {
+                if (Interlocked.Increment(ref _approvedEvaluations) == 2)
+                {
+                    _bothApprovedEvaluations.Set();
+                }
+
+                if (!_bothApprovedEvaluations.Wait(TimeSpan.FromSeconds(10)))
+                {
+                    throw new TimeoutException("Both approval replays did not reach policy evaluation.");
+                }
+            }
+
+            return result;
+        }
+
+        public PolicyEvaluation EvaluateApproval(
+            ApprovalRecord approval,
+            IReadOnlyCollection<string> approverPermissionScopes) =>
+            _inner.EvaluateApproval(approval, approverPermissionScopes);
+
+        public void Dispose() => _bothApprovedEvaluations.Dispose();
+    }
+
     private static TaskRouter CreateTaskRouter()
     {
         var matcher = new MeasuredCapabilityMatcher(new BuiltInModelProfileRegistry());
@@ -548,6 +786,19 @@ public sealed class PolicyApprovalTests
             TaskDefinition definition,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RoutingResult(plan, RoutingFor(plan)));
+    }
+
+    private sealed class SingleTaskDefinitionRegistry(TaskDefinition definition)
+        : ITaskDefinitionRegistry
+    {
+        public Task<TaskDefinition?> FindAsync(string taskType, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<TaskDefinition?>(
+                string.Equals(taskType, definition.TaskType, StringComparison.Ordinal)
+                    ? definition
+                    : null);
+        }
     }
 
     private static RoutingDecision RoutingFor(ExecutionPlan plan) => new(
