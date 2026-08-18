@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Data</AssemblyName>
+    <RootNamespace>iRoute.Data</RootNamespace>
+    <PackageId>iRoute.Data</PackageId>
+    <Version>0.1.0-alpha.4</Version>
+    <Description>Entity Framework persistence, migrations, and durable stores for iRoute.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Common/iRoute.Common.csproj" />
+    <None Include="../README.md" Pack="true" PackagePath="/" Link="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+</Project>

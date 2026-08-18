@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Services</AssemblyName>
+    <RootNamespace>iRoute.Services</RootNamespace>
+    <PackageId>iRoute.Services</PackageId>
+    <Version>0.1.0-alpha.4</Version>
+    <Description>Routing, policies, execution services, gateways, and capability services for iRoute.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Common/iRoute.Common.csproj" />
+    <None Include="../README.md" Pack="true" PackagePath="/" Link="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+</Project>

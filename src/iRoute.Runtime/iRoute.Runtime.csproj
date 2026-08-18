@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>iroute</AssemblyName>
+    <RootNamespace>iRoute.Runtime</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>iroute</ToolCommandName>
+    <PackageId>iRoute</PackageId>
+    <Version>0.1.0-alpha.4</Version>
+    <Description>The complete iRoute .NET runtime, server, worker, migration runner, and CLI.</Description>
+    <PackageTags>ai;llm;router;runtime;cli;dotnet-tool</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Common/iRoute.Common.csproj" />
+    <ProjectReference Include="../iRoute.Services/iRoute.Services.csproj" />
+    <ProjectReference Include="../iRoute.Data/iRoute.Data.csproj" />
+    <ProjectReference Include="../iRoute.Core/iRoute.Core.csproj" />
+    <None Include="../README.md" Pack="true" PackagePath="/" Link="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

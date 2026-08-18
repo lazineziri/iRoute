@@ -1,55 +1,44 @@
 # Source layout
 
-All projects in this repository are .NET. The API host also owns its static
-dashboard assets. The folders here encode dependency direction. Inside a
-project, code is grouped by product feature or adapter type rather than
-accumulated in the project root:
+The repository has six top-level .NET projects and no layer wrapper folders:
 
 ```text
-Core
-├── iRoute.Contracts       public protocol records
-└── iRoute.Core            domain policy and ports
-
-Application
-└── iRoute.Runtime         use cases and orchestration
-
-Infrastructure
-└── iRoute.Infrastructure  persistence and external adapters
-
-Hosts
-├── iRoute.Api             HTTP and SSE composition root
-├── iRoute.Worker          durable background-process composition root
-└── iRoute.Migrations      schema-management composition root
-
-Clients
-├── iRoute.Sdk.DotNet      public .NET client
-└── iRoute.Cli             CLI built on the public client
+iRoute.Common    the single home for contracts, DTOs, interfaces, ports, and shared primitives
+iRoute.Services  policies, routing, gateways, connectors, and execution implementations
+iRoute.Data      DbContext, entities, stores, and migrations
+iRoute.Core      small execution facade that delegates through Common contracts
+iRoute.Runtime   API, workers, migration commands, client CLI, and DI composition
+iRoute.Tests     architecture and behavior verification
 ```
 
-Core has no dependency on outer layers. Application and Infrastructure may
-depend on Core but not on each other. Hosts assemble the application and
-infrastructure layers. The SDK depends only on Contracts, and the CLI delegates
-to the SDK. See [`docs/architecture.md`](../docs/architecture.md) for the full
-runtime topology and ownership rules.
+Allowed production references are:
+
+```text
+Services -> Common
+Core     -> Common
+Data     -> Common
+Runtime  -> Core, Data, Services, Common
+```
+
+`iRoute.Tests` may reference all five production projects. Reverse references
+and cycles are forbidden and covered by an architecture test.
 
 ## Organization rules
 
-- Use `layer/project/feature` for production code. Examples are
-  `Application/iRoute.Runtime/Routing` and
-  `Infrastructure/iRoute.Infrastructure/Persistence/EntityFramework`.
-- Keep `Program.cs` as a composition root. HTTP endpoints, identity, workers,
-  and adapters live in named feature folders.
-- Put interfaces and policy-owned records in Core. Put orchestration in
-  Application and implementations of Core ports in Infrastructure.
-- Separate adapter families. Entity Framework, in-memory storage, gateway
-  resilience, capabilities, and observability do not share catch-all files.
-- A file may contain several small types when they form one cohesive contract;
-  unrelated services must be split by responsibility.
-- Prefer BCL and hosting primitives: `TimeProvider`, validated options,
-  System.Text.Json source generation, frozen immutable lookups,
-  `BackgroundService`, `HttpClientFactory`, generated logging, health checks,
-  and OpenTelemetry.
-- Do not add transport-level retries around the gateway resilience layer. Model
-  attempts, costs, and deadlines are product policy and must remain explicit.
-- Keep the established assembly namespaces and public package identities stable.
-  Folder names communicate ownership without breaking consumers.
+- Group code by feature inside its owning project; do not add new layer wrappers.
+- Put every cross-project contract, DTO, interface, port, enum, and shared option
+  in Common. Services contains implementations, never a second contract model.
+- Keep Core as a stable delegation boundary. Business and routing logic belongs
+  in Services, while database behavior belongs in Data.
+- Keep Runtime as the only composition root and executable. `iroute serve`,
+  `worker`, `migrate`, and client commands are modes of that executable.
+- Keep Entity Framework, in-memory storage, gateway resilience, capabilities,
+  and observability in cohesive files and feature folders.
+- Prefer platform features such as `TimeProvider`, validated options,
+  System.Text.Json source generation, frozen collections, `BackgroundService`,
+  `HttpClientFactory`, generated logging, health checks, and OpenTelemetry.
+- Do not hide model attempts, costs, retries, or deadlines in generic transport
+  middleware; those are explicit product policies.
+
+See [`docs/architecture.md`](../docs/architecture.md) for detailed ownership and
+runtime flow.

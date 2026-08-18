@@ -1,21 +1,8 @@
 <Solution>
-  <Folder Name="/src/Core/">
-    <Project Path="src/Core/iRoute.Contracts/iRoute.Contracts.csproj" />
-    <Project Path="src/Core/iRoute.Core/iRoute.Core.csproj" />
-  </Folder>
-  <Folder Name="/src/Application/">
-    <Project Path="src/Application/iRoute.Runtime/iRoute.Runtime.csproj" />
-  </Folder>
-  <Folder Name="/src/Infrastructure/">
-    <Project Path="src/Infrastructure/iRoute.Infrastructure/iRoute.Infrastructure.csproj" />
-  </Folder>
-  <Folder Name="/src/Hosts/">
-    <Project Path="src/Hosts/iRoute.Api/iRoute.Api.csproj" />
-    <Project Path="src/Hosts/iRoute.Worker/iRoute.Worker.csproj" />
-    <Project Path="src/Hosts/iRoute.Migrations/iRoute.Migrations.csproj" />
-  </Folder>
-  <Folder Name="/src/Clients/">
-    <Project Path="src/Clients/iRoute.Sdk.DotNet/iRoute.Sdk.DotNet.csproj" />
-    <Project Path="src/Clients/iRoute.Cli/iRoute.Cli.csproj" />
-  </Folder>
+  <Project Path="src/iRoute.Common/iRoute.Common.csproj" />
+  <Project Path="src/iRoute.Services/iRoute.Services.csproj" />
+  <Project Path="src/iRoute.Data/iRoute.Data.csproj" />
+  <Project Path="src/iRoute.Core/iRoute.Core.csproj" />
+  <Project Path="src/iRoute.Runtime/iRoute.Runtime.csproj" />
+  <Project Path="src/iRoute.Tests/iRoute.Tests.csproj" />
 </Solution>

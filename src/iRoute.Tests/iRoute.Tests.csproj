@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Tests</AssemblyName>
+    <RootNamespace>iRoute.Tests</RootNamespace>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Common/iRoute.Common.csproj" />
+    <ProjectReference Include="../iRoute.Services/iRoute.Services.csproj" />
+    <ProjectReference Include="../iRoute.Data/iRoute.Data.csproj" />
+    <ProjectReference Include="../iRoute.Core/iRoute.Core.csproj" />
+    <ProjectReference Include="../iRoute.Runtime/iRoute.Runtime.csproj" />
+  </ItemGroup>
+</Project>

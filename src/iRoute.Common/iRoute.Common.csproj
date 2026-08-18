@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Common</AssemblyName>
+    <RootNamespace>iRoute.Common</RootNamespace>
+    <PackageId>iRoute.Common</PackageId>
+    <Version>0.1.0-alpha.4</Version>
+    <Description>Shared public contracts and primitives for iRoute.</Description>
+    <PackageTags>ai;llm;router;contracts;dotnet</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

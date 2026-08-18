@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>iRoute.Core</AssemblyName>
+    <RootNamespace>iRoute.Core</RootNamespace>
+    <PackageId>iRoute.Core</PackageId>
+    <Version>0.1.0-alpha.4</Version>
+    <Description>The stable execution facade for iRoute.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../iRoute.Common/iRoute.Common.csproj" />
+    <None Include="../README.md" Pack="true" PackagePath="/" Link="README.md" />
+  </ItemGroup>
+</Project>

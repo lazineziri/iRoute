@@ -1,0 +1,88 @@
+using iRoute.Common;
+using iRoute.Runtime.Api;
+using iRoute.Runtime.Composition;
+using iRoute.Runtime.Hosting;
+using iRoute.Services;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+
+namespace iRoute.Runtime;
+
+internal static class ApiHost
+{
+    public static async Task RunAsync(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory,
+            WebRootPath = "wwwroot"
+        });
+
+        builder.Services.AddProblemDetails();
+        builder.Services.AddOpenApi("v1");
+        builder.Services.AddHealthChecks();
+        var identityOptions = builder.Services.AddIRouteIdentity(
+            builder.Configuration,
+            builder.Environment.EnvironmentName);
+        builder.Services.AddIRouteRuntime(builder.Configuration);
+        builder.Services.AddIRoutePlatform(builder.Configuration);
+        var runBackgroundWorkers = builder.Configuration.GetValue<bool?>("Runtime:RunBackgroundWorkers")
+            ?? string.Equals(
+                builder.Configuration["Storage:Provider"] ?? "Sqlite",
+                "Sqlite",
+                StringComparison.OrdinalIgnoreCase);
+        if (runBackgroundWorkers)
+        {
+            builder.Services.AddIRouteBackgroundWorkers(builder.Configuration);
+        }
+
+        var telemetry = builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("iRoute.Runtime"))
+            .WithTracing(tracing => tracing
+                .AddSource(RuntimeTelemetry.ActivitySourceName)
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation())
+            .WithMetrics(metrics => metrics
+                .AddMeter(RuntimeTelemetry.MeterName)
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddRuntimeInstrumentation());
+
+        if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        {
+            telemetry.UseOtlpExporter();
+        }
+
+        var app = builder.Build();
+        app.UseExceptionHandler();
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapOpenApi();
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = _ => false
+        });
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            Predicate = registration => registration.Tags.Contains("ready")
+        });
+        app.MapGet("/health/model-gateway", async (
+            IModelGateway gateway,
+            CancellationToken cancellationToken) =>
+        {
+            var health = await gateway.CheckHealthAsync(cancellationToken);
+            return Results.Json(
+                health,
+                statusCode: health.Status == ModelGatewayHealthStatus.Unavailable ? 503 : 200);
+        }).AllowAnonymous().WithName("getModelGatewayHealth");
+        app.MapIRouteEndpoints(identityOptions.UsesJwt);
+        app.MapIRouteObservabilityEndpoints(identityOptions.UsesJwt);
+        await app.RunAsync();
+    }
+}
