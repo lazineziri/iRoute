@@ -335,6 +335,50 @@ API replicas persist submissions and serve durable reads over one PostgreSQL sch
 
 The API has two explicit identity profiles. `DevelopmentHeaders` accepts local tenant, actor, and permission headers for a credential-free developer loop and is rejected at startup unless the host environment is exactly `Development`. `Jwt` is mandatory outside Development, validates bearer tokens against a configured authority and audience, requires a tenant claim, derives actor identity and permission scopes from claims, and ignores caller-controlled scope headers. Runtime stores, approvals, external actions, memory, dependency edges, and reuse indexes remain tenant-scoped as a second line of isolation. Artifact and memory direct-read ports require tenant identity, so filtering cannot be deferred until after a record is loaded.
 
+## .NET implementation standards
+
+iRoute uses the platform before adding a project-specific abstraction. This is
+not a rule to use every available framework feature; a feature is adopted when
+it removes custom infrastructure, makes correctness enforceable, or improves a
+measured hot path without hiding product policy.
+
+- Use `TimeProvider` for current time and timer-based delays. Domain and
+  application code must not call `DateTimeOffset.UtcNow`, and must not introduce
+  another clock interface.
+- Bind host configuration through the options pattern. Every non-trivial
+  options type has an `IValidateOptions<T>` implementation and is validated at
+  host startup. Data-annotation-only options use the compile-time options
+  validator generator.
+- Use System.Text.Json source-generation contexts at public HTTP, SDK, and
+  model-gateway serialization boundaries. Reflection remains acceptable for
+  genuinely open-ended internal diagnostic payloads.
+- Use `FrozenDictionary` and `FrozenSet` for immutable, repeatedly queried
+  registries. Use ordinary collections for request-local or mutable state.
+- Use `BackgroundService`, dependency-injection scopes, `HttpClientFactory`,
+  health checks, OpenTelemetry, and generated logging in their owning layers.
+  Long-running work accepts cancellation and never blocks on asynchronous code.
+- Keep retry and circuit policy explicit in the gateway layer. Adding a generic
+  HTTP resilience handler there would duplicate attempts and could silently
+  exceed task model-call, cost, or deadline budgets.
+- Public contracts remain records and enums in Contracts. Core owns ports and
+  invariants, Runtime owns use-case coordination, Infrastructure owns adapters,
+  and hosts own only configuration and process composition.
+- Prefer one primary responsibility per service and one cohesive concept per
+  file. Files above roughly 500 lines or services with several unrelated
+  collaborator groups trigger an architecture review; the number is a review
+  signal, not a reason to create arbitrary fragments.
+
+`Directory.Build.props` enforces nullable analysis, warnings as errors, the
+latest recommended .NET analyzer set, code-style analysis, deterministic builds,
+and the repository language version. `.editorconfig` is the single formatting
+and C# style policy. `dotnet format --verify-no-changes` is part of the local and
+CI verification contract. A broader `latest-all` analyzer audit is useful as a
+periodic debt report, but is not the build gate because enabling hundreds of
+rules at once obscures the defects the gate is intended to prevent.
+
+See [ADR-005](adr/ADR-005-modern-dotnet-foundations.md) for the decision and
+trade-offs.
+
 ## Extension rules
 
 - New tasks enter through versioned task definitions and handlers.
