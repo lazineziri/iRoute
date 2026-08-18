@@ -250,7 +250,7 @@ unchanged.
 | `get(executionId)` | Array or `null` |
 | `cancel(executionId)` | `false` when not found |
 | `submitApproval(executionId, decision)` | Approval result array |
-| `streamEvents(executionId, afterSequence=0)` | Buffered event generator |
+| `streamEvents(executionId, afterSequence=0)` | Incremental SSE event generator |
 | `getArtifact(artifactId)` | Array or `null` |
 | `getModelGatewayHealth()` | Health array |
 | `getObservabilitySummary(query=[])` | Summary array |

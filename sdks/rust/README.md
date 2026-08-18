@@ -148,17 +148,17 @@ if execution["status"] == "Succeeded" {
 let mut last_sequence = 0_u64;
 
 for event_json in client.stream_events_json(&execution_id, last_sequence)? {
+    let event_json = event_json?;
     let event: serde_json::Value = serde_json::from_str(&event_json)?;
     last_sequence = event["sequence"].as_u64().unwrap_or(last_sequence);
     println!("{} {}", last_sequence, event["type"]);
 }
 ```
 
-The built-in transport buffers the HTTP response, and `stream_events_json`
-returns `Vec<String>` after the stream closes. It is suitable for terminal replay
-and bounded local use, not an indefinitely open live feed. Applications needing
-incremental SSE should provide a streaming HTTPS client. Persist the sequence
-for reconnects and ignore unknown event fields.
+The built-in transport parses SSE incrementally and does not apply the ordinary
+request read timeout while waiting for the terminal event. Each iterator item
+can still report a transport error if the connection fails mid-stream. Persist
+the sequence for reconnects and ignore unknown event fields.
 
 ## Cancel an execution
 
@@ -241,7 +241,7 @@ retry automatically.
 | `get_json(execution_id)` | Optional execution JSON |
 | `cancel(execution_id)` | `false` when not found |
 | `submit_approval_json(execution_id, decision)` | Approval result JSON |
-| `stream_events_json(execution_id, after_sequence)` | Buffered event JSON vector |
+| `stream_events_json(execution_id, after_sequence)` | Incremental SSE event JSON iterator |
 | `get_artifact_json(artifact_id)` | Optional artifact JSON |
 | `get_model_gateway_health_json()` | Health JSON |
 | `get_observability_summary_json(query)` | Summary JSON |

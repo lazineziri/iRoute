@@ -53,7 +53,17 @@ internal static class Cli
             }, JsonOptions));
             return 1;
         }
-        catch (Exception error) when (error is ArgumentException or FormatException or JsonException)
+        catch (JsonException error)
+        {
+            Console.Error.WriteLine(JsonSerializer.Serialize(new
+            {
+                code = "invalid_response",
+                title = "iRoute returned invalid JSON",
+                detail = error.Message
+            }, JsonOptions));
+            return 1;
+        }
+        catch (Exception error) when (error is ArgumentException or FormatException)
         {
             Console.Error.WriteLine($"error: {error.Message}");
             Console.Error.WriteLine("Run 'iroute help' for usage.");
@@ -71,8 +81,7 @@ internal static class Cli
                 TaskRequest request;
                 if (requestPath is not null)
                 {
-                    request = JsonSerializer.Deserialize<TaskRequest>(ReadValue(requestPath), JsonOptions)
-                        ?? throw new ArgumentException("--request must contain a task request object.");
+                    request = ParseRequest(ReadValue(requestPath));
                     if (arguments.Option("--idempotency-key") is { } idempotencyKey)
                     {
                         request = request with { IdempotencyKey = idempotencyKey };
@@ -81,7 +90,7 @@ internal static class Cli
                 else
                 {
                     var taskType = arguments.Positional(0, "execute requires a task type or --request.");
-                    using var inputDocument = JsonDocument.Parse(ReadValue(arguments.RequireOption("--input")));
+                    using var inputDocument = ParseInput(ReadValue(arguments.RequireOption("--input")));
                     var input = inputDocument.RootElement.Clone();
                     request = new TaskRequest(
                         taskType,
@@ -151,6 +160,31 @@ internal static class Cli
     private static string ReadValue(string value) => value.StartsWith('@')
         ? File.ReadAllText(value[1..])
         : value;
+
+    private static TaskRequest ParseRequest(string value)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<TaskRequest>(value, JsonOptions)
+                ?? throw new ArgumentException("--request must contain a task request object.");
+        }
+        catch (JsonException error)
+        {
+            throw new ArgumentException("--request must contain valid task request JSON.", error);
+        }
+    }
+
+    private static JsonDocument ParseInput(string value)
+    {
+        try
+        {
+            return JsonDocument.Parse(value);
+        }
+        catch (JsonException error)
+        {
+            throw new ArgumentException("--input must contain valid JSON.", error);
+        }
+    }
 
     private static void Write<T>(T value) =>
         Console.WriteLine(JsonSerializer.Serialize(value, JsonOptions));

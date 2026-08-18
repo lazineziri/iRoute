@@ -214,15 +214,31 @@ public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? opt
             }
         }
 
-        if (data.Length > 0)
+        // Some servers close immediately after a complete final data line. Preserve that event,
+        // but treat an invalid partial frame as transport truncation rather than JSON failure.
+        if (data.Length > 0 && TryDeserializeEvent(data.ToString(), out var finalEvent))
         {
-            yield return DeserializeEvent(data.ToString());
+            yield return finalEvent!;
         }
     }
 
     private static ExecutionEvent DeserializeEvent(string data) =>
         JsonSerializer.Deserialize<ExecutionEvent>(data, JsonOptions)
             ?? throw new InvalidOperationException("iRoute returned an invalid execution event.");
+
+    private static bool TryDeserializeEvent(string data, out ExecutionEvent? executionEvent)
+    {
+        try
+        {
+            executionEvent = JsonSerializer.Deserialize<ExecutionEvent>(data, JsonOptions);
+            return executionEvent is not null;
+        }
+        catch (JsonException)
+        {
+            executionEvent = null;
+            return false;
+        }
+    }
 
     private HttpRequestMessage CreateScopedRequest(HttpMethod method, string path)
     {

@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Cursor, Read, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 
@@ -33,8 +33,36 @@ pub struct IRouteResponse {
     pub body: String,
 }
 
+pub struct IRouteStreamResponse<'a> {
+    status: u16,
+    error_body: String,
+    events: Box<dyn Iterator<Item = Result<String, String>> + 'a>,
+}
+
+pub struct IRouteEventStream<'a> {
+    inner: Box<dyn Iterator<Item = Result<String, IRouteError>> + 'a>,
+}
+
+impl Iterator for IRouteEventStream<'_> {
+    type Item = Result<String, IRouteError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
 pub trait Transport {
     fn send(&self, request: &IRouteRequest) -> Result<IRouteResponse, String>;
+
+    fn stream<'a>(&'a self, request: &IRouteRequest) -> Result<IRouteStreamResponse<'a>, String> {
+        let response = self.send(request)?;
+        let events = parse_sse(&response.body).into_iter().map(Ok);
+        Ok(IRouteStreamResponse {
+            status: response.status,
+            error_body: response.body,
+            events: Box::new(events),
+        })
+    }
 }
 
 impl<F> Transport for F
@@ -206,8 +234,8 @@ impl<T: Transport> IRouteClient<T> {
         &self,
         execution_id: &str,
         after_sequence: u64,
-    ) -> Result<Vec<String>, IRouteError> {
-        let response = self.require_success(self.send(
+    ) -> Result<IRouteEventStream<'_>, IRouteError> {
+        let request = self.request(
             "GET",
             &format!(
                 "/v1/executions/{}/events?after={after_sequence}",
@@ -215,8 +243,14 @@ impl<T: Transport> IRouteClient<T> {
             ),
             None,
             BTreeMap::from([("Accept".into(), "text/event-stream".into())]),
-        )?)?;
-        Ok(parse_sse(&response.body))
+        );
+        let response = self.transport.stream(&request).map_err(IRouteError::Transport)?;
+        if !(200..300).contains(&response.status) {
+            return Err(api_error(response.status, response.error_body));
+        }
+        Ok(IRouteEventStream {
+            inner: Box::new(response.events.map(|item| item.map_err(IRouteError::Transport))),
+        })
     }
 
     fn send(
@@ -224,8 +258,20 @@ impl<T: Transport> IRouteClient<T> {
         method: &str,
         path: &str,
         body: Option<&str>,
-        mut headers: BTreeMap<String, String>,
+        headers: BTreeMap<String, String>,
     ) -> Result<IRouteResponse, IRouteError> {
+        self.transport
+            .send(&self.request(method, path, body, headers))
+            .map_err(IRouteError::Transport)
+    }
+
+    fn request(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&str>,
+        mut headers: BTreeMap<String, String>,
+    ) -> IRouteRequest {
         add_header(
             &mut headers,
             "Authorization",
@@ -242,14 +288,12 @@ impl<T: Transport> IRouteClient<T> {
                 self.options.permission_scopes.join(" "),
             );
         }
-        self.transport
-            .send(&IRouteRequest {
-                method: method.into(),
-                url: format!("{}{path}", self.base_url),
-                headers,
-                body: body.map(str::to_owned),
-            })
-            .map_err(IRouteError::Transport)
+        IRouteRequest {
+            method: method.into(),
+            url: format!("{}{path}", self.base_url),
+            headers,
+            body: body.map(str::to_owned),
+        }
     }
 
     fn optional(&self, response: IRouteResponse) -> Result<Option<String>, IRouteError> {
@@ -263,13 +307,7 @@ impl<T: Transport> IRouteClient<T> {
         if (200..300).contains(&response.status) {
             return Ok(response);
         }
-        Err(IRouteError::Api(IRouteApiError {
-            status: response.status,
-            code: json_string(&response.body, "code"),
-            title: json_string(&response.body, "title"),
-            detail: json_string(&response.body, "detail"),
-            response_body: response.body,
-        }))
+        Err(api_error(response.status, response.body))
     }
 }
 
@@ -292,6 +330,45 @@ impl Default for HttpTransport {
 
 impl Transport for HttpTransport {
     fn send(&self, request: &IRouteRequest) -> Result<IRouteResponse, String> {
+        let (status, mut body) = self.open(request, Some(self.timeout))?;
+        let mut bytes = Vec::new();
+        body.read_to_end(&mut bytes)
+            .map_err(|error| error.to_string())?;
+        Ok(IRouteResponse {
+            status,
+            body: String::from_utf8(bytes).map_err(|error| error.to_string())?,
+        })
+    }
+
+    fn stream<'a>(&'a self, request: &IRouteRequest) -> Result<IRouteStreamResponse<'a>, String> {
+        // An SSE connection may be quiet for longer than an ordinary request timeout. The server
+        // closes it at the terminal event, so do not apply a per-read timeout to this transport.
+        let (status, mut body) = self.open(request, None)?;
+        if !(200..300).contains(&status) {
+            let mut error_body = String::new();
+            body.read_to_string(&mut error_body)
+                .map_err(|error| error.to_string())?;
+            return Ok(IRouteStreamResponse {
+                status,
+                error_body,
+                events: Box::new(std::iter::empty()),
+            });
+        }
+
+        Ok(IRouteStreamResponse {
+            status,
+            error_body: String::new(),
+            events: Box::new(SseReader::new(body)),
+        })
+    }
+}
+
+impl HttpTransport {
+    fn open(
+        &self,
+        request: &IRouteRequest,
+        read_timeout: Option<Duration>,
+    ) -> Result<(u16, Box<dyn Read>), String> {
         let remainder = request
             .url
             .strip_prefix("http://")
@@ -300,9 +377,10 @@ impl Transport for HttpTransport {
                     .to_owned()
             })?;
         let (authority, path) = remainder.split_once('/').unwrap_or((remainder, ""));
-        let mut stream = TcpStream::connect(authority).map_err(|error| error.to_string())?;
+        let mut stream = TcpStream::connect(connect_authority(authority))
+            .map_err(|error| error.to_string())?;
         stream
-            .set_read_timeout(Some(self.timeout))
+            .set_read_timeout(read_timeout)
             .map_err(|error| error.to_string())?;
         stream
             .set_write_timeout(Some(self.timeout))
@@ -322,38 +400,208 @@ impl Transport for HttpTransport {
         stream.write_all(head.as_bytes()).map_err(|error| error.to_string())?;
         stream.write_all(body.as_bytes()).map_err(|error| error.to_string())?;
         let mut bytes = Vec::new();
-        stream
-            .read_to_end(&mut bytes)
-            .map_err(|error| error.to_string())?;
-        let header_end = bytes
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .ok_or_else(|| "invalid HTTP response".to_owned())?;
+        let header_end = loop {
+            if let Some(position) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+                break position;
+            }
+            if bytes.len() > 1024 * 1024 {
+                return Err("HTTP response headers exceed one megabyte".to_owned());
+            }
+            let mut chunk = [0_u8; 4096];
+            let read = stream.read(&mut chunk).map_err(|error| error.to_string())?;
+            if read == 0 {
+                return Err("truncated HTTP response headers".to_owned());
+            }
+            bytes.extend_from_slice(&chunk[..read]);
+        };
         let response_head = std::str::from_utf8(&bytes[..header_end])
             .map_err(|error| error.to_string())?;
-        let response_body = &bytes[header_end + 4..];
         let status = response_head
             .lines()
             .next()
             .and_then(|line| line.split_whitespace().nth(1))
             .and_then(|value| value.parse::<u16>().ok())
             .ok_or_else(|| "invalid HTTP status".to_owned())?;
-        let body_bytes = if response_head
+        let prefix = bytes[header_end + 4..].to_vec();
+        let source = BufReader::new(PrefixedStream {
+            prefix: Cursor::new(prefix),
+            stream,
+        });
+        let body: Box<dyn Read> = if response_head
             .lines()
-            .any(|line| line.eq_ignore_ascii_case("transfer-encoding: chunked"))
+            .filter_map(|line| line.split_once(':'))
+            .any(|(name, value)| name.eq_ignore_ascii_case("transfer-encoding") &&
+                value.split(',').any(|token| token.trim().eq_ignore_ascii_case("chunked")))
         {
-            decode_chunked(response_body)?
+            Box::new(ChunkedReader::new(source))
+        } else if let Some(length) = response_head
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+            .and_then(|(_, value)| value.trim().parse::<u64>().ok())
+        {
+            Box::new(source.take(length))
         } else {
-            response_body.to_vec()
+            Box::new(source)
         };
-        let body = String::from_utf8(body_bytes).map_err(|error| error.to_string())?;
-        Ok(IRouteResponse { status, body })
+        Ok((status, body))
     }
 }
 
 impl IRouteClient<HttpTransport> {
     pub fn new(base_url: impl Into<String>, options: ClientOptions) -> Self {
         Self::with_transport(base_url, options, HttpTransport::default())
+    }
+}
+
+struct PrefixedStream {
+    prefix: Cursor<Vec<u8>>,
+    stream: TcpStream,
+}
+
+impl Read for PrefixedStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let prefixed = self.prefix.read(buffer)?;
+        if prefixed > 0 {
+            return Ok(prefixed);
+        }
+        self.stream.read(buffer)
+    }
+}
+
+struct ChunkedReader<R: BufRead> {
+    source: R,
+    remaining: usize,
+    finished: bool,
+}
+
+impl<R: BufRead> ChunkedReader<R> {
+    fn new(source: R) -> Self {
+        Self {
+            source,
+            remaining: 0,
+            finished: false,
+        }
+    }
+
+    fn read_chunk_size(&mut self) -> std::io::Result<()> {
+        let mut line = String::new();
+        if self.source.read_line(&mut line)? == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "truncated chunked response",
+            ));
+        }
+        let size = line
+            .trim_end_matches(['\r', '\n'])
+            .split(';')
+            .next()
+            .and_then(|value| usize::from_str_radix(value, 16).ok())
+            .ok_or_else(|| std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid HTTP chunk size",
+            ))?;
+        self.remaining = size;
+        if size == 0 {
+            // Consume optional trailers through their terminating blank line.
+            loop {
+                line.clear();
+                if self.source.read_line(&mut line)? == 0 || line == "\r\n" || line == "\n" {
+                    break;
+                }
+            }
+            self.finished = true;
+        }
+        Ok(())
+    }
+}
+
+impl<R: BufRead> Read for ChunkedReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if buffer.is_empty() || self.finished {
+            return Ok(0);
+        }
+        if self.remaining == 0 {
+            self.read_chunk_size()?;
+            if self.finished {
+                return Ok(0);
+            }
+        }
+
+        let limit = buffer.len().min(self.remaining);
+        let read = self.source.read(&mut buffer[..limit])?;
+        if read == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "truncated HTTP chunk",
+            ));
+        }
+        self.remaining -= read;
+        if self.remaining == 0 {
+            let mut terminator = [0_u8; 2];
+            self.source.read_exact(&mut terminator)?;
+            if terminator != *b"\r\n" {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "invalid HTTP chunk terminator",
+                ));
+            }
+        }
+        Ok(read)
+    }
+}
+
+struct SseReader {
+    source: BufReader<Box<dyn Read>>,
+    data: Vec<String>,
+    finished: bool,
+}
+
+impl SseReader {
+    fn new(source: Box<dyn Read>) -> Self {
+        Self {
+            source: BufReader::new(source),
+            data: Vec::new(),
+            finished: false,
+        }
+    }
+}
+
+impl Iterator for SseReader {
+    type Item = Result<String, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+        loop {
+            let mut line = String::new();
+            match self.source.read_line(&mut line) {
+                Ok(0) => {
+                    self.finished = true;
+                    return if self.data.is_empty() {
+                        None
+                    } else {
+                        Some(Ok(std::mem::take(&mut self.data).join("\n")))
+                    };
+                }
+                Ok(_) => {
+                    let line = line.trim_end_matches(['\r', '\n']);
+                    if line.is_empty() {
+                        if !self.data.is_empty() {
+                            return Some(Ok(std::mem::take(&mut self.data).join("\n")));
+                        }
+                    } else if let Some(value) = line.strip_prefix("data:") {
+                        self.data.push(value.strip_prefix(' ').unwrap_or(value).to_owned());
+                    }
+                }
+                Err(error) => {
+                    self.finished = true;
+                    self.data.clear();
+                    return Some(Err(error.to_string()));
+                }
+            }
+        }
     }
 }
 
@@ -395,49 +643,85 @@ fn percent_encode(value: &str) -> String {
         .collect()
 }
 
+fn connect_authority(authority: &str) -> String {
+    if authority.starts_with('[') && authority.ends_with(']') {
+        return format!("{authority}:80");
+    }
+    if authority.contains(':') {
+        authority.to_owned()
+    } else {
+        format!("{authority}:80")
+    }
+}
+
+fn api_error(status: u16, response_body: String) -> IRouteError {
+    IRouteError::Api(IRouteApiError {
+        status,
+        code: json_string(&response_body, "code"),
+        title: json_string(&response_body, "title"),
+        detail: json_string(&response_body, "detail"),
+        response_body,
+    })
+}
+
 fn json_string(json: &str, name: &str) -> Option<String> {
     let marker = format!("\"{name}\"");
     let value = json.split_once(&marker)?.1.split_once(':')?.1.trim_start();
-    let quoted = value.strip_prefix('"')?;
+    let bytes = value.strip_prefix('"')?.as_bytes();
     let mut output = String::new();
-    let mut escaped = false;
-    for character in quoted.chars() {
-        if escaped {
-            output.push(character);
-            escaped = false;
-        } else if character == '\\' {
-            escaped = true;
-        } else if character == '"' {
-            return Some(output);
-        } else {
-            output.push(character);
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => return Some(output),
+            b'\\' => {
+                index += 1;
+                let escaped = *bytes.get(index)?;
+                match escaped {
+                    b'"' => output.push('"'),
+                    b'\\' => output.push('\\'),
+                    b'/' => output.push('/'),
+                    b'b' => output.push('\u{0008}'),
+                    b'f' => output.push('\u{000C}'),
+                    b'n' => output.push('\n'),
+                    b'r' => output.push('\r'),
+                    b't' => output.push('\t'),
+                    b'u' => {
+                        let (first, next) = json_hex_scalar(bytes, index + 1)?;
+                        index = next - 1;
+                        let scalar = if (0xD800..=0xDBFF).contains(&first) &&
+                            bytes.get(next..next + 2) == Some(&b"\\u"[..])
+                        {
+                            let (second, after) = json_hex_scalar(bytes, next + 2)?;
+                            if !(0xDC00..=0xDFFF).contains(&second) {
+                                return None;
+                            }
+                            index = after - 1;
+                            0x10000 + (((first - 0xD800) as u32) << 10) + (second - 0xDC00) as u32
+                        } else {
+                            first as u32
+                        };
+                        output.push(char::from_u32(scalar)?);
+                    }
+                    _ => return None,
+                }
+            }
+            byte if byte < 0x20 => return None,
+            _ => {
+                let text = std::str::from_utf8(&bytes[index..]).ok()?;
+                let character = text.chars().next()?;
+                output.push(character);
+                index += character.len_utf8() - 1;
+            }
         }
+        index += 1;
     }
     None
 }
 
-fn decode_chunked(body: &[u8]) -> Result<Vec<u8>, String> {
-    let mut offset = 0;
-    let mut output = Vec::new();
-    loop {
-        let line_end = body[offset..]
-            .windows(2)
-            .position(|window| window == b"\r\n")
-            .ok_or_else(|| "invalid chunked response".to_owned())?;
-        let size_line = std::str::from_utf8(&body[offset..offset + line_end])
-            .map_err(|error| error.to_string())?;
-        let size = usize::from_str_radix(size_line.split(';').next().unwrap_or(""), 16)
-            .map_err(|error| error.to_string())?;
-        offset += line_end + 2;
-        if size == 0 {
-            return Ok(output);
-        }
-        if body.len() < offset + size + 2 || &body[offset + size..offset + size + 2] != b"\r\n" {
-            return Err("truncated chunked response".into());
-        }
-        output.extend_from_slice(&body[offset..offset + size]);
-        offset += size + 2;
-    }
+fn json_hex_scalar(bytes: &[u8], start: usize) -> Option<(u16, usize)> {
+    let end = start.checked_add(4)?;
+    let value = std::str::from_utf8(bytes.get(start..end)?).ok()?;
+    Some((u16::from_str_radix(value, 16).ok()?, end))
 }
 
 #[cfg(test)]
@@ -504,7 +788,9 @@ mod tests {
 
         let events = client
             .stream_events_json("019fbc00-0000-7000-8000-000000000014", 0)
-            .expect("stream events");
+            .expect("stream events")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("stream body");
         assert_eq!(
             events.len(),
             fixture["stream.expected.count"].parse().unwrap()
@@ -541,6 +827,22 @@ mod tests {
             Some(fixture["error.expected.detail"].as_str())
         );
         assert_eq!(error.response_body, decode(&fixture, "error.body.base64"));
+    }
+
+    #[test]
+    fn typed_errors_decode_json_escapes_and_unicode() {
+        let body = r#"{"code":"bad\nrequest","title":"quoted: \"value\"","detail":"snowman \u2603"}"#;
+
+        assert_eq!(json_string(body, "code").as_deref(), Some("bad\nrequest"));
+        assert_eq!(json_string(body, "title").as_deref(), Some("quoted: \"value\""));
+        assert_eq!(json_string(body, "detail").as_deref(), Some("snowman ☃"));
+    }
+
+    #[test]
+    fn default_http_authority_uses_port_eighty_when_omitted() {
+        assert_eq!(connect_authority("example.test"), "example.test:80");
+        assert_eq!(connect_authority("example.test:8080"), "example.test:8080");
+        assert_eq!(connect_authority("[::1]"), "[::1]:80");
     }
 
     fn client<F>(fixture: &BTreeMap<String, String>, transport: F) -> IRouteClient<F>

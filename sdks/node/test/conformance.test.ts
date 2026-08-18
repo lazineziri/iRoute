@@ -57,6 +57,56 @@ test('Node SDK matches the shared end-of-stream fixture', async () => {
   assert.deepEqual(events.map(item => item.type), fixture['stream.expected.types']?.split(','));
 });
 
+test('Node SDK preserves an SSE CRLF delimiter split across chunks', async () => {
+  const encoder = new TextEncoder();
+  const payload = '{"sequence":1,"executionId":"019fbc00-0000-7000-8000-000000000014","type":"created","occurredAt":"2026-08-18T00:00:00Z","data":{}}';
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${payload}\r`));
+      controller.enqueue(encoder.encode('\n\r'));
+      controller.enqueue(encoder.encode('\n'));
+      controller.close();
+    }
+  });
+  const client = createClient(async () => new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' }
+  }));
+
+  const events: ExecutionEvent[] = [];
+  for await (const event of client.streamEvents('019fbc00-0000-7000-8000-000000000014')) {
+    events.push(event);
+  }
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.type, 'created');
+});
+
+test('Node SDK cancels the response stream when iteration stops early', async () => {
+  const encoder = new TextEncoder();
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(
+        'data: {"sequence":1,"executionId":"019fbc00-0000-7000-8000-000000000014","type":"created","occurredAt":"2026-08-18T00:00:00Z","data":{}}\n\n'
+      ));
+    },
+    cancel() {
+      cancelled = true;
+    }
+  });
+  const client = createClient(async () => new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' }
+  }));
+
+  for await (const _event of client.streamEvents('019fbc00-0000-7000-8000-000000000014')) {
+    break;
+  }
+
+  assert.equal(cancelled, true);
+});
+
 test('Node SDK matches the shared typed error fixture', async () => {
   const transport: typeof fetch = async () => jsonResponse(
     Number(fixture['error.status']),
