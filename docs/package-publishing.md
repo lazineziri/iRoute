@@ -16,7 +16,8 @@ an SDK does not install or start the runtime.
 | Rust | crates.io | `iroute-sdk` | Published |
 | Java | Maven Central | `dev.iroute:iroute-sdk` | Planned |
 
-`0.1.0-alpha.2` is published on npm, PyPI, NuGet, Packagist, and crates.io.
+`0.1.0-alpha.3` is the current package version for npm, PyPI, NuGet, Packagist,
+and crates.io.
 Maven Central is planned: the namespace is verifiable through ownership of
 `iroute.dev`, but the build does not yet produce the signed source and javadoc
 artifacts Central requires. Java is installed from source until it does.

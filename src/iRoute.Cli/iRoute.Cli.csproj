@@ -6,10 +6,10 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>iroute</ToolCommandName>
     <PackageId>iRoute.Cli</PackageId>
-    <Version>0.1.0-alpha.2</Version>
+    <Version>0.1.0-alpha.3</Version>
     <Description>Command-line client for the iRoute runtime.</Description>
     <PackageTags>ai;llm;router;cli;dotnet-tool</PackageTags>
-    <PackageReleaseNotes>First alpha release of the iRoute command-line client.</PackageReleaseNotes>
+    <PackageReleaseNotes>Updates the CLI to the iRoute 0.1.0-alpha.3 runtime and contract baseline.</PackageReleaseNotes>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>

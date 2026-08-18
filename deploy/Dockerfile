@@ -9,7 +9,7 @@ RUN dotnet restore src/iRoute.Api/iRoute.Api.csproj \
     && dotnet publish src/iRoute.Migrations/iRoute.Migrations.csproj -c Release --no-restore -o /app/migrations /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime-base
-ARG VERSION=0.1.0-alpha.2
+ARG VERSION=0.1.0-alpha.3
 LABEL org.opencontainers.image.title="iRoute" \
       org.opencontainers.image.description="Task-aware AI execution runtime" \
       org.opencontainers.image.version="${VERSION}" \

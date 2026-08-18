@@ -19,7 +19,7 @@ remain server-side.
 
 ## Release status
 
-The source tree and release archives contain version `0.1.0-alpha.2`. Registry
+The source tree and release archives contain version `0.1.0-alpha.3`. Registry
 publication is not implied. Until a package is published, consume the SDK from a
 source checkout, a locally built package, or a path dependency as described in
 the relevant language guide.
