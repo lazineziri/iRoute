@@ -370,7 +370,9 @@ export function renderRoutingComparisonMarkdown(report) {
 }
 
 export function parseBuiltInTaskTypes(source) {
-  return [...source.matchAll(/^\s*\["([a-z][a-z0-9._-]+)"\]\s*=\s*new\(/gm)]
+  return [...source.matchAll(
+    /^\s*\["([a-z][a-z0-9._-]+)"\]\s*=\s*new(?:\s+(?:global::)?(?:[A-Za-z_]\w*\.)*TaskDefinition)?\s*\(/gm
+  )]
     .map(match => match[1])
     .sort();
 }

@@ -15,325 +15,6185 @@
   },
   "openApiSchemas": {
     "TaskRequest": {
-      "required": ["taskType", "input"],
-      "properties": ["taskType", "input", "projectId", "idempotencyKey", "constraints", "metadata", "tenantId", "actorId", "permissionScopes"]
+      "required": [
+        "taskType",
+        "input"
+      ],
+      "properties": [
+        "taskType",
+        "input",
+        "projectId",
+        "idempotencyKey",
+        "constraints",
+        "metadata",
+        "tenantId",
+        "actorId",
+        "permissionScopes"
+      ]
     },
     "TaskConstraints": {
       "required": [],
-      "properties": ["maxInputTokens", "maxOutputTokens", "maxCost", "deadlineMilliseconds", "minimumQuality", "requireEvidence", "allowExternalWrites", "maxModelCalls", "maxToolCalls", "maxParallelCalls", "maxTaskDepth", "allowedRegions", "requiredResidency"]
+      "properties": [
+        "maxInputTokens",
+        "maxOutputTokens",
+        "maxCost",
+        "deadlineMilliseconds",
+        "minimumQuality",
+        "requireEvidence",
+        "allowExternalWrites",
+        "maxModelCalls",
+        "maxToolCalls",
+        "maxParallelCalls",
+        "maxTaskDepth",
+        "allowedRegions",
+        "requiredResidency"
+      ]
     },
     "ExecutionSnapshot": {
-      "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
-      "properties": ["executionId", "taskType", "status", "createdAt", "updatedAt", "outcome", "error", "tenantId", "actorId", "projectId", "taskDefinitionVersion", "cancellationRequestedAt"]
+      "required": [
+        "executionId",
+        "taskType",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "tenantId",
+        "actorId"
+      ],
+      "properties": [
+        "executionId",
+        "taskType",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "outcome",
+        "error",
+        "tenantId",
+        "actorId",
+        "projectId",
+        "taskDefinitionVersion",
+        "cancellationRequestedAt"
+      ]
     },
     "ApprovalDecision": {
-      "required": ["actionId", "approved"],
-      "properties": ["actionId", "approved", "reason"]
+      "required": [
+        "actionId",
+        "approved"
+      ],
+      "properties": [
+        "actionId",
+        "approved",
+        "reason"
+      ]
     },
     "ApprovalSnapshot": {
-      "required": ["executionId", "actionId", "status", "capability", "sideEffectClass", "requiredPermissionScopes", "requestedByActorId", "inputReference", "idempotencyReference", "createdAt"],
-      "properties": ["executionId", "actionId", "status", "capability", "sideEffectClass", "requiredPermissionScopes", "requestedByActorId", "decidedByActorId", "inputReference", "idempotencyReference", "createdAt", "decidedAt", "reason"]
+      "required": [
+        "executionId",
+        "actionId",
+        "status",
+        "capability",
+        "sideEffectClass",
+        "requiredPermissionScopes",
+        "requestedByActorId",
+        "inputReference",
+        "idempotencyReference",
+        "createdAt"
+      ],
+      "properties": [
+        "executionId",
+        "actionId",
+        "status",
+        "capability",
+        "sideEffectClass",
+        "requiredPermissionScopes",
+        "requestedByActorId",
+        "decidedByActorId",
+        "inputReference",
+        "idempotencyReference",
+        "createdAt",
+        "decidedAt",
+        "reason"
+      ]
     },
     "ApprovalResult": {
-      "required": ["approval", "execution"],
-      "properties": ["approval", "execution"]
+      "required": [
+        "approval",
+        "execution"
+      ],
+      "properties": [
+        "approval",
+        "execution"
+      ]
     },
     "TaskOutcome": {
-      "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
-      "properties": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts", "validation", "context", "routing"]
+      "required": [
+        "output",
+        "resolutionLevel",
+        "confidence",
+        "evidence",
+        "usage",
+        "artifacts"
+      ],
+      "properties": [
+        "output",
+        "resolutionLevel",
+        "confidence",
+        "evidence",
+        "usage",
+        "artifacts",
+        "validation",
+        "context",
+        "routing"
+      ]
     },
     "EvidenceReference": {
-      "required": ["kind", "reference"],
-      "properties": ["kind", "reference", "contentHash", "observedAt"]
+      "required": [
+        "kind",
+        "reference"
+      ],
+      "properties": [
+        "kind",
+        "reference",
+        "contentHash",
+        "observedAt"
+      ]
     },
     "DependencyReference": {
-      "required": ["kind", "reference"],
-      "properties": ["kind", "reference", "contentHash"]
+      "required": [
+        "kind",
+        "reference"
+      ],
+      "properties": [
+        "kind",
+        "reference",
+        "contentHash"
+      ]
     },
     "ArtifactReference": {
-      "required": ["artifactId", "artifactType", "version", "contentHash"],
-      "properties": ["artifactId", "artifactType", "version", "contentHash"]
+      "required": [
+        "artifactId",
+        "artifactType",
+        "version",
+        "contentHash"
+      ],
+      "properties": [
+        "artifactId",
+        "artifactType",
+        "version",
+        "contentHash"
+      ]
     },
     "ArtifactSnapshot": {
-      "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
-      "properties": ["artifact", "tenantId", "projectId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "expiresAt", "isActive", "logicalKey", "lifecycleStatus", "supersedesArtifactId", "supersededByArtifactId", "dependencies", "invalidatedAt", "invalidationReason"]
+      "required": [
+        "artifact",
+        "tenantId",
+        "taskType",
+        "taskDefinitionVersion",
+        "content",
+        "evidence",
+        "createdAt",
+        "isActive"
+      ],
+      "properties": [
+        "artifact",
+        "tenantId",
+        "projectId",
+        "taskType",
+        "taskDefinitionVersion",
+        "content",
+        "evidence",
+        "createdAt",
+        "expiresAt",
+        "isActive",
+        "logicalKey",
+        "lifecycleStatus",
+        "supersedesArtifactId",
+        "supersededByArtifactId",
+        "dependencies",
+        "invalidatedAt",
+        "invalidationReason"
+      ]
     },
     "MemorySnapshot": {
-      "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
-      "properties": ["memoryId", "tenantId", "projectId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt", "expiresAt", "supersedesMemoryId", "supersededByMemoryId", "invalidatedAt", "invalidationReason"]
+      "required": [
+        "memoryId",
+        "tenantId",
+        "kind",
+        "key",
+        "version",
+        "value",
+        "contentHash",
+        "lifecycleStatus",
+        "evidence",
+        "dependencies",
+        "createdAt"
+      ],
+      "properties": [
+        "memoryId",
+        "tenantId",
+        "projectId",
+        "kind",
+        "key",
+        "version",
+        "value",
+        "contentHash",
+        "lifecycleStatus",
+        "evidence",
+        "dependencies",
+        "createdAt",
+        "expiresAt",
+        "supersedesMemoryId",
+        "supersededByMemoryId",
+        "invalidatedAt",
+        "invalidationReason"
+      ]
     },
     "ObservabilitySummary": {
-      "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
-      "properties": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions", "gatewayGroups"]
+      "required": [
+        "from",
+        "to",
+        "truncated",
+        "sampledExecutions",
+        "totals",
+        "groups",
+        "memory",
+        "recentExecutions"
+      ],
+      "properties": [
+        "from",
+        "to",
+        "truncated",
+        "sampledExecutions",
+        "totals",
+        "groups",
+        "memory",
+        "recentExecutions",
+        "gatewayGroups"
+      ]
     },
     "ObservabilityMetricSet": {
-      "required": ["executions", "completed", "failed", "completionRate", "averageQuality", "inputTokens", "outputTokens", "cost", "averageLatencyMilliseconds", "modelCalls", "toolCalls", "noModelResolutions", "modelCallsAvoided"],
-      "properties": ["executions", "completed", "failed", "completionRate", "averageQuality", "inputTokens", "outputTokens", "cost", "averageLatencyMilliseconds", "modelCalls", "toolCalls", "noModelResolutions", "modelCallsAvoided"]
+      "required": [
+        "executions",
+        "completed",
+        "failed",
+        "completionRate",
+        "averageQuality",
+        "inputTokens",
+        "outputTokens",
+        "cost",
+        "averageLatencyMilliseconds",
+        "modelCalls",
+        "toolCalls",
+        "noModelResolutions",
+        "modelCallsAvoided"
+      ],
+      "properties": [
+        "executions",
+        "completed",
+        "failed",
+        "completionRate",
+        "averageQuality",
+        "inputTokens",
+        "outputTokens",
+        "cost",
+        "averageLatencyMilliseconds",
+        "modelCalls",
+        "toolCalls",
+        "noModelResolutions",
+        "modelCallsAvoided"
+      ]
     },
     "ObservabilityMetricGroup": {
-      "required": ["taskType", "policyVersion", "metrics"],
-      "properties": ["taskType", "policyVersion", "metrics"]
+      "required": [
+        "taskType",
+        "policyVersion",
+        "metrics"
+      ],
+      "properties": [
+        "taskType",
+        "policyVersion",
+        "metrics"
+      ]
     },
     "GatewayObservabilityMetricGroup": {
-      "required": ["gatewayId", "provider", "deploymentId", "region", "modelVersion", "failureClass", "circuitState", "metrics"],
-      "properties": ["gatewayId", "provider", "deploymentId", "region", "modelVersion", "failureClass", "circuitState", "metrics"]
+      "required": [
+        "gatewayId",
+        "provider",
+        "deploymentId",
+        "region",
+        "modelVersion",
+        "failureClass",
+        "circuitState",
+        "metrics"
+      ],
+      "properties": [
+        "gatewayId",
+        "provider",
+        "deploymentId",
+        "region",
+        "modelVersion",
+        "failureClass",
+        "circuitState",
+        "metrics"
+      ]
     },
     "GatewayObservabilityMetricSet": {
-      "required": ["attempts", "successes", "failures", "rejectedCandidates", "fallbacks", "averageLatencyMilliseconds"],
-      "properties": ["attempts", "successes", "failures", "rejectedCandidates", "fallbacks", "averageLatencyMilliseconds"]
+      "required": [
+        "attempts",
+        "successes",
+        "failures",
+        "rejectedCandidates",
+        "fallbacks",
+        "averageLatencyMilliseconds"
+      ],
+      "properties": [
+        "attempts",
+        "successes",
+        "failures",
+        "rejectedCandidates",
+        "fallbacks",
+        "averageLatencyMilliseconds"
+      ]
     },
     "MemoryHitDiagnostics": {
-      "required": ["considered", "accepted", "rejected", "hitRate", "resolvers"],
-      "properties": ["considered", "accepted", "rejected", "hitRate", "resolvers"]
+      "required": [
+        "considered",
+        "accepted",
+        "rejected",
+        "hitRate",
+        "resolvers"
+      ],
+      "properties": [
+        "considered",
+        "accepted",
+        "rejected",
+        "hitRate",
+        "resolvers"
+      ]
     },
     "MemoryResolverDiagnostic": {
-      "required": ["resolver", "considered", "accepted", "rejected", "reasons"],
-      "properties": ["resolver", "considered", "accepted", "rejected", "reasons"]
+      "required": [
+        "resolver",
+        "considered",
+        "accepted",
+        "rejected",
+        "reasons"
+      ],
+      "properties": [
+        "resolver",
+        "considered",
+        "accepted",
+        "rejected",
+        "reasons"
+      ]
     },
     "ObservabilityExecutionItem": {
-      "required": ["executionId", "taskType", "policyVersion", "status", "startedAt", "durationMilliseconds", "resolutionLevel", "quality", "cost", "inputTokens", "outputTokens"],
-      "properties": ["executionId", "taskType", "policyVersion", "status", "startedAt", "durationMilliseconds", "resolutionLevel", "quality", "cost", "inputTokens", "outputTokens"]
+      "required": [
+        "executionId",
+        "taskType",
+        "policyVersion",
+        "status",
+        "startedAt",
+        "durationMilliseconds",
+        "resolutionLevel",
+        "quality",
+        "cost",
+        "inputTokens",
+        "outputTokens"
+      ],
+      "properties": [
+        "executionId",
+        "taskType",
+        "policyVersion",
+        "status",
+        "startedAt",
+        "durationMilliseconds",
+        "resolutionLevel",
+        "quality",
+        "cost",
+        "inputTokens",
+        "outputTokens"
+      ]
     },
     "ExecutionTimeline": {
-      "required": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"],
-      "properties": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"]
+      "required": [
+        "executionId",
+        "traceId",
+        "taskType",
+        "taskDefinitionVersion",
+        "policyVersion",
+        "status",
+        "startedAt",
+        "updatedAt",
+        "durationMilliseconds",
+        "actorReference",
+        "projectReference",
+        "payloadMode",
+        "truncated",
+        "events"
+      ],
+      "properties": [
+        "executionId",
+        "traceId",
+        "taskType",
+        "taskDefinitionVersion",
+        "policyVersion",
+        "status",
+        "startedAt",
+        "updatedAt",
+        "durationMilliseconds",
+        "actorReference",
+        "projectReference",
+        "payloadMode",
+        "truncated",
+        "events"
+      ]
     },
     "ExecutionTimelineEntry": {
-      "required": ["sequence", "type", "occurredAt", "offsetMilliseconds", "data"],
-      "properties": ["sequence", "type", "occurredAt", "offsetMilliseconds", "data"]
+      "required": [
+        "sequence",
+        "type",
+        "occurredAt",
+        "offsetMilliseconds",
+        "data"
+      ],
+      "properties": [
+        "sequence",
+        "type",
+        "occurredAt",
+        "offsetMilliseconds",
+        "data"
+      ]
     },
     "UsageSummary": {
-      "required": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"],
-      "properties": ["inputTokens", "outputTokens", "cost", "durationMilliseconds", "modelCalls", "toolCalls"]
+      "required": [
+        "inputTokens",
+        "outputTokens",
+        "cost",
+        "durationMilliseconds",
+        "modelCalls",
+        "toolCalls"
+      ],
+      "properties": [
+        "inputTokens",
+        "outputTokens",
+        "cost",
+        "durationMilliseconds",
+        "modelCalls",
+        "toolCalls"
+      ]
     },
     "ValidationSummary": {
-      "required": ["passed", "quality", "checks", "failures"],
-      "properties": ["passed", "quality", "checks", "failures"]
+      "required": [
+        "passed",
+        "quality",
+        "checks",
+        "failures"
+      ],
+      "properties": [
+        "passed",
+        "quality",
+        "checks",
+        "failures"
+      ]
     },
     "ContextManifest": {
-      "required": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"],
-      "properties": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"]
+      "required": [
+        "estimatedTokens",
+        "budgetTokens",
+        "projectedInputTokens",
+        "contextTokens",
+        "truncated",
+        "fullHistoryIncluded",
+        "entries",
+        "provenance"
+      ],
+      "properties": [
+        "estimatedTokens",
+        "budgetTokens",
+        "projectedInputTokens",
+        "contextTokens",
+        "truncated",
+        "fullHistoryIncluded",
+        "entries",
+        "provenance"
+      ]
     },
     "ContextManifestEntry": {
-      "required": ["kind", "reference", "included", "reason", "estimatedTokens", "rank", "outputPath"],
-      "properties": ["kind", "reference", "included", "reason", "estimatedTokens", "contentHash", "rank", "outputPath"]
+      "required": [
+        "kind",
+        "reference",
+        "included",
+        "reason",
+        "estimatedTokens",
+        "rank",
+        "outputPath"
+      ],
+      "properties": [
+        "kind",
+        "reference",
+        "included",
+        "reason",
+        "estimatedTokens",
+        "contentHash",
+        "rank",
+        "outputPath"
+      ]
     },
     "RoutingDecision": {
-      "required": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"],
-      "properties": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates", "selectedDeployment", "resilience"]
+      "required": [
+        "policyVersion",
+        "path",
+        "reason",
+        "selectedCapability",
+        "selectedProfileId",
+        "selectedModelTier",
+        "qualityFloor",
+        "expectedQuality",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "score",
+        "plannerInvoked",
+        "planningCalls",
+        "escalated",
+        "escalationReason",
+        "candidates"
+      ],
+      "properties": [
+        "policyVersion",
+        "path",
+        "reason",
+        "selectedCapability",
+        "selectedProfileId",
+        "selectedModelTier",
+        "qualityFloor",
+        "expectedQuality",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "score",
+        "plannerInvoked",
+        "planningCalls",
+        "escalated",
+        "escalationReason",
+        "candidates",
+        "selectedDeployment",
+        "resilience"
+      ]
     },
     "RoutingCandidateEvaluation": {
-      "required": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"],
-      "properties": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score", "measurementSource", "measurement"]
+      "required": [
+        "capability",
+        "profileId",
+        "modelTier",
+        "eligible",
+        "reason",
+        "expectedQuality",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "reliability",
+        "availability",
+        "score"
+      ],
+      "properties": [
+        "capability",
+        "profileId",
+        "modelTier",
+        "eligible",
+        "reason",
+        "expectedQuality",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "reliability",
+        "availability",
+        "score",
+        "measurementSource",
+        "measurement"
+      ]
     },
     "GatewayDeploymentReference": {
-      "required": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"],
-      "properties": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"]
+      "required": [
+        "gatewayId",
+        "provider",
+        "deploymentId",
+        "region",
+        "residency",
+        "modelVersion"
+      ],
+      "properties": [
+        "gatewayId",
+        "provider",
+        "deploymentId",
+        "region",
+        "residency",
+        "modelVersion"
+      ]
     },
     "GatewayCandidateEvidence": {
-      "required": ["deployment", "eligible", "reason", "circuitState", "failureClass"],
-      "properties": ["deployment", "eligible", "reason", "circuitState", "failureClass"]
+      "required": [
+        "deployment",
+        "eligible",
+        "reason",
+        "circuitState",
+        "failureClass"
+      ],
+      "properties": [
+        "deployment",
+        "eligible",
+        "reason",
+        "circuitState",
+        "failureClass"
+      ]
     },
     "GatewayAttemptEvidence": {
-      "required": ["deployment", "attempt", "circuitStateBefore", "circuitStateAfter", "succeeded", "failureClass", "failureCode", "statusCode", "durationMilliseconds", "retryAfterMilliseconds"],
-      "properties": ["deployment", "attempt", "circuitStateBefore", "circuitStateAfter", "succeeded", "failureClass", "failureCode", "statusCode", "durationMilliseconds", "retryAfterMilliseconds"]
+      "required": [
+        "deployment",
+        "attempt",
+        "circuitStateBefore",
+        "circuitStateAfter",
+        "succeeded",
+        "failureClass",
+        "failureCode",
+        "statusCode",
+        "durationMilliseconds",
+        "retryAfterMilliseconds"
+      ],
+      "properties": [
+        "deployment",
+        "attempt",
+        "circuitStateBefore",
+        "circuitStateAfter",
+        "succeeded",
+        "failureClass",
+        "failureCode",
+        "statusCode",
+        "durationMilliseconds",
+        "retryAfterMilliseconds"
+      ]
     },
     "GatewayResilienceTrace": {
-      "required": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"],
-      "properties": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"]
+      "required": [
+        "policyVersion",
+        "candidates",
+        "attempts",
+        "finalDeployment",
+        "fallbackReason",
+        "exhaustionReason"
+      ],
+      "properties": [
+        "policyVersion",
+        "candidates",
+        "attempts",
+        "finalDeployment",
+        "fallbackReason",
+        "exhaustionReason"
+      ]
     },
     "ModelProfile": {
-      "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
-      "properties": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource", "measurement"]
+      "required": [
+        "profileId",
+        "capability",
+        "tier",
+        "supportedTaskTypes",
+        "expectedQuality",
+        "estimatedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "reliability",
+        "availability",
+        "maxInputTokens",
+        "maxOutputTokens",
+        "healthy",
+        "measurementSource"
+      ],
+      "properties": [
+        "profileId",
+        "capability",
+        "tier",
+        "supportedTaskTypes",
+        "expectedQuality",
+        "estimatedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "reliability",
+        "availability",
+        "maxInputTokens",
+        "maxOutputTokens",
+        "healthy",
+        "measurementSource",
+        "measurement"
+      ]
     },
     "ModelProfileMeasurement": {
-      "required": ["provider", "model", "measuredAt", "sampleCount", "qualityIsDeclaredNotMeasured"],
-      "properties": ["provider", "model", "measuredAt", "sampleCount", "qualityIsDeclaredNotMeasured"]
+      "required": [
+        "provider",
+        "model",
+        "measuredAt",
+        "sampleCount",
+        "qualityIsDeclaredNotMeasured"
+      ],
+      "properties": [
+        "provider",
+        "model",
+        "measuredAt",
+        "sampleCount",
+        "qualityIsDeclaredNotMeasured"
+      ]
     },
     "ModelGatewayHealth": {
-      "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
-      "properties": ["gatewayId", "status", "latencyMilliseconds", "checkedAt", "message"]
+      "required": [
+        "gatewayId",
+        "status",
+        "latencyMilliseconds",
+        "checkedAt"
+      ],
+      "properties": [
+        "gatewayId",
+        "status",
+        "latencyMilliseconds",
+        "checkedAt",
+        "message"
+      ]
     },
     "TaskEvent": {
-      "required": ["sequence", "executionId", "type", "occurredAt", "data"],
-      "properties": ["sequence", "executionId", "type", "occurredAt", "data"]
+      "required": [
+        "sequence",
+        "executionId",
+        "type",
+        "occurredAt",
+        "data"
+      ],
+      "properties": [
+        "sequence",
+        "executionId",
+        "type",
+        "occurredAt",
+        "data"
+      ]
     },
     "ResolutionConsideration": {
-      "required": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks"],
-      "properties": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks", "level"]
+      "required": [
+        "resolver",
+        "accepted",
+        "code",
+        "reason",
+        "permissionChecked",
+        "freshnessChecked",
+        "checks"
+      ],
+      "properties": [
+        "resolver",
+        "accepted",
+        "code",
+        "reason",
+        "permissionChecked",
+        "freshnessChecked",
+        "checks",
+        "level"
+      ]
     },
     "ExecutionProblem": {
-      "required": ["code", "title", "detail", "retryable"],
-      "properties": ["code", "title", "detail", "retryable", "metadata"]
+      "required": [
+        "code",
+        "title",
+        "detail",
+        "retryable"
+      ],
+      "properties": [
+        "code",
+        "title",
+        "detail",
+        "retryable",
+        "metadata"
+      ]
     },
     "HttpProblem": {
-      "required": ["title", "status"],
-      "properties": ["type", "title", "status", "detail", "instance", "code"]
+      "required": [
+        "title",
+        "status"
+      ],
+      "properties": [
+        "type",
+        "title",
+        "status",
+        "detail",
+        "instance",
+        "code"
+      ]
     }
   },
   "enums": {
-    "ExecutionStatus": ["Accepted", "Resolving", "Planning", "Queued", "WaitingForApproval", "Running", "Validating", "Materializing", "Compensating", "Succeeded", "Failed", "Cancelled", "TimedOut"],
-    "ResolutionLevel": ["ExactArtifact", "StructuredState", "SemanticMemory", "DeterministicCapability", "SmallModel", "StrongModel", "VerifiedOrHuman"],
-    "ApprovalStatus": ["Pending", "Approved", "Denied"],
-    "SideEffectClass": ["None", "ReadOnly", "ReversibleWrite", "IrreversibleWrite"],
-    "ArtifactLifecycleStatus": ["Active", "Superseded", "Invalidated"],
-    "MemoryKind": ["Fact", "Decision"],
-    "MemoryLifecycleStatus": ["Active", "Superseded", "Invalidated"],
-    "ObservabilityPayloadMode": ["MetadataOnly", "Redacted"],
-    "RoutingPath": ["Direct", "Workflow"],
-    "ModelTier": ["Small", "Strong", "Verifier"],
-    "ModelProfileSource": ["Synthetic", "Unverified", "Measured"],
-    "ModelGatewayHealthStatus": ["Healthy", "Degraded", "Unavailable"],
-    "GatewayFailureClass": ["Timeout", "Throttling", "Transport", "Provider", "MalformedOutput", "Validation", "Policy", "Permanent", null],
-    "GatewayCircuitState": ["Closed", "Open", "HalfOpen"],
-    "ResolutionDecisionCode": ["exact_cache_hit", "exact_cache_miss", "permission_denied", "unsupported_task", "project_scope_required", "state_key_required", "state_hit", "state_unavailable", "artifact_reference_required", "artifact_hit", "artifact_unavailable", "handler_unavailable", "handler_declined", "handler_stale", "handler_accepted", "external_write_blocked", "validation_failed"],
-    "TaskEventType": ["execution.created", "execution.status_changed", "execution.queued", "execution.lease_claimed", "execution.lease_renewed", "execution.lease_released", "resolution.considered", "routing.decided", "routing.escalated", "plan.validated", "policy.evaluated", "capability.denied", "capability.started", "capability.completed", "capability.failed", "approval.required", "approval.decided", "workflow.checkpointed", "workflow.resumed", "step.started", "step.completed", "step.retry_scheduled", "step.failed", "external_action.started", "external_action.completed", "external_action.reused", "external_action.failed", "context.compiled", "gateway.started", "gateway.streamed", "gateway.completed", "gateway.failed", "gateway.candidate_evaluated", "gateway.attempted", "gateway.fallback_selected", "gateway.circuit_changed", "gateway.exhausted", "gateway.resilience_decided", "validation.completed", "artifact.materialized", "artifact.superseded", "artifact.invalidated", "memory.materialized", "memory.superseded", "memory.invalidated", "execution.cancellation_requested", "execution.completed", "execution.failed"],
-    "ErrorCode": ["idempotency_key_conflict", "identity_scope_conflict", "invalid_task_request", "execution_already_terminal", "unknown_task_type", "invalid_execution_plan", "routing_no_eligible_capability", "routing_budget_exceeded", "workflow_step_failed", "workflow_step_timed_out", "validation_failed", "execution_timed_out", "execution_cancelled", "execution_failed", "external_write_not_allowed", "capability_not_allowed", "capability_not_registered", "capability_contract_mismatch", "capability_invocation_failed", "capability_result_invalid", "capability_output_limit_exceeded", "capability_deadline_exceeded", "permission_scope_denied", "approval_not_found", "approval_already_decided", "approval_denied", "external_action_idempotency_required", "external_action_idempotency_conflict", "external_action_in_progress", "external_action_failed", "model_budget_exhausted", "context_budget_exceeded", "cost_budget_exceeded", "model_call_budget_exceeded", "model_gateway_unavailable", "model_gateway_http_error", "model_gateway_invalid_response", "model_gateway_exhausted"]
+    "ExecutionStatus": [
+      "Accepted",
+      "Resolving",
+      "Planning",
+      "Queued",
+      "WaitingForApproval",
+      "Running",
+      "Validating",
+      "Materializing",
+      "Compensating",
+      "Succeeded",
+      "Failed",
+      "Cancelled",
+      "TimedOut"
+    ],
+    "ResolutionLevel": [
+      "ExactArtifact",
+      "StructuredState",
+      "SemanticMemory",
+      "DeterministicCapability",
+      "SmallModel",
+      "StrongModel",
+      "VerifiedOrHuman"
+    ],
+    "ApprovalStatus": [
+      "Pending",
+      "Approved",
+      "Denied"
+    ],
+    "SideEffectClass": [
+      "None",
+      "ReadOnly",
+      "ReversibleWrite",
+      "IrreversibleWrite"
+    ],
+    "ArtifactLifecycleStatus": [
+      "Active",
+      "Superseded",
+      "Invalidated"
+    ],
+    "MemoryKind": [
+      "Fact",
+      "Decision"
+    ],
+    "MemoryLifecycleStatus": [
+      "Active",
+      "Superseded",
+      "Invalidated"
+    ],
+    "ObservabilityPayloadMode": [
+      "MetadataOnly",
+      "Redacted"
+    ],
+    "RoutingPath": [
+      "Direct",
+      "Workflow"
+    ],
+    "ModelTier": [
+      "Small",
+      "Strong",
+      "Verifier"
+    ],
+    "ModelProfileSource": [
+      "Synthetic",
+      "Unverified",
+      "Measured"
+    ],
+    "ModelGatewayHealthStatus": [
+      "Healthy",
+      "Degraded",
+      "Unavailable"
+    ],
+    "GatewayFailureClass": [
+      "Timeout",
+      "Throttling",
+      "Transport",
+      "Provider",
+      "MalformedOutput",
+      "Validation",
+      "Policy",
+      "Permanent",
+      null
+    ],
+    "GatewayCircuitState": [
+      "Closed",
+      "Open",
+      "HalfOpen"
+    ],
+    "ResolutionDecisionCode": [
+      "exact_cache_hit",
+      "exact_cache_miss",
+      "permission_denied",
+      "unsupported_task",
+      "project_scope_required",
+      "state_key_required",
+      "state_hit",
+      "state_unavailable",
+      "artifact_reference_required",
+      "artifact_hit",
+      "artifact_unavailable",
+      "handler_unavailable",
+      "handler_declined",
+      "handler_stale",
+      "handler_accepted",
+      "external_write_blocked",
+      "validation_failed"
+    ],
+    "TaskEventType": [
+      "execution.created",
+      "execution.status_changed",
+      "execution.queued",
+      "execution.lease_claimed",
+      "execution.lease_renewed",
+      "execution.lease_released",
+      "resolution.considered",
+      "routing.decided",
+      "routing.escalated",
+      "plan.validated",
+      "policy.evaluated",
+      "capability.denied",
+      "capability.started",
+      "capability.completed",
+      "capability.failed",
+      "approval.required",
+      "approval.decided",
+      "workflow.checkpointed",
+      "workflow.resumed",
+      "step.started",
+      "step.completed",
+      "step.retry_scheduled",
+      "step.failed",
+      "external_action.started",
+      "external_action.completed",
+      "external_action.reused",
+      "external_action.failed",
+      "context.compiled",
+      "gateway.started",
+      "gateway.streamed",
+      "gateway.completed",
+      "gateway.failed",
+      "gateway.candidate_evaluated",
+      "gateway.attempted",
+      "gateway.fallback_selected",
+      "gateway.circuit_changed",
+      "gateway.exhausted",
+      "gateway.resilience_decided",
+      "validation.completed",
+      "artifact.materialized",
+      "artifact.superseded",
+      "artifact.invalidated",
+      "memory.materialized",
+      "memory.superseded",
+      "memory.invalidated",
+      "execution.cancellation_requested",
+      "execution.completed",
+      "execution.failed"
+    ],
+    "ErrorCode": [
+      "idempotency_key_conflict",
+      "identity_scope_conflict",
+      "invalid_task_request",
+      "execution_already_terminal",
+      "unknown_task_type",
+      "invalid_execution_plan",
+      "routing_no_eligible_capability",
+      "routing_budget_exceeded",
+      "workflow_step_failed",
+      "workflow_step_timed_out",
+      "validation_failed",
+      "execution_timed_out",
+      "execution_cancelled",
+      "execution_failed",
+      "external_write_not_allowed",
+      "capability_not_allowed",
+      "capability_not_registered",
+      "capability_contract_mismatch",
+      "capability_invocation_failed",
+      "capability_result_invalid",
+      "capability_output_limit_exceeded",
+      "capability_deadline_exceeded",
+      "permission_scope_denied",
+      "approval_not_found",
+      "approval_already_decided",
+      "approval_denied",
+      "external_action_idempotency_required",
+      "external_action_idempotency_conflict",
+      "external_action_in_progress",
+      "external_action_failed",
+      "model_budget_exhausted",
+      "context_budget_exceeded",
+      "cost_budget_exceeded",
+      "model_call_budget_exceeded",
+      "model_gateway_unavailable",
+      "model_gateway_http_error",
+      "model_gateway_invalid_response",
+      "model_gateway_exhausted"
+    ]
   },
   "jsonSchemas": {
     "https://schemas.iroute.dev/v1/approval-decision.schema.json": {
-      "required": ["actionId", "approved"],
-      "properties": ["actionId", "approved", "reason"]
+      "required": [
+        "actionId",
+        "approved"
+      ],
+      "properties": [
+        "actionId",
+        "approved",
+        "reason"
+      ]
     },
     "https://schemas.iroute.dev/v1/approval-result.schema.json": {
-      "required": ["approval", "execution"],
-      "properties": ["approval", "execution"]
+      "required": [
+        "approval",
+        "execution"
+      ],
+      "properties": [
+        "approval",
+        "execution"
+      ]
     },
     "https://schemas.iroute.dev/v1/approval-snapshot.schema.json": {
-      "required": ["executionId", "actionId", "status", "capability", "sideEffectClass", "requiredPermissionScopes", "requestedByActorId", "inputReference", "idempotencyReference", "createdAt"],
-      "properties": ["actionId", "capability", "createdAt", "decidedAt", "decidedByActorId", "executionId", "idempotencyReference", "inputReference", "reason", "requestedByActorId", "requiredPermissionScopes", "sideEffectClass", "status"]
+      "required": [
+        "executionId",
+        "actionId",
+        "status",
+        "capability",
+        "sideEffectClass",
+        "requiredPermissionScopes",
+        "requestedByActorId",
+        "inputReference",
+        "idempotencyReference",
+        "createdAt"
+      ],
+      "properties": [
+        "actionId",
+        "capability",
+        "createdAt",
+        "decidedAt",
+        "decidedByActorId",
+        "executionId",
+        "idempotencyReference",
+        "inputReference",
+        "reason",
+        "requestedByActorId",
+        "requiredPermissionScopes",
+        "sideEffectClass",
+        "status"
+      ]
     },
     "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json": {
-      "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
-      "properties": ["artifact", "content", "createdAt", "dependencies", "evidence", "expiresAt", "invalidatedAt", "invalidationReason", "isActive", "lifecycleStatus", "logicalKey", "projectId", "supersededByArtifactId", "supersedesArtifactId", "taskDefinitionVersion", "taskType", "tenantId"]
+      "required": [
+        "artifact",
+        "tenantId",
+        "taskType",
+        "taskDefinitionVersion",
+        "content",
+        "evidence",
+        "createdAt",
+        "isActive"
+      ],
+      "properties": [
+        "artifact",
+        "content",
+        "createdAt",
+        "dependencies",
+        "evidence",
+        "expiresAt",
+        "invalidatedAt",
+        "invalidationReason",
+        "isActive",
+        "lifecycleStatus",
+        "logicalKey",
+        "projectId",
+        "supersededByArtifactId",
+        "supersedesArtifactId",
+        "taskDefinitionVersion",
+        "taskType",
+        "tenantId"
+      ]
     },
     "https://schemas.iroute.dev/v1/capability-definition.schema.json": {
-      "required": ["capability", "version", "kind", "description", "inputSchema", "outputSchema", "sideEffectClass", "authenticationScopes", "permissionScopes", "idempotency", "retry", "serviceProfile", "cacheability", "freshnessSeconds", "dataSensitivity", "trustLevel", "isolation"],
-      "properties": ["authenticationScopes", "cacheability", "capability", "dataSensitivity", "description", "freshnessSeconds", "idempotency", "inputSchema", "isolation", "kind", "outputSchema", "permissionScopes", "retry", "serviceProfile", "sideEffectClass", "trustLevel", "version"]
+      "required": [
+        "capability",
+        "version",
+        "kind",
+        "description",
+        "inputSchema",
+        "outputSchema",
+        "sideEffectClass",
+        "authenticationScopes",
+        "permissionScopes",
+        "idempotency",
+        "retry",
+        "serviceProfile",
+        "cacheability",
+        "freshnessSeconds",
+        "dataSensitivity",
+        "trustLevel",
+        "isolation"
+      ],
+      "properties": [
+        "authenticationScopes",
+        "cacheability",
+        "capability",
+        "dataSensitivity",
+        "description",
+        "freshnessSeconds",
+        "idempotency",
+        "inputSchema",
+        "isolation",
+        "kind",
+        "outputSchema",
+        "permissionScopes",
+        "retry",
+        "serviceProfile",
+        "sideEffectClass",
+        "trustLevel",
+        "version"
+      ]
     },
     "https://schemas.iroute.dev/v1/capability-invocation-request.schema.json": {
-      "required": ["capability", "version", "input", "tenantId", "actorId", "projectId", "permissionScopes", "policyVersion", "sideEffectClass", "deadlineMilliseconds", "maximumOutputBytes", "correlationId"],
-      "properties": ["actorId", "capability", "correlationId", "deadlineMilliseconds", "idempotencyReference", "input", "maximumOutputBytes", "permissionScopes", "policyVersion", "projectId", "sideEffectClass", "tenantId", "version"]
+      "required": [
+        "capability",
+        "version",
+        "input",
+        "tenantId",
+        "actorId",
+        "projectId",
+        "permissionScopes",
+        "policyVersion",
+        "sideEffectClass",
+        "deadlineMilliseconds",
+        "maximumOutputBytes",
+        "correlationId"
+      ],
+      "properties": [
+        "actorId",
+        "capability",
+        "correlationId",
+        "deadlineMilliseconds",
+        "idempotencyReference",
+        "input",
+        "maximumOutputBytes",
+        "permissionScopes",
+        "policyVersion",
+        "projectId",
+        "sideEffectClass",
+        "tenantId",
+        "version"
+      ]
     },
     "https://schemas.iroute.dev/v1/capability-invocation-result.schema.json": {
-      "required": ["output", "usage", "confidence", "evidence", "metadata"],
-      "properties": ["confidence", "evidence", "metadata", "output", "usage"]
+      "required": [
+        "output",
+        "usage",
+        "confidence",
+        "evidence",
+        "metadata"
+      ],
+      "properties": [
+        "confidence",
+        "evidence",
+        "metadata",
+        "output",
+        "usage"
+      ]
     },
     "https://schemas.iroute.dev/v1/capability-failure.schema.json": {
-      "required": ["code", "kind", "message", "retryable"],
-      "properties": ["capability", "code", "connectorId", "correlationId", "kind", "message", "retryable"]
+      "required": [
+        "code",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "properties": [
+        "capability",
+        "code",
+        "connectorId",
+        "correlationId",
+        "kind",
+        "message",
+        "retryable"
+      ]
     },
     "https://schemas.iroute.dev/v1/context-manifest.schema.json": {
-      "required": ["estimatedTokens", "budgetTokens", "projectedInputTokens", "contextTokens", "truncated", "fullHistoryIncluded", "entries", "provenance"],
-      "properties": ["budgetTokens", "contextTokens", "entries", "estimatedTokens", "fullHistoryIncluded", "projectedInputTokens", "provenance", "truncated"]
+      "required": [
+        "estimatedTokens",
+        "budgetTokens",
+        "projectedInputTokens",
+        "contextTokens",
+        "truncated",
+        "fullHistoryIncluded",
+        "entries",
+        "provenance"
+      ],
+      "properties": [
+        "budgetTokens",
+        "contextTokens",
+        "entries",
+        "estimatedTokens",
+        "fullHistoryIncluded",
+        "projectedInputTokens",
+        "provenance",
+        "truncated"
+      ]
     },
     "https://schemas.iroute.dev/v1/evaluation-fixture.schema.json": {
-      "required": ["caseId", "request", "expected"],
-      "properties": ["caseId", "expected", "repeat", "request"]
+      "required": [
+        "caseId",
+        "request",
+        "expected"
+      ],
+      "properties": [
+        "caseId",
+        "expected",
+        "repeat",
+        "request"
+      ]
     },
     "https://schemas.iroute.dev/v1/evaluation-dataset.schema.json": {
-      "required": ["datasetId", "version", "recordedAt", "requiredCategories", "justifiedQualityGain", "policies", "tasks"],
-      "properties": ["datasetId", "justifiedQualityGain", "policies", "recordedAt", "requiredCategories", "tasks", "version"]
+      "required": [
+        "datasetId",
+        "version",
+        "recordedAt",
+        "requiredCategories",
+        "justifiedQualityGain",
+        "policies",
+        "tasks"
+      ],
+      "properties": [
+        "datasetId",
+        "justifiedQualityGain",
+        "policies",
+        "recordedAt",
+        "requiredCategories",
+        "tasks",
+        "version"
+      ]
     },
     "https://schemas.iroute.dev/v1/evaluation-result.schema.json": {
-      "required": ["caseId", "taskType", "category", "policyId", "completed", "passed", "quality", "safetyPassed", "unsafeAction", "evidencePrecision", "evidenceCoverage", "unsupportedClaimRate", "cost", "latencyMilliseconds", "inputTokens", "outputTokens", "modelCalls", "toolCalls", "failures"],
-      "properties": ["caseId", "category", "completed", "cost", "evidenceCoverage", "evidencePrecision", "failures", "inputTokens", "latencyMilliseconds", "modelCalls", "outputTokens", "passed", "policyId", "quality", "safetyPassed", "taskType", "toolCalls", "unsafeAction", "unsupportedClaimRate"]
+      "required": [
+        "caseId",
+        "taskType",
+        "category",
+        "policyId",
+        "completed",
+        "passed",
+        "quality",
+        "safetyPassed",
+        "unsafeAction",
+        "evidencePrecision",
+        "evidenceCoverage",
+        "unsupportedClaimRate",
+        "cost",
+        "latencyMilliseconds",
+        "inputTokens",
+        "outputTokens",
+        "modelCalls",
+        "toolCalls",
+        "failures"
+      ],
+      "properties": [
+        "caseId",
+        "category",
+        "completed",
+        "cost",
+        "evidenceCoverage",
+        "evidencePrecision",
+        "failures",
+        "inputTokens",
+        "latencyMilliseconds",
+        "modelCalls",
+        "outputTokens",
+        "passed",
+        "policyId",
+        "quality",
+        "safetyPassed",
+        "taskType",
+        "toolCalls",
+        "unsafeAction",
+        "unsupportedClaimRate"
+      ]
     },
     "https://schemas.iroute.dev/v1/routing-comparison-report.schema.json": {
-      "required": ["reportId", "datasetId", "datasetVersion", "datasetRecordedAt", "datasetFingerprint", "gate", "policies", "comparison"],
-      "properties": ["comparison", "datasetFingerprint", "datasetId", "datasetRecordedAt", "datasetVersion", "gate", "policies", "reportId"]
+      "required": [
+        "reportId",
+        "datasetId",
+        "datasetVersion",
+        "datasetRecordedAt",
+        "datasetFingerprint",
+        "gate",
+        "policies",
+        "comparison"
+      ],
+      "properties": [
+        "comparison",
+        "datasetFingerprint",
+        "datasetId",
+        "datasetRecordedAt",
+        "datasetVersion",
+        "gate",
+        "policies",
+        "reportId"
+      ]
     },
     "https://schemas.iroute.dev/v1/evidence-reference.schema.json": {
-      "required": ["kind", "reference"],
-      "properties": ["contentHash", "kind", "observedAt", "reference"]
+      "required": [
+        "kind",
+        "reference"
+      ],
+      "properties": [
+        "contentHash",
+        "kind",
+        "observedAt",
+        "reference"
+      ]
     },
     "https://schemas.iroute.dev/v1/dependency-reference.schema.json": {
-      "required": ["kind", "reference"],
-      "properties": ["contentHash", "kind", "reference"]
+      "required": [
+        "kind",
+        "reference"
+      ],
+      "properties": [
+        "contentHash",
+        "kind",
+        "reference"
+      ]
     },
     "https://schemas.iroute.dev/v1/execution-plan.schema.json": {
-      "required": ["planId", "version", "taskType", "taskVersion", "steps", "budget"],
-      "properties": ["budget", "planId", "steps", "taskType", "taskVersion", "version"]
+      "required": [
+        "planId",
+        "version",
+        "taskType",
+        "taskVersion",
+        "steps",
+        "budget"
+      ],
+      "properties": [
+        "budget",
+        "planId",
+        "steps",
+        "taskType",
+        "taskVersion",
+        "version"
+      ]
     },
     "https://schemas.iroute.dev/v1/execution-snapshot.schema.json": {
-      "required": ["executionId", "taskType", "status", "createdAt", "updatedAt", "tenantId", "actorId"],
-      "properties": ["actorId", "cancellationRequestedAt", "createdAt", "error", "executionId", "outcome", "projectId", "status", "taskDefinitionVersion", "taskType", "tenantId", "updatedAt"]
+      "required": [
+        "executionId",
+        "taskType",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "tenantId",
+        "actorId"
+      ],
+      "properties": [
+        "actorId",
+        "cancellationRequestedAt",
+        "createdAt",
+        "error",
+        "executionId",
+        "outcome",
+        "projectId",
+        "status",
+        "taskDefinitionVersion",
+        "taskType",
+        "tenantId",
+        "updatedAt"
+      ]
     },
     "https://schemas.iroute.dev/v1/execution-timeline.schema.json": {
-      "required": ["executionId", "traceId", "taskType", "taskDefinitionVersion", "policyVersion", "status", "startedAt", "updatedAt", "durationMilliseconds", "actorReference", "projectReference", "payloadMode", "truncated", "events"],
-      "properties": ["actorReference", "durationMilliseconds", "events", "executionId", "payloadMode", "policyVersion", "projectReference", "startedAt", "status", "taskDefinitionVersion", "taskType", "traceId", "truncated", "updatedAt"]
+      "required": [
+        "executionId",
+        "traceId",
+        "taskType",
+        "taskDefinitionVersion",
+        "policyVersion",
+        "status",
+        "startedAt",
+        "updatedAt",
+        "durationMilliseconds",
+        "actorReference",
+        "projectReference",
+        "payloadMode",
+        "truncated",
+        "events"
+      ],
+      "properties": [
+        "actorReference",
+        "durationMilliseconds",
+        "events",
+        "executionId",
+        "payloadMode",
+        "policyVersion",
+        "projectReference",
+        "startedAt",
+        "status",
+        "taskDefinitionVersion",
+        "taskType",
+        "traceId",
+        "truncated",
+        "updatedAt"
+      ]
     },
     "https://schemas.iroute.dev/v1/gateway-deployment-reference.schema.json": {
-      "required": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"],
-      "properties": ["deploymentId", "gatewayId", "modelVersion", "provider", "region", "residency"]
+      "required": [
+        "gatewayId",
+        "provider",
+        "deploymentId",
+        "region",
+        "residency",
+        "modelVersion"
+      ],
+      "properties": [
+        "deploymentId",
+        "gatewayId",
+        "modelVersion",
+        "provider",
+        "region",
+        "residency"
+      ]
     },
     "https://schemas.iroute.dev/v1/gateway-resilience-trace.schema.json": {
-      "required": ["policyVersion", "candidates", "attempts", "finalDeployment", "fallbackReason", "exhaustionReason"],
-      "properties": ["attempts", "candidates", "exhaustionReason", "fallbackReason", "finalDeployment", "policyVersion"]
+      "required": [
+        "policyVersion",
+        "candidates",
+        "attempts",
+        "finalDeployment",
+        "fallbackReason",
+        "exhaustionReason"
+      ],
+      "properties": [
+        "attempts",
+        "candidates",
+        "exhaustionReason",
+        "fallbackReason",
+        "finalDeployment",
+        "policyVersion"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
-      "required": ["capability", "input", "context", "maxOutputTokens"],
-      "properties": ["allowedRegions", "capability", "context", "correlationId", "deadlineMilliseconds", "input", "maximumAttempts", "maximumCost", "maxOutputTokens", "minimumQuality", "profileId", "requiredResidency"]
+      "required": [
+        "capability",
+        "input",
+        "context",
+        "maxOutputTokens"
+      ],
+      "properties": [
+        "allowedRegions",
+        "capability",
+        "context",
+        "correlationId",
+        "deadlineMilliseconds",
+        "input",
+        "maximumAttempts",
+        "maximumCost",
+        "maxOutputTokens",
+        "minimumQuality",
+        "profileId",
+        "requiredResidency"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json": {
-      "required": ["code", "kind", "message", "retryable"],
-      "properties": ["code", "correlationId", "failureClass", "gatewayId", "kind", "message", "resilience", "retryable", "retryAfterMilliseconds", "statusCode"]
+      "required": [
+        "code",
+        "kind",
+        "message",
+        "retryable"
+      ],
+      "properties": [
+        "code",
+        "correlationId",
+        "failureClass",
+        "gatewayId",
+        "kind",
+        "message",
+        "resilience",
+        "retryable",
+        "retryAfterMilliseconds",
+        "statusCode"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-gateway-health.schema.json": {
-      "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
-      "properties": ["checkedAt", "gatewayId", "latencyMilliseconds", "message", "status"]
+      "required": [
+        "gatewayId",
+        "status",
+        "latencyMilliseconds",
+        "checkedAt"
+      ],
+      "properties": [
+        "checkedAt",
+        "gatewayId",
+        "latencyMilliseconds",
+        "message",
+        "status"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-profile.schema.json": {
-      "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
-      "properties": ["availability", "capability", "estimatedCost", "expectedLatencyMilliseconds", "expectedQuality", "healthy", "maxInputTokens", "maxOutputTokens", "measurement", "measurementSource", "profileId", "reliability", "supportedTaskTypes", "tier", "uncertainty"]
+      "required": [
+        "profileId",
+        "capability",
+        "tier",
+        "supportedTaskTypes",
+        "expectedQuality",
+        "estimatedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "reliability",
+        "availability",
+        "maxInputTokens",
+        "maxOutputTokens",
+        "healthy",
+        "measurementSource"
+      ],
+      "properties": [
+        "availability",
+        "capability",
+        "estimatedCost",
+        "expectedLatencyMilliseconds",
+        "expectedQuality",
+        "healthy",
+        "maxInputTokens",
+        "maxOutputTokens",
+        "measurement",
+        "measurementSource",
+        "profileId",
+        "reliability",
+        "supportedTaskTypes",
+        "tier",
+        "uncertainty"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-profile-measurement.schema.json": {
-      "required": ["provider", "model", "measuredAt", "sampleCount", "qualityIsDeclaredNotMeasured"],
-      "properties": ["measuredAt", "model", "provider", "qualityIsDeclaredNotMeasured", "sampleCount"]
+      "required": [
+        "provider",
+        "model",
+        "measuredAt",
+        "sampleCount",
+        "qualityIsDeclaredNotMeasured"
+      ],
+      "properties": [
+        "measuredAt",
+        "model",
+        "provider",
+        "qualityIsDeclaredNotMeasured",
+        "sampleCount"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
-      "required": ["output", "usage", "confidence", "evidence"],
-      "properties": ["confidence", "deployment", "evidence", "finishReason", "gatewayId", "output", "resilience", "transport", "usage"]
+      "required": [
+        "output",
+        "usage",
+        "confidence",
+        "evidence"
+      ],
+      "properties": [
+        "confidence",
+        "deployment",
+        "evidence",
+        "finishReason",
+        "gatewayId",
+        "output",
+        "resilience",
+        "transport",
+        "usage"
+      ]
     },
     "https://schemas.iroute.dev/v1/model-gateway-stream-event.schema.json": {
-      "required": ["sequence", "kind"],
-      "properties": ["delta", "kind", "result", "sequence", "usage"]
+      "required": [
+        "sequence",
+        "kind"
+      ],
+      "properties": [
+        "delta",
+        "kind",
+        "result",
+        "sequence",
+        "usage"
+      ]
     },
     "https://schemas.iroute.dev/v1/memory-snapshot.schema.json": {
-      "required": ["memoryId", "tenantId", "kind", "key", "version", "value", "contentHash", "lifecycleStatus", "evidence", "dependencies", "createdAt"],
-      "properties": ["contentHash", "createdAt", "dependencies", "evidence", "expiresAt", "invalidatedAt", "invalidationReason", "key", "kind", "lifecycleStatus", "memoryId", "projectId", "supersededByMemoryId", "supersedesMemoryId", "tenantId", "value", "version"]
+      "required": [
+        "memoryId",
+        "tenantId",
+        "kind",
+        "key",
+        "version",
+        "value",
+        "contentHash",
+        "lifecycleStatus",
+        "evidence",
+        "dependencies",
+        "createdAt"
+      ],
+      "properties": [
+        "contentHash",
+        "createdAt",
+        "dependencies",
+        "evidence",
+        "expiresAt",
+        "invalidatedAt",
+        "invalidationReason",
+        "key",
+        "kind",
+        "lifecycleStatus",
+        "memoryId",
+        "projectId",
+        "supersededByMemoryId",
+        "supersedesMemoryId",
+        "tenantId",
+        "value",
+        "version"
+      ]
     },
     "https://schemas.iroute.dev/v1/observability-summary.schema.json": {
-      "required": ["from", "to", "truncated", "sampledExecutions", "totals", "groups", "memory", "recentExecutions"],
-      "properties": ["from", "gatewayGroups", "groups", "memory", "recentExecutions", "sampledExecutions", "to", "totals", "truncated"]
+      "required": [
+        "from",
+        "to",
+        "truncated",
+        "sampledExecutions",
+        "totals",
+        "groups",
+        "memory",
+        "recentExecutions"
+      ],
+      "properties": [
+        "from",
+        "gatewayGroups",
+        "groups",
+        "memory",
+        "recentExecutions",
+        "sampledExecutions",
+        "to",
+        "totals",
+        "truncated"
+      ]
     },
     "https://schemas.iroute.dev/v1/problem.schema.json": {
-      "required": ["code", "title", "detail", "retryable"],
-      "properties": ["code", "detail", "metadata", "retryable", "title"]
+      "required": [
+        "code",
+        "title",
+        "detail",
+        "retryable"
+      ],
+      "properties": [
+        "code",
+        "detail",
+        "metadata",
+        "retryable",
+        "title"
+      ]
     },
     "https://schemas.iroute.dev/v1/resolution-consideration.schema.json": {
-      "required": ["resolver", "accepted", "code", "reason", "permissionChecked", "freshnessChecked", "checks"],
-      "properties": ["accepted", "checks", "code", "freshnessChecked", "level", "permissionChecked", "reason", "resolver"]
+      "required": [
+        "resolver",
+        "accepted",
+        "code",
+        "reason",
+        "permissionChecked",
+        "freshnessChecked",
+        "checks"
+      ],
+      "properties": [
+        "accepted",
+        "checks",
+        "code",
+        "freshnessChecked",
+        "level",
+        "permissionChecked",
+        "reason",
+        "resolver"
+      ]
     },
     "https://schemas.iroute.dev/v1/routing-decision.schema.json": {
-      "required": ["policyVersion", "path", "reason", "selectedCapability", "selectedProfileId", "selectedModelTier", "qualityFloor", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "score", "plannerInvoked", "planningCalls", "escalated", "escalationReason", "candidates"],
-      "properties": ["candidates", "escalated", "escalationReason", "expectedCost", "expectedLatencyMilliseconds", "expectedQuality", "path", "plannerInvoked", "planningCalls", "policyVersion", "qualityFloor", "reason", "resilience", "score", "selectedCapability", "selectedDeployment", "selectedModelTier", "selectedProfileId", "uncertainty"]
+      "required": [
+        "policyVersion",
+        "path",
+        "reason",
+        "selectedCapability",
+        "selectedProfileId",
+        "selectedModelTier",
+        "qualityFloor",
+        "expectedQuality",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "uncertainty",
+        "score",
+        "plannerInvoked",
+        "planningCalls",
+        "escalated",
+        "escalationReason",
+        "candidates"
+      ],
+      "properties": [
+        "candidates",
+        "escalated",
+        "escalationReason",
+        "expectedCost",
+        "expectedLatencyMilliseconds",
+        "expectedQuality",
+        "path",
+        "plannerInvoked",
+        "planningCalls",
+        "policyVersion",
+        "qualityFloor",
+        "reason",
+        "resilience",
+        "score",
+        "selectedCapability",
+        "selectedDeployment",
+        "selectedModelTier",
+        "selectedProfileId",
+        "uncertainty"
+      ]
     },
     "https://schemas.iroute.dev/v1/task-definition.schema.json": {
-      "required": ["taskType", "version", "description", "category", "inputSchema", "outputSchema", "requiredCapabilities", "allowedCapabilities", "contextSourcePolicy", "sideEffectClass", "permissionScopes", "approvalRequired", "qualityFloor", "budget", "validationStrategy", "escalationPolicy", "cachePolicy", "memoryPolicy", "retentionPolicy"],
-      "properties": ["allowedCapabilities", "approvalRequired", "budget", "cachePolicy", "category", "contextSourcePolicy", "description", "escalationPolicy", "inputSchema", "memoryPolicy", "outputSchema", "permissionScopes", "qualityFloor", "requiredCapabilities", "retentionPolicy", "sideEffectClass", "taskType", "validationStrategy", "version"]
+      "required": [
+        "taskType",
+        "version",
+        "description",
+        "category",
+        "inputSchema",
+        "outputSchema",
+        "requiredCapabilities",
+        "allowedCapabilities",
+        "contextSourcePolicy",
+        "sideEffectClass",
+        "permissionScopes",
+        "approvalRequired",
+        "qualityFloor",
+        "budget",
+        "validationStrategy",
+        "escalationPolicy",
+        "cachePolicy",
+        "memoryPolicy",
+        "retentionPolicy"
+      ],
+      "properties": [
+        "allowedCapabilities",
+        "approvalRequired",
+        "budget",
+        "cachePolicy",
+        "category",
+        "contextSourcePolicy",
+        "description",
+        "escalationPolicy",
+        "inputSchema",
+        "memoryPolicy",
+        "outputSchema",
+        "permissionScopes",
+        "qualityFloor",
+        "requiredCapabilities",
+        "retentionPolicy",
+        "sideEffectClass",
+        "taskType",
+        "validationStrategy",
+        "version"
+      ]
     },
     "https://schemas.iroute.dev/v1/task-event.schema.json": {
-      "required": ["sequence", "executionId", "type", "occurredAt", "data"],
-      "properties": ["data", "executionId", "occurredAt", "sequence", "type"]
+      "required": [
+        "sequence",
+        "executionId",
+        "type",
+        "occurredAt",
+        "data"
+      ],
+      "properties": [
+        "data",
+        "executionId",
+        "occurredAt",
+        "sequence",
+        "type"
+      ]
     },
     "https://schemas.iroute.dev/v1/task-outcome.schema.json": {
-      "required": ["output", "resolutionLevel", "confidence", "evidence", "usage", "artifacts"],
-      "properties": ["artifacts", "confidence", "context", "evidence", "output", "resolutionLevel", "routing", "usage", "validation"]
+      "required": [
+        "output",
+        "resolutionLevel",
+        "confidence",
+        "evidence",
+        "usage",
+        "artifacts"
+      ],
+      "properties": [
+        "artifacts",
+        "confidence",
+        "context",
+        "evidence",
+        "output",
+        "resolutionLevel",
+        "routing",
+        "usage",
+        "validation"
+      ]
     },
     "https://schemas.iroute.dev/v1/task-request.schema.json": {
-      "required": ["taskType", "input"],
-      "properties": ["actorId", "constraints", "idempotencyKey", "input", "metadata", "permissionScopes", "projectId", "taskType", "tenantId"]
+      "required": [
+        "taskType",
+        "input"
+      ],
+      "properties": [
+        "actorId",
+        "constraints",
+        "idempotencyKey",
+        "input",
+        "metadata",
+        "permissionScopes",
+        "projectId",
+        "taskType",
+        "tenantId"
+      ]
+    }
+  },
+  "openApiPropertySchemas": {
+    "TaskRequest": {
+      "taskType": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120,
+        "pattern": "^[a-z][a-z0-9_.-]+$"
+      },
+      "input": {},
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "idempotencyKey": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "constraints": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TaskConstraints"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "metadata": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "Optional routing metadata. The reserved `artifactKey` value selects an artifact lineage and is limited to 200 characters.",
+        "additionalProperties": {
+          "type": "string"
+        },
+        "maxProperties": 32
+      },
+      "tenantId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200,
+        "description": "Development scope hint. In JWT mode, a supplied value must match the authenticated claim."
+      },
+      "actorId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200,
+        "description": "Development scope hint. In JWT mode, a supplied value must match the authenticated claim."
+      },
+      "permissionScopes": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "maxItems": 64,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "description": "Server-derived authorization context. Request-body values are ignored and replaced by authenticated scopes."
+      }
+    },
+    "TaskConstraints": {
+      "maxInputTokens": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 2000000
+      },
+      "maxOutputTokens": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 200000
+      },
+      "maxCost": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0
+      },
+      "deadlineMilliseconds": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 900000
+      },
+      "minimumQuality": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 1
+      },
+      "requireEvidence": {
+        "type": "boolean",
+        "default": false
+      },
+      "allowExternalWrites": {
+        "type": "boolean",
+        "default": false
+      },
+      "maxModelCalls": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 16
+      },
+      "maxToolCalls": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 64
+      },
+      "maxParallelCalls": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 32
+      },
+      "maxTaskDepth": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 16
+      },
+      "allowedRegions": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "uniqueItems": true,
+        "maxItems": 64,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "requiredResidency": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      }
+    },
+    "ExecutionSnapshot": {
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ExecutionStatus"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "outcome": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TaskOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "error": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ExecutionProblem"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "tenantId": {
+        "type": "string"
+      },
+      "actorId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskDefinitionVersion": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1
+      },
+      "cancellationRequestedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      }
+    },
+    "ApprovalDecision": {
+      "actionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "approved": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      }
+    },
+    "ApprovalSnapshot": {
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "actionId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ApprovalStatus"
+      },
+      "capability": {
+        "type": "string"
+      },
+      "sideEffectClass": {
+        "$ref": "#/components/schemas/SideEffectClass"
+      },
+      "requiredPermissionScopes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string"
+        }
+      },
+      "requestedByActorId": {
+        "type": "string"
+      },
+      "decidedByActorId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "inputReference": {
+        "type": "string"
+      },
+      "idempotencyReference": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "ApprovalResult": {
+      "approval": {
+        "$ref": "#/components/schemas/ApprovalSnapshot"
+      },
+      "execution": {
+        "$ref": "#/components/schemas/ExecutionSnapshot"
+      }
+    },
+    "TaskOutcome": {
+      "output": {},
+      "resolutionLevel": {
+        "$ref": "#/components/schemas/ResolutionLevel"
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvidenceReference"
+        }
+      },
+      "usage": {
+        "$ref": "#/components/schemas/UsageSummary"
+      },
+      "artifacts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ArtifactReference"
+        }
+      },
+      "validation": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ValidationSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "context": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ContextManifest"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "routing": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RoutingDecision"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "EvidenceReference": {
+      "kind": {
+        "type": "string"
+      },
+      "reference": {
+        "type": "string"
+      },
+      "contentHash": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "observedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      }
+    },
+    "DependencyReference": {
+      "kind": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "reference": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      },
+      "contentHash": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 256
+      }
+    },
+    "ArtifactReference": {
+      "artifactId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "artifactType": {
+        "type": "string"
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "contentHash": {
+        "type": "string"
+      }
+    },
+    "ArtifactSnapshot": {
+      "artifact": {
+        "$ref": "#/components/schemas/ArtifactReference"
+      },
+      "tenantId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "taskDefinitionVersion": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "content": {},
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvidenceReference"
+        }
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "isActive": {
+        "type": "boolean"
+      },
+      "logicalKey": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "lifecycleStatus": {
+        "$ref": "#/components/schemas/ArtifactLifecycleStatus"
+      },
+      "supersedesArtifactId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "supersededByArtifactId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "dependencies": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "items": {
+          "$ref": "#/components/schemas/DependencyReference"
+        }
+      },
+      "invalidatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "invalidationReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      }
+    },
+    "MemorySnapshot": {
+      "memoryId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "tenantId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "kind": {
+        "$ref": "#/components/schemas/MemoryKind"
+      },
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "value": {},
+      "contentHash": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "lifecycleStatus": {
+        "$ref": "#/components/schemas/MemoryLifecycleStatus"
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/EvidenceReference"
+        }
+      },
+      "dependencies": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DependencyReference"
+        }
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "supersedesMemoryId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "supersededByMemoryId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "invalidatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "invalidationReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      }
+    },
+    "ObservabilitySummary": {
+      "from": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "to": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "sampledExecutions": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "totals": {
+        "$ref": "#/components/schemas/ObservabilityMetricSet"
+      },
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ObservabilityMetricGroup"
+        }
+      },
+      "memory": {
+        "$ref": "#/components/schemas/MemoryHitDiagnostics"
+      },
+      "recentExecutions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ObservabilityExecutionItem"
+        }
+      },
+      "gatewayGroups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GatewayObservabilityMetricGroup"
+        }
+      }
+    },
+    "ObservabilityMetricSet": {
+      "executions": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "completed": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "failed": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "completionRate": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "averageQuality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "inputTokens": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "outputTokens": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "cost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "averageLatencyMilliseconds": {
+        "type": "number",
+        "minimum": 0
+      },
+      "modelCalls": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "toolCalls": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "noModelResolutions": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "modelCallsAvoided": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "ObservabilityMetricGroup": {
+      "taskType": {
+        "type": "string"
+      },
+      "policyVersion": {
+        "type": "string"
+      },
+      "metrics": {
+        "$ref": "#/components/schemas/ObservabilityMetricSet"
+      }
+    },
+    "GatewayObservabilityMetricGroup": {
+      "gatewayId": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "deploymentId": {
+        "type": "string"
+      },
+      "region": {
+        "type": "string"
+      },
+      "modelVersion": {
+        "type": "string"
+      },
+      "failureClass": {
+        "$ref": "#/components/schemas/GatewayFailureClass"
+      },
+      "circuitState": {
+        "$ref": "#/components/schemas/GatewayCircuitState"
+      },
+      "metrics": {
+        "$ref": "#/components/schemas/GatewayObservabilityMetricSet"
+      }
+    },
+    "GatewayObservabilityMetricSet": {
+      "attempts": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "successes": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "failures": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "rejectedCandidates": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "fallbacks": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "averageLatencyMilliseconds": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "MemoryHitDiagnostics": {
+      "considered": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "accepted": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "rejected": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "hitRate": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "resolvers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MemoryResolverDiagnostic"
+        }
+      }
+    },
+    "MemoryResolverDiagnostic": {
+      "resolver": {
+        "type": "string"
+      },
+      "considered": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "accepted": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "rejected": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "reasons": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ObservabilityExecutionItem": {
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "policyVersion": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ExecutionStatus"
+      },
+      "startedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "durationMilliseconds": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "resolutionLevel": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ResolutionLevel"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "quality": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 1
+      },
+      "cost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "inputTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "outputTokens": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "ExecutionTimeline": {
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "traceId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "taskDefinitionVersion": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1
+      },
+      "policyVersion": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ExecutionStatus"
+      },
+      "startedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "durationMilliseconds": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "actorReference": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{16}$"
+      },
+      "projectReference": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^sha256:[a-f0-9]{16}$"
+      },
+      "payloadMode": {
+        "$ref": "#/components/schemas/ObservabilityPayloadMode"
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ExecutionTimelineEntry"
+        }
+      }
+    },
+    "ExecutionTimelineEntry": {
+      "sequence": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "type": {
+        "type": "string"
+      },
+      "occurredAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "offsetMilliseconds": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "UsageSummary": {
+      "inputTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "outputTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "cost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "durationMilliseconds": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "modelCalls": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "toolCalls": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "ValidationSummary": {
+      "passed": {
+        "type": "boolean"
+      },
+      "quality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "checks": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "failures": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "ContextManifest": {
+      "estimatedTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "budgetTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "projectedInputTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "contextTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "fullHistoryIncluded": {
+        "type": "boolean"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ContextManifestEntry"
+        }
+      },
+      "provenance": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/EvidenceReference"
+        }
+      }
+    },
+    "ContextManifestEntry": {
+      "kind": {
+        "type": "string"
+      },
+      "reference": {
+        "type": "string"
+      },
+      "included": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "estimatedTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "contentHash": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "rank": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "outputPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "RoutingDecision": {
+      "policyVersion": {
+        "type": "string"
+      },
+      "path": {
+        "$ref": "#/components/schemas/RoutingPath"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "selectedCapability": {
+        "type": "string"
+      },
+      "selectedProfileId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "selectedModelTier": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ModelTier"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "qualityFloor": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "expectedQuality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "expectedCost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "expectedLatencyMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "uncertainty": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "score": {
+        "type": "number"
+      },
+      "plannerInvoked": {
+        "type": "boolean"
+      },
+      "planningCalls": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "escalated": {
+        "type": "boolean"
+      },
+      "escalationReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "candidates": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RoutingCandidateEvaluation"
+        }
+      },
+      "selectedDeployment": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GatewayDeploymentReference"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "resilience": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GatewayResilienceTrace"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "RoutingCandidateEvaluation": {
+      "capability": {
+        "type": "string"
+      },
+      "profileId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "modelTier": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ModelTier"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "eligible": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "expectedQuality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "expectedCost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "expectedLatencyMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "uncertainty": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "reliability": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "availability": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "score": {
+        "type": "number"
+      },
+      "measurementSource": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ModelProfileSource"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "measurement": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ModelProfileMeasurement"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "GatewayDeploymentReference": {
+      "gatewayId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "provider": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "deploymentId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "region": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "residency": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "modelVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "GatewayCandidateEvidence": {
+      "deployment": {
+        "$ref": "#/components/schemas/GatewayDeploymentReference"
+      },
+      "eligible": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "circuitState": {
+        "$ref": "#/components/schemas/GatewayCircuitState"
+      },
+      "failureClass": {
+        "$ref": "#/components/schemas/GatewayFailureClass"
+      }
+    },
+    "GatewayAttemptEvidence": {
+      "deployment": {
+        "$ref": "#/components/schemas/GatewayDeploymentReference"
+      },
+      "attempt": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "circuitStateBefore": {
+        "$ref": "#/components/schemas/GatewayCircuitState"
+      },
+      "circuitStateAfter": {
+        "$ref": "#/components/schemas/GatewayCircuitState"
+      },
+      "succeeded": {
+        "type": "boolean"
+      },
+      "failureClass": {
+        "$ref": "#/components/schemas/GatewayFailureClass"
+      },
+      "failureCode": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "statusCode": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 100,
+        "maximum": 599
+      },
+      "durationMilliseconds": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "retryAfterMilliseconds": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0
+      }
+    },
+    "GatewayResilienceTrace": {
+      "policyVersion": {
+        "type": "string"
+      },
+      "candidates": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/GatewayCandidateEvidence"
+        }
+      },
+      "attempts": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "$ref": "#/components/schemas/GatewayAttemptEvidence"
+        }
+      },
+      "finalDeployment": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GatewayDeploymentReference"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "fallbackReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "exhaustionReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "ModelProfile": {
+      "profileId": {
+        "type": "string"
+      },
+      "capability": {
+        "type": "string"
+      },
+      "tier": {
+        "$ref": "#/components/schemas/ModelTier"
+      },
+      "supportedTaskTypes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string"
+        }
+      },
+      "expectedQuality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "estimatedCost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "expectedLatencyMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "uncertainty": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "reliability": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "availability": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "maxInputTokens": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "maxOutputTokens": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "healthy": {
+        "type": "boolean"
+      },
+      "measurementSource": {
+        "$ref": "#/components/schemas/ModelProfileSource"
+      },
+      "measurement": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ModelProfileMeasurement"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "ModelProfileMeasurement": {
+      "provider": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "model": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "measuredAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sampleCount": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "qualityIsDeclaredNotMeasured": {
+        "type": "boolean"
+      }
+    },
+    "ModelGatewayHealth": {
+      "gatewayId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "status": {
+        "$ref": "#/components/schemas/ModelGatewayHealthStatus"
+      },
+      "latencyMilliseconds": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "checkedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "message": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 1000
+      }
+    },
+    "TaskEvent": {
+      "sequence": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1
+      },
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "type": {
+        "$ref": "#/components/schemas/TaskEventType"
+      },
+      "occurredAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "ResolutionConsideration": {
+      "resolver": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "accepted": {
+        "type": "boolean"
+      },
+      "code": {
+        "$ref": "#/components/schemas/ResolutionDecisionCode"
+      },
+      "reason": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "permissionChecked": {
+        "type": "boolean"
+      },
+      "freshnessChecked": {
+        "type": "boolean"
+      },
+      "checks": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "level": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ResolutionLevel"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "ExecutionProblem": {
+      "code": {
+        "$ref": "#/components/schemas/ErrorCode"
+      },
+      "title": {
+        "type": "string"
+      },
+      "detail": {
+        "type": "string"
+      },
+      "retryable": {
+        "type": "boolean"
+      },
+      "metadata": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    },
+    "HttpProblem": {
+      "type": {
+        "type": "string",
+        "format": "uri-reference"
+      },
+      "title": {
+        "type": "string"
+      },
+      "status": {
+        "type": "integer",
+        "minimum": 100,
+        "maximum": 599
+      },
+      "detail": {
+        "type": "string"
+      },
+      "instance": {
+        "type": "string",
+        "format": "uri-reference"
+      },
+      "code": {
+        "$ref": "#/components/schemas/ErrorCode"
+      }
+    }
+  },
+  "jsonPropertySchemas": {
+    "https://schemas.iroute.dev/v1/approval-decision.schema.json": {
+      "actionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "approved": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      }
+    },
+    "https://schemas.iroute.dev/v1/approval-result.schema.json": {
+      "approval": {
+        "$ref": "approval-snapshot.schema.json"
+      },
+      "execution": {
+        "$ref": "execution-snapshot.schema.json"
+      }
+    },
+    "https://schemas.iroute.dev/v1/approval-snapshot.schema.json": {
+      "actionId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "capability": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "decidedByActorId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "idempotencyReference": {
+        "type": "string",
+        "minLength": 1
+      },
+      "inputReference": {
+        "type": "string",
+        "minLength": 1
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      },
+      "requestedByActorId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "requiredPermissionScopes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "sideEffectClass": {
+        "enum": [
+          "None",
+          "ReadOnly",
+          "ReversibleWrite",
+          "IrreversibleWrite"
+        ]
+      },
+      "status": {
+        "enum": [
+          "Pending",
+          "Approved",
+          "Denied"
+        ]
+      }
+    },
+    "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json": {
+      "artifact": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "artifactType",
+          "version",
+          "contentHash"
+        ],
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "type": "string"
+          }
+        }
+      },
+      "content": true,
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "dependencies": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "items": {
+          "$ref": "dependency-reference.schema.json"
+        }
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "evidence-reference.schema.json"
+        }
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "invalidatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "invalidationReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      },
+      "isActive": {
+        "type": "boolean"
+      },
+      "lifecycleStatus": {
+        "enum": [
+          "Active",
+          "Superseded",
+          "Invalidated"
+        ]
+      },
+      "logicalKey": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "supersededByArtifactId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "supersedesArtifactId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "taskDefinitionVersion": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "tenantId": {
+        "type": "string"
+      }
+    },
+    "https://schemas.iroute.dev/v1/capability-definition.schema.json": {
+      "authenticationScopes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "cacheability": {
+        "enum": [
+          "Never",
+          "Scoped",
+          "Public"
+        ]
+      },
+      "capability": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+$",
+        "maxLength": 200
+      },
+      "dataSensitivity": {
+        "enum": [
+          "Public",
+          "Internal",
+          "Confidential",
+          "Restricted"
+        ]
+      },
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "freshnessSeconds": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0
+      },
+      "idempotency": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "supported",
+          "requiredForWrites"
+        ],
+        "properties": {
+          "supported": {
+            "type": "boolean"
+          },
+          "requiredForWrites": {
+            "type": "boolean"
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object"
+      },
+      "isolation": {
+        "enum": [
+          "InProcess",
+          "Process",
+          "Container",
+          "Remote"
+        ]
+      },
+      "kind": {
+        "enum": [
+          "Deterministic",
+          "Model",
+          "Tool",
+          "Api",
+          "Mcp",
+          "Agent"
+        ]
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "permissionScopes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "retry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "maxAttempts",
+          "retryableFailureClasses"
+        ],
+        "properties": {
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "retryableFailureClasses": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        }
+      },
+      "serviceProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedLatencyMilliseconds",
+          "estimatedCost",
+          "availability",
+          "reliability"
+        ],
+        "properties": {
+          "expectedLatencyMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimatedCost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "availability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "reliability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "sideEffectClass": {
+        "enum": [
+          "None",
+          "ReadOnly",
+          "ReversibleWrite",
+          "IrreversibleWrite"
+        ]
+      },
+      "trustLevel": {
+        "enum": [
+          "Internal",
+          "Registered",
+          "ExternalUntrusted"
+        ]
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/capability-invocation-request.schema.json": {
+      "actorId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "capability": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+$",
+        "maxLength": 200
+      },
+      "correlationId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "deadlineMilliseconds": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 900000
+      },
+      "idempotencyReference": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "input": true,
+      "maximumOutputBytes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1048576
+      },
+      "permissionScopes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "policyVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "sideEffectClass": {
+        "enum": [
+          "None",
+          "ReadOnly",
+          "ReversibleWrite",
+          "IrreversibleWrite"
+        ]
+      },
+      "tenantId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/capability-invocation-result.schema.json": {
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "evidence-reference.schema.json"
+        }
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability",
+          "version",
+          "connectorId",
+          "kind",
+          "trustLevel",
+          "transport",
+          "projected",
+          "outputReference"
+        ],
+        "properties": {
+          "capability": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "connectorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "enum": [
+              "Deterministic",
+              "Model",
+              "Tool",
+              "Api",
+              "Mcp",
+              "Agent"
+            ]
+          },
+          "trustLevel": {
+            "enum": [
+              "Internal",
+              "Registered",
+              "ExternalUntrusted"
+            ]
+          },
+          "transport": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "projected": {
+            "const": true
+          },
+          "outputReference": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      },
+      "output": true,
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "cost",
+          "durationMilliseconds",
+          "modelCalls",
+          "toolCalls"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "durationMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "https://schemas.iroute.dev/v1/capability-failure.schema.json": {
+      "capability": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "code": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "connectorId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "correlationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "kind": {
+        "enum": [
+          "InvalidRequest",
+          "PermissionDenied",
+          "NotRegistered",
+          "Timeout",
+          "Unavailable",
+          "InvalidResponse",
+          "OutputLimitExceeded",
+          "Cancelled",
+          "Internal"
+        ]
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "retryable": {
+        "type": "boolean"
+      }
+    },
+    "https://schemas.iroute.dev/v1/context-manifest.schema.json": {
+      "budgetTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "contextTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "reference",
+            "included",
+            "reason",
+            "estimatedTokens",
+            "rank",
+            "outputPath"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            },
+            "included": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "estimatedTokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "contentHash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rank": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "outputPath": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "estimatedTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "fullHistoryIncluded": {
+        "type": "boolean"
+      },
+      "projectedInputTokens": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "provenance": {
+        "type": "object",
+        "propertyNames": {
+          "pattern": "^/"
+        },
+        "additionalProperties": {
+          "$ref": "evidence-reference.schema.json"
+        }
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "https://schemas.iroute.dev/v1/evaluation-fixture.schema.json": {
+      "caseId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]+$",
+        "maxLength": 200
+      },
+      "expected": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "enum": [
+              "Accepted",
+              "Resolving",
+              "Planning",
+              "Queued",
+              "WaitingForApproval",
+              "Running",
+              "Validating",
+              "Materializing",
+              "Compensating",
+              "Succeeded",
+              "Failed",
+              "Cancelled",
+              "TimedOut"
+            ]
+          },
+          "resolutionLevel": {
+            "enum": [
+              "ExactArtifact",
+              "StructuredState",
+              "SemanticMemory",
+              "DeterministicCapability",
+              "SmallModel",
+              "StrongModel",
+              "VerifiedOrHuman"
+            ]
+          },
+          "requiredOutputFields": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "errorCode": {
+            "$ref": "problem.schema.json#/properties/code"
+          },
+          "secondResolutionLevel": {
+            "enum": [
+              "ExactArtifact",
+              "StructuredState",
+              "SemanticMemory",
+              "DeterministicCapability",
+              "SmallModel",
+              "StrongModel",
+              "VerifiedOrHuman"
+            ]
+          },
+          "secondModelCalls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "repeat": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "request": {
+        "$ref": "task-request.schema.json"
+      }
+    },
+    "https://schemas.iroute.dev/v1/evaluation-dataset.schema.json": {
+      "datasetId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9.-]+$",
+        "maxLength": 200
+      },
+      "justifiedQualityGain": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "policies": {
+        "type": "array",
+        "minItems": 2,
+        "items": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "recordedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "requiredCategories": {
+        "type": "array",
+        "minItems": 2,
+        "uniqueItems": true,
+        "items": {
+          "enum": [
+            "normal",
+            "edge",
+            "adversarial",
+            "stale-memory",
+            "unauthorized-action",
+            "dependency-change"
+          ]
+        }
+      },
+      "tasks": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "$ref": "#/$defs/task"
+        }
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/evaluation-result.schema.json": {
+      "caseId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "category": {
+        "enum": [
+          "normal",
+          "edge",
+          "adversarial",
+          "stale-memory",
+          "unauthorized-action",
+          "dependency-change"
+        ]
+      },
+      "completed": {
+        "type": "boolean"
+      },
+      "cost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "evidenceCoverage": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "evidencePrecision": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "failures": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "inputTokens": {
+        "type": "number",
+        "minimum": 0
+      },
+      "latencyMilliseconds": {
+        "type": "number",
+        "minimum": 0
+      },
+      "modelCalls": {
+        "type": "number",
+        "minimum": 0
+      },
+      "outputTokens": {
+        "type": "number",
+        "minimum": 0
+      },
+      "passed": {
+        "type": "boolean"
+      },
+      "policyId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "quality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "safetyPassed": {
+        "type": "boolean"
+      },
+      "taskType": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "toolCalls": {
+        "type": "number",
+        "minimum": 0
+      },
+      "unsafeAction": {
+        "type": "boolean"
+      },
+      "unsupportedClaimRate": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/routing-comparison-report.schema.json": {
+      "comparison": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "baselinePolicyId",
+          "candidatePolicyId",
+          "justifiedQualityGain",
+          "qualityDelta",
+          "costDelta",
+          "latencyDeltaMilliseconds",
+          "safetyFailureDelta",
+          "unsafeActionDelta",
+          "tasks"
+        ],
+        "properties": {
+          "baselinePolicyId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidatePolicyId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "justifiedQualityGain": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "qualityDelta": {
+            "type": "number"
+          },
+          "costDelta": {
+            "type": "number"
+          },
+          "latencyDeltaMilliseconds": {
+            "type": "number"
+          },
+          "safetyFailureDelta": {
+            "type": "integer"
+          },
+          "unsafeActionDelta": {
+            "type": "integer"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/taskComparison"
+            }
+          }
+        }
+      },
+      "datasetFingerprint": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "datasetId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "datasetRecordedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "datasetVersion": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "gate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "passed",
+          "requiredCategories",
+          "coverageFailures",
+          "qualityFailures",
+          "safetyFailures",
+          "regressionFailures",
+          "provenanceFailures",
+          "failures"
+        ],
+        "properties": {
+          "passed": {
+            "type": "boolean"
+          },
+          "requiredCategories": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverageFailures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "qualityFailures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "safetyFailures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "regressionFailures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provenanceFailures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "policies": {
+        "type": "array",
+        "minItems": 2,
+        "items": {
+          "$ref": "#/$defs/policy"
+        }
+      },
+      "reportId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "https://schemas.iroute.dev/v1/evidence-reference.schema.json": {
+      "contentHash": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 256
+      },
+      "kind": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "observedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "reference": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    },
+    "https://schemas.iroute.dev/v1/dependency-reference.schema.json": {
+      "contentHash": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 256
+      },
+      "kind": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "reference": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    },
+    "https://schemas.iroute.dev/v1/execution-plan.schema.json": {
+      "budget": {
+        "$ref": "#/$defs/budget"
+      },
+      "planId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "steps": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 32,
+        "items": {
+          "$ref": "#/$defs/step"
+        }
+      },
+      "taskType": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+$",
+        "maxLength": 120
+      },
+      "taskVersion": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/execution-snapshot.schema.json": {
+      "actorId": {
+        "type": "string"
+      },
+      "cancellationRequestedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "error": {
+        "oneOf": [
+          {
+            "$ref": "problem.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "outcome": {
+        "oneOf": [
+          {
+            "$ref": "task-outcome.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "status": {
+        "enum": [
+          "Accepted",
+          "Resolving",
+          "Planning",
+          "Queued",
+          "WaitingForApproval",
+          "Running",
+          "Validating",
+          "Materializing",
+          "Compensating",
+          "Succeeded",
+          "Failed",
+          "Cancelled",
+          "TimedOut"
+        ]
+      },
+      "taskDefinitionVersion": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "tenantId": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "https://schemas.iroute.dev/v1/execution-timeline.schema.json": {
+      "actorReference": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{16}$"
+      },
+      "durationMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/event"
+        }
+      },
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "payloadMode": {
+        "enum": [
+          "MetadataOnly",
+          "Redacted"
+        ]
+      },
+      "policyVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "projectReference": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^sha256:[a-f0-9]{16}$"
+      },
+      "startedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "status": {
+        "enum": [
+          "Accepted",
+          "Resolving",
+          "Planning",
+          "Queued",
+          "WaitingForApproval",
+          "Running",
+          "Validating",
+          "Materializing",
+          "Compensating",
+          "Succeeded",
+          "Failed",
+          "Cancelled",
+          "TimedOut"
+        ]
+      },
+      "taskDefinitionVersion": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1
+      },
+      "taskType": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "traceId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "truncated": {
+        "type": "boolean"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "https://schemas.iroute.dev/v1/gateway-deployment-reference.schema.json": {
+      "deploymentId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "gatewayId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "modelVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "provider": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "region": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "residency": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "https://schemas.iroute.dev/v1/gateway-resilience-trace.schema.json": {
+      "attempts": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "$ref": "#/$defs/attempt"
+        }
+      },
+      "candidates": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/candidate"
+        }
+      },
+      "exhaustionReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      },
+      "fallbackReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      },
+      "finalDeployment": {
+        "oneOf": [
+          {
+            "$ref": "gateway-deployment-reference.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "policyVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-request.schema.json": {
+      "allowedRegions": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "uniqueItems": true,
+        "maxItems": 64,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "capability": {
+        "type": "string",
+        "minLength": 1
+      },
+      "context": true,
+      "correlationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "deadlineMilliseconds": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1
+      },
+      "input": true,
+      "maximumAttempts": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 10
+      },
+      "maximumCost": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0
+      },
+      "maxOutputTokens": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minimumQuality": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 1
+      },
+      "profileId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "requiredResidency": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json": {
+      "code": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "correlationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "failureClass": {
+        "enum": [
+          "Timeout",
+          "Throttling",
+          "Transport",
+          "Provider",
+          "MalformedOutput",
+          "Validation",
+          "Policy",
+          "Permanent",
+          null
+        ]
+      },
+      "gatewayId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "kind": {
+        "enum": [
+          "InvalidRequest",
+          "Authentication",
+          "RateLimited",
+          "Timeout",
+          "Unavailable",
+          "InvalidResponse",
+          "Cancelled",
+          "Internal"
+        ]
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "resilience": {
+        "oneOf": [
+          {
+            "$ref": "gateway-resilience-trace.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "retryable": {
+        "type": "boolean"
+      },
+      "retryAfterMilliseconds": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0
+      },
+      "statusCode": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 100,
+        "maximum": 599
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-health.schema.json": {
+      "checkedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "gatewayId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "latencyMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "message": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 1000
+      },
+      "status": {
+        "enum": [
+          "Healthy",
+          "Degraded",
+          "Unavailable"
+        ]
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-profile.schema.json": {
+      "availability": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "capability": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+$",
+        "maxLength": 200
+      },
+      "estimatedCost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "expectedLatencyMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "expectedQuality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "healthy": {
+        "type": "boolean"
+      },
+      "maxInputTokens": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "maxOutputTokens": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "measurement": {
+        "oneOf": [
+          {
+            "$ref": "model-profile-measurement.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "measurementSource": {
+        "enum": [
+          "Synthetic",
+          "Unverified",
+          "Measured"
+        ]
+      },
+      "profileId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "reliability": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "supportedTaskTypes": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]+$",
+          "maxLength": 120
+        }
+      },
+      "tier": {
+        "enum": [
+          "Small",
+          "Strong",
+          "Verifier"
+        ]
+      },
+      "uncertainty": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-profile-measurement.schema.json": {
+      "measuredAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "model": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "provider": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "qualityIsDeclaredNotMeasured": {
+        "type": "boolean"
+      },
+      "sampleCount": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "deployment": {
+        "oneOf": [
+          {
+            "$ref": "gateway-deployment-reference.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "evidence-reference.schema.json"
+        }
+      },
+      "finishReason": {
+        "enum": [
+          "Completed",
+          "Length",
+          "ContentFiltered",
+          "ToolCall",
+          "Other"
+        ]
+      },
+      "gatewayId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "output": true,
+      "resilience": {
+        "oneOf": [
+          {
+            "$ref": "gateway-resilience-trace.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "transport": {
+        "enum": [
+          "Buffered",
+          "Streaming"
+        ]
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "cost",
+          "durationMilliseconds",
+          "modelCalls",
+          "toolCalls"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "durationMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "https://schemas.iroute.dev/v1/model-gateway-stream-event.schema.json": {
+      "delta": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 65536
+      },
+      "kind": {
+        "enum": [
+          "OutputDelta",
+          "Usage",
+          "Completed"
+        ]
+      },
+      "result": {
+        "anyOf": [
+          {
+            "$ref": "model-gateway-result.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "sequence": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "usage": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "cost",
+          "durationMilliseconds",
+          "modelCalls",
+          "toolCalls"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "durationMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "https://schemas.iroute.dev/v1/memory-snapshot.schema.json": {
+      "contentHash": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "dependencies": {
+        "type": "array",
+        "items": {
+          "$ref": "dependency-reference.schema.json"
+        }
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "evidence-reference.schema.json"
+        }
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "invalidatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "invalidationReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      },
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "kind": {
+        "enum": [
+          "Fact",
+          "Decision"
+        ]
+      },
+      "lifecycleStatus": {
+        "enum": [
+          "Active",
+          "Superseded",
+          "Invalidated"
+        ]
+      },
+      "memoryId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "supersededByMemoryId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "supersedesMemoryId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      },
+      "tenantId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "value": true,
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/observability-summary.schema.json": {
+      "from": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "gatewayGroups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/gatewayGroup"
+        }
+      },
+      "groups": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/group"
+        }
+      },
+      "memory": {
+        "$ref": "#/$defs/memory"
+      },
+      "recentExecutions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/recentExecution"
+        }
+      },
+      "sampledExecutions": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "to": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "totals": {
+        "$ref": "#/$defs/metrics"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "https://schemas.iroute.dev/v1/problem.schema.json": {
+      "code": {
+        "enum": [
+          "idempotency_key_conflict",
+          "identity_scope_conflict",
+          "invalid_task_request",
+          "execution_already_terminal",
+          "unknown_task_type",
+          "invalid_execution_plan",
+          "routing_no_eligible_capability",
+          "routing_budget_exceeded",
+          "workflow_step_failed",
+          "workflow_step_timed_out",
+          "validation_failed",
+          "execution_timed_out",
+          "execution_cancelled",
+          "execution_failed",
+          "external_write_not_allowed",
+          "capability_not_allowed",
+          "capability_not_registered",
+          "capability_contract_mismatch",
+          "capability_invocation_failed",
+          "capability_result_invalid",
+          "capability_output_limit_exceeded",
+          "capability_deadline_exceeded",
+          "permission_scope_denied",
+          "approval_not_found",
+          "approval_already_decided",
+          "approval_denied",
+          "external_action_idempotency_required",
+          "external_action_idempotency_conflict",
+          "external_action_in_progress",
+          "external_action_failed",
+          "model_budget_exhausted",
+          "context_budget_exceeded",
+          "cost_budget_exceeded",
+          "model_call_budget_exceeded",
+          "model_gateway_unavailable",
+          "model_gateway_http_error",
+          "model_gateway_invalid_response",
+          "model_gateway_exhausted"
+        ]
+      },
+      "detail": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4000
+      },
+      "metadata": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "retryable": {
+        "type": "boolean"
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "https://schemas.iroute.dev/v1/resolution-consideration.schema.json": {
+      "accepted": {
+        "type": "boolean"
+      },
+      "checks": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "code": {
+        "enum": [
+          "exact_cache_hit",
+          "exact_cache_miss",
+          "permission_denied",
+          "unsupported_task",
+          "project_scope_required",
+          "state_key_required",
+          "state_hit",
+          "state_unavailable",
+          "artifact_reference_required",
+          "artifact_hit",
+          "artifact_unavailable",
+          "handler_unavailable",
+          "handler_declined",
+          "handler_stale",
+          "handler_accepted",
+          "external_write_blocked",
+          "validation_failed"
+        ]
+      },
+      "freshnessChecked": {
+        "type": "boolean"
+      },
+      "level": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "ExactArtifact",
+          "StructuredState",
+          "SemanticMemory",
+          "DeterministicCapability",
+          "SmallModel",
+          "StrongModel",
+          "VerifiedOrHuman",
+          null
+        ]
+      },
+      "permissionChecked": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "resolver": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      }
+    },
+    "https://schemas.iroute.dev/v1/routing-decision.schema.json": {
+      "candidates": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "$ref": "#/$defs/candidate"
+        }
+      },
+      "escalated": {
+        "type": "boolean"
+      },
+      "escalationReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 2000
+      },
+      "expectedCost": {
+        "type": "number",
+        "minimum": 0
+      },
+      "expectedLatencyMilliseconds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "expectedQuality": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "path": {
+        "enum": [
+          "Direct",
+          "Workflow"
+        ]
+      },
+      "plannerInvoked": {
+        "type": "boolean"
+      },
+      "planningCalls": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "policyVersion": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "qualityFloor": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "reason": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "resilience": {
+        "oneOf": [
+          {
+            "$ref": "gateway-resilience-trace.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "score": {
+        "type": "number"
+      },
+      "selectedCapability": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "selectedDeployment": {
+        "oneOf": [
+          {
+            "$ref": "gateway-deployment-reference.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "selectedModelTier": {
+        "enum": [
+          "Small",
+          "Strong",
+          "Verifier",
+          null
+        ]
+      },
+      "selectedProfileId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "uncertainty": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/task-definition.schema.json": {
+      "allowedCapabilities": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "approvalRequired": {
+        "type": "boolean"
+      },
+      "budget": {
+        "$ref": "#/$defs/budget"
+      },
+      "cachePolicy": {
+        "$ref": "#/$defs/lifecyclePolicy"
+      },
+      "category": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "contextSourcePolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "allowedSources",
+          "includeFullHistoryByDefault",
+          "requireProvenance"
+        ],
+        "properties": {
+          "allowedSources": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "includeFullHistoryByDefault": {
+            "const": false
+          },
+          "requireProvenance": {
+            "type": "boolean"
+          }
+        }
+      },
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "escalationPolicy": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "onValidationFailure",
+          "onEvidenceConflict",
+          "onLowConfidence"
+        ],
+        "properties": {
+          "onValidationFailure": {
+            "enum": [
+              "Fail",
+              "Retry",
+              "StrongerCapability",
+              "HumanApproval"
+            ]
+          },
+          "onEvidenceConflict": {
+            "enum": [
+              "Fail",
+              "Retry",
+              "StrongerCapability",
+              "HumanApproval"
+            ]
+          },
+          "onLowConfidence": {
+            "enum": [
+              "Fail",
+              "Retry",
+              "StrongerCapability",
+              "HumanApproval"
+            ]
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object"
+      },
+      "memoryPolicy": {
+        "$ref": "#/$defs/lifecyclePolicy"
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "permissionScopes": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "qualityFloor": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "requiredCapabilities": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "retentionPolicy": {
+        "$ref": "#/$defs/lifecyclePolicy"
+      },
+      "sideEffectClass": {
+        "enum": [
+          "None",
+          "ReadOnly",
+          "ReversibleWrite",
+          "IrreversibleWrite"
+        ]
+      },
+      "taskType": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+$",
+        "maxLength": 120
+      },
+      "validationStrategy": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "version": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "https://schemas.iroute.dev/v1/task-event.schema.json": {
+      "data": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "executionId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "occurredAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sequence": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "type": {
+        "enum": [
+          "execution.created",
+          "execution.status_changed",
+          "execution.queued",
+          "execution.lease_claimed",
+          "execution.lease_renewed",
+          "execution.lease_released",
+          "resolution.considered",
+          "routing.decided",
+          "routing.escalated",
+          "plan.validated",
+          "policy.evaluated",
+          "capability.denied",
+          "capability.started",
+          "capability.completed",
+          "capability.failed",
+          "approval.required",
+          "approval.decided",
+          "workflow.checkpointed",
+          "workflow.resumed",
+          "step.started",
+          "step.completed",
+          "step.retry_scheduled",
+          "step.failed",
+          "external_action.started",
+          "external_action.completed",
+          "external_action.reused",
+          "external_action.failed",
+          "external_action.reconciled",
+          "context.compiled",
+          "gateway.started",
+          "gateway.streamed",
+          "gateway.completed",
+          "gateway.failed",
+          "gateway.candidate_evaluated",
+          "gateway.attempted",
+          "gateway.fallback_selected",
+          "gateway.circuit_changed",
+          "gateway.exhausted",
+          "gateway.resilience_decided",
+          "validation.completed",
+          "artifact.materialized",
+          "artifact.superseded",
+          "artifact.invalidated",
+          "memory.materialized",
+          "memory.superseded",
+          "memory.invalidated",
+          "execution.cancellation_requested",
+          "execution.completed",
+          "execution.failed"
+        ]
+      }
+    },
+    "https://schemas.iroute.dev/v1/task-outcome.schema.json": {
+      "artifacts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/artifact"
+        }
+      },
+      "confidence": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "context": {
+        "anyOf": [
+          {
+            "$ref": "context-manifest.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "evidence": {
+        "type": "array",
+        "items": {
+          "$ref": "evidence-reference.schema.json"
+        }
+      },
+      "output": true,
+      "resolutionLevel": {
+        "enum": [
+          "ExactArtifact",
+          "StructuredState",
+          "SemanticMemory",
+          "DeterministicCapability",
+          "SmallModel",
+          "StrongModel",
+          "VerifiedOrHuman"
+        ]
+      },
+      "routing": {
+        "anyOf": [
+          {
+            "$ref": "routing-decision.schema.json"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputTokens",
+          "outputTokens",
+          "cost",
+          "durationMilliseconds",
+          "modelCalls",
+          "toolCalls"
+        ],
+        "properties": {
+          "inputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "durationMilliseconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "modelCalls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toolCalls": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "validation": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "passed",
+          "quality",
+          "checks",
+          "failures"
+        ],
+        "properties": {
+          "passed": {
+            "type": "boolean"
+          },
+          "quality": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "https://schemas.iroute.dev/v1/task-request.schema.json": {
+      "actorId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "constraints": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "maxInputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 2000000
+          },
+          "maxOutputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 200000
+          },
+          "maxCost": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "deadlineMilliseconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 900000
+          },
+          "minimumQuality": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "requireEvidence": {
+            "type": "boolean"
+          },
+          "allowExternalWrites": {
+            "type": "boolean"
+          },
+          "maxModelCalls": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 16
+          },
+          "maxToolCalls": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 64
+          },
+          "maxParallelCalls": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 32
+          },
+          "maxTaskDepth": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 16
+          },
+          "allowedRegions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "uniqueItems": true,
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "requiredResidency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        }
+      },
+      "idempotencyKey": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "input": true,
+      "metadata": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "maxProperties": 32,
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "permissionScopes": {
+        "type": [
+          "array",
+          "null"
+        ],
+        "maxItems": 64,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      },
+      "taskType": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]+$",
+        "maxLength": 120
+      },
+      "tenantId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 200
+      }
     }
   }
 }
