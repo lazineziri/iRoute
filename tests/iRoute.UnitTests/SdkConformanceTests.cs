@@ -68,6 +68,29 @@ public sealed class SdkConformanceTests
     }
 
     [Fact]
+    public async Task DotNetSdkDiscardsATruncatedFinalSseFrame()
+    {
+        using var client = CreateHttpClient(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "data: {\"sequence\":1",
+                Encoding.UTF8,
+                "text/event-stream")
+        }));
+        var sdk = CreateSdk(client);
+        var events = new List<ExecutionEvent>();
+
+        await foreach (var executionEvent in sdk.StreamEventsAsync(
+                           Guid.Parse("019fbc00-0000-7000-8000-000000000014"),
+                           cancellationToken: TestContext.Current.CancellationToken))
+        {
+            events.Add(executionEvent);
+        }
+
+        Assert.Empty(events);
+    }
+
+    [Fact]
     public async Task DotNetSdkMatchesSharedErrorFixture()
     {
         using var client = CreateHttpClient(_ => Task.FromResult(JsonResponse(

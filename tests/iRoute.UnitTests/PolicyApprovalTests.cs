@@ -220,6 +220,46 @@ public sealed class PolicyApprovalTests
     }
 
     [Fact]
+    public async Task CancellationRacingWithAConfirmedExternalSuccessPersistsTheResult()
+    {
+        var executions = new InMemoryExecutionStore();
+        var artifacts = new InMemoryArtifactStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        var approvals = new InMemoryApprovalStore();
+        var actions = new CapturingExternalActionStore(new InMemoryExternalActionStore());
+        using var cancellations = new ExecutionCancellationRegistry();
+        using var callerCancellation = new CancellationTokenSource();
+        var executor = new CancellingAfterSuccessExecutor(callerCancellation);
+        var orchestrator = CreateOrchestrator(
+            executions,
+            artifacts,
+            checkpoints,
+            approvals,
+            actions,
+            cancellations,
+            executor);
+        var request = CreateSendRequest(["email:send"]);
+        var waiting = await orchestrator.ExecuteAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        var approved = await orchestrator.SubmitApprovalAsync(
+            waiting.ExecutionId,
+            new ApprovalDecision("execute", true),
+            "tenant-a",
+            "approver",
+            ["email:send", TaskPolicyEngine.ApprovalPermissionScope],
+            callerCancellation.Token);
+
+        Assert.Equal(ExecutionStatus.Cancelled, approved.Execution.Status);
+        Assert.Equal(1, executor.InvocationCount);
+        Assert.Equal(ExternalActionStatus.Succeeded, actions.CompletedAction?.Status);
+        Assert.Equal(
+            "accepted",
+            actions.CompletedAction?.Result?.Output.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task MultiStepReadOnlyPlanCreatesApprovalForFinalAction()
     {
         var definition = new TaskDefinition(
@@ -730,6 +770,71 @@ public sealed class PolicyApprovalTests
                 }),
                 [new EvidenceReference("external-action", "receipt:concurrent-approval")]);
         }
+    }
+
+    private sealed class CancellingAfterSuccessExecutor(CancellationTokenSource cancellation)
+        : IExternalActionExecutor
+    {
+        private int _invocationCount;
+        public int InvocationCount => Volatile.Read(ref _invocationCount);
+
+        public Task<ExternalActionResult> ExecuteAsync(
+            ExternalActionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _invocationCount);
+            var result = new ExternalActionResult(
+                JsonSerializer.SerializeToElement(new
+                {
+                    receiptId = "confirmed-before-cancellation",
+                    status = "accepted",
+                    capability = request.Capability
+                }),
+                [new EvidenceReference("external-action", "receipt:confirmed-before-cancellation")]);
+            cancellation.Cancel();
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class CapturingExternalActionStore(IExternalActionStore inner)
+        : IExternalActionStore
+    {
+        public ExternalActionRecord? CompletedAction { get; private set; }
+
+        public Task<ExternalActionReservation> ReserveAsync(
+            ExternalActionRecord action,
+            CancellationToken cancellationToken) =>
+            inner.ReserveAsync(action, cancellationToken);
+
+        public async Task<ExternalActionRecord> CompleteAsync(
+            string tenantId,
+            string idempotencyReference,
+            ExternalActionResult result,
+            DateTimeOffset completedAt,
+            CancellationToken cancellationToken)
+        {
+            CompletedAction = await inner.CompleteAsync(
+                tenantId,
+                idempotencyReference,
+                result,
+                completedAt,
+                cancellationToken);
+            return CompletedAction;
+        }
+
+        public Task<ExternalActionRecord> FailAsync(
+            string tenantId,
+            string idempotencyReference,
+            Problem problem,
+            DateTimeOffset failedAt,
+            CancellationToken cancellationToken) =>
+            inner.FailAsync(tenantId, idempotencyReference, problem, failedAt, cancellationToken);
+
+        public Task<IReadOnlyList<ExternalActionRecord>> ListUnresolvedAsync(
+            string tenantId,
+            Guid executionId,
+            CancellationToken cancellationToken) =>
+            inner.ListUnresolvedAsync(tenantId, executionId, cancellationToken);
     }
 
     private sealed class CoordinatedApprovedPolicyEngine : ITaskPolicyEngine, IDisposable

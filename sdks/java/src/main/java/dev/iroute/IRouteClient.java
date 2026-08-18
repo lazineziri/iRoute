@@ -17,13 +17,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class IRouteClient {
-    private static final Pattern JSON_STRING = Pattern.compile(
-        "\\\"%s\\\"\\s*:\\s*\\\"([^\\\"]*)\\\"");
-
     private final URI baseUri;
     private final Options options;
     private final Transport transport;
@@ -166,9 +161,104 @@ public final class IRouteClient {
     }
 
     private static String jsonString(String json, String name) {
-        Matcher matcher = Pattern.compile(JSON_STRING.pattern().formatted(Pattern.quote(name))).matcher(json);
-        return matcher.find() ? matcher.group(1) : null;
+        var index = skipWhitespace(json, 0);
+        if (index >= json.length() || json.charAt(index) != '{') return null;
+        index++;
+        while (index < json.length()) {
+            index = skipWhitespace(json, index);
+            if (index >= json.length() || json.charAt(index) == '}') return null;
+            var key = parseJsonString(json, index);
+            if (key == null) return null;
+            index = skipWhitespace(json, key.next());
+            if (index >= json.length() || json.charAt(index) != ':') return null;
+            index = skipWhitespace(json, index + 1);
+            if (key.value().equals(name)) {
+                var value = parseJsonString(json, index);
+                return value == null ? null : value.value();
+            }
+            index = skipJsonValue(json, index);
+            index = skipWhitespace(json, index);
+            if (index < json.length() && json.charAt(index) == ',') index++;
+        }
+        return null;
     }
+
+    private static ParsedString parseJsonString(String json, int start) {
+        if (start >= json.length() || json.charAt(start) != '"') return null;
+        var value = new StringBuilder();
+        for (var index = start + 1; index < json.length(); index++) {
+            var character = json.charAt(index);
+            if (character == '"') return new ParsedString(value.toString(), index + 1);
+            if (character != '\\') {
+                if (character < 0x20) return null;
+                value.append(character);
+                continue;
+            }
+            if (++index >= json.length()) return null;
+            var escaped = json.charAt(index);
+            switch (escaped) {
+                case '"', '\\', '/' -> value.append(escaped);
+                case 'b' -> value.append('\b');
+                case 'f' -> value.append('\f');
+                case 'n' -> value.append('\n');
+                case 'r' -> value.append('\r');
+                case 't' -> value.append('\t');
+                case 'u' -> {
+                    if (index + 4 >= json.length()) return null;
+                    try {
+                        var codePoint = Integer.parseInt(json.substring(index + 1, index + 5), 16);
+                        index += 4;
+                        if (Character.isHighSurrogate((char) codePoint) &&
+                            index + 6 < json.length() &&
+                            json.charAt(index + 1) == '\\' && json.charAt(index + 2) == 'u') {
+                            var low = (char) Integer.parseInt(json.substring(index + 3, index + 7), 16);
+                            if (!Character.isLowSurrogate(low)) return null;
+                            value.appendCodePoint(Character.toCodePoint((char) codePoint, low));
+                            index += 6;
+                        } else {
+                            value.append((char) codePoint);
+                        }
+                    } catch (NumberFormatException invalidEscape) {
+                        return null;
+                    }
+                }
+                default -> { return null; }
+            }
+        }
+        return null;
+    }
+
+    private static int skipJsonValue(String json, int start) {
+        if (start < json.length() && json.charAt(start) == '"') {
+            var value = parseJsonString(json, start);
+            return value == null ? json.length() : value.next();
+        }
+        var depth = 0;
+        for (var index = start; index < json.length(); index++) {
+            var character = json.charAt(index);
+            if (character == '"') {
+                var value = parseJsonString(json, index);
+                if (value == null) return json.length();
+                index = value.next() - 1;
+            } else if (character == '{' || character == '[') {
+                depth++;
+            } else if (character == '}' || character == ']') {
+                if (depth == 0) return index;
+                depth--;
+            } else if (character == ',' && depth == 0) {
+                return index;
+            }
+        }
+        return json.length();
+    }
+
+    private static int skipWhitespace(String value, int start) {
+        var index = start;
+        while (index < value.length() && Character.isWhitespace(value.charAt(index))) index++;
+        return index;
+    }
+
+    private record ParsedString(String value, int next) {}
 
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
@@ -261,12 +351,12 @@ public final class IRouteClient {
             // headers immediately and then stays open until the execution is terminal, so without
             // a bound on the whole exchange this call would block forever.
             var overall = isEventStream(request) ? streamTimeout : timeout;
+            var exchange = client.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString());
             try {
-                var response = client
-                    .sendAsync(builder.build(), HttpResponse.BodyHandlers.ofString())
-                    .get(overall.toMillis(), TimeUnit.MILLISECONDS);
+                var response = exchange.get(overall.toMillis(), TimeUnit.MILLISECONDS);
                 return new Response(response.statusCode(), response.body());
             } catch (TimeoutException timedOut) {
+                exchange.cancel(true);
                 throw new IOException(
                     "iRoute request timed out after " + overall + ": " + request.uri(), timedOut);
             } catch (ExecutionException | CompletionException failed) {

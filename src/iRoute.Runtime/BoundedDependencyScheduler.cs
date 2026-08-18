@@ -166,6 +166,12 @@ public sealed class BoundedDependencyScheduler(
         {
             throw;
         }
+        catch (LeaseFencedException)
+        {
+            // The current worker no longer owns the execution. Any cleanup write here would be
+            // stale too, so let the new owner recover the checkpoint.
+            throw;
+        }
         catch (OperationCanceledException)
         {
             await CancelIncompleteAsync(executionId, cancellationToken);
@@ -371,6 +377,10 @@ public sealed class BoundedDependencyScheduler(
             {
                 throw;
             }
+            catch (LeaseFencedException)
+            {
+                throw;
+            }
             catch (OperationCanceledException)
             {
                 var problem = new Problem(
@@ -494,10 +504,9 @@ public sealed class BoundedDependencyScheduler(
         var retryAfter = exception is ModelGatewayException { RetryAfter: { } value }
             ? value
             : TimeSpan.Zero;
-        var selected = calculated > retryAfter ? calculated : retryAfter;
-        return selected > TimeSpan.FromMilliseconds(options.RetryMaxDelayMilliseconds)
-            ? TimeSpan.FromMilliseconds(options.RetryMaxDelayMilliseconds)
-            : selected;
+        // Retry-After is a server minimum, not a suggestion. Clamp only the locally calculated
+        // backoff; shortening a provider value would cause an avoidable retry storm.
+        return calculated > retryAfter ? calculated : retryAfter;
     }
 
     private static double StableJitter(Guid executionId, string stepId, int attempt)

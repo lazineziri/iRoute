@@ -458,6 +458,8 @@ public static class ExecutionEndpoints
         response.ContentType = "text/event-stream";
         response.Headers.CacheControl = "no-cache";
         response.Headers.Append("X-Accel-Buffering", "no");
+        var terminalPollsWithoutEvent = 0;
+        var lastWriteAt = DateTimeOffset.UtcNow;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -474,12 +476,30 @@ public static class ExecutionEndpoints
                     $"data: {JsonSerializer.Serialize(executionEvent, EventJsonOptions)}\n\n",
                     cancellationToken);
                 await response.Body.FlushAsync(cancellationToken);
+                lastWriteAt = DateTimeOffset.UtcNow;
             }
 
             snapshot = await store.GetAsync(executionId, cancellationToken);
             if (!wroteEvent && snapshot is not null && IsTerminal(snapshot.Status))
             {
-                break;
+                // Terminal state and its final event are separate durable writes. Give the event
+                // writer several polls to commit before closing the stream.
+                terminalPollsWithoutEvent++;
+                if (terminalPollsWithoutEvent >= 4)
+                {
+                    break;
+                }
+            }
+            else
+            {
+                terminalPollsWithoutEvent = 0;
+            }
+
+            if (!wroteEvent && DateTimeOffset.UtcNow - lastWriteAt >= TimeSpan.FromSeconds(15))
+            {
+                await response.WriteAsync(": keep-alive\n\n", cancellationToken);
+                await response.Body.FlushAsync(cancellationToken);
+                lastWriteAt = DateTimeOffset.UtcNow;
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);

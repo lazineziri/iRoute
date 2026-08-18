@@ -16,6 +16,7 @@ public final class SdkConformanceTest {
         requestFixture();
         streamFixture();
         errorFixture();
+        escapedErrorFixture();
         System.out.println("PASS Java SDK conformance");
     }
 
@@ -69,6 +70,21 @@ public final class SdkConformanceTest {
             require(error.title().equals(FIXTURE.getProperty("error.expected.title")), "error title");
             require(error.detail().equals(FIXTURE.getProperty("error.expected.detail")), "error detail");
             require(error.responseBody().equals(decode("error.body.base64")), "error body");
+        }
+    }
+
+    private static void escapedErrorFixture() throws Exception {
+        var transport = new StubTransport(new IRouteClient.Response(
+            400,
+            "{\"shadow\":{\"detail\":\"wrong\"},\"code\":\"bad\\nrequest\"," +
+                "\"title\":\"quoted: \\\"value\\\"\",\"detail\":\"snowman \\u2603\"}"));
+        try {
+            client(transport).executeJson("{}");
+            throw new AssertionError("expected escaped IRouteApiException");
+        } catch (IRouteClient.IRouteApiException error) {
+            require(error.code().equals("bad\nrequest"), "escaped error code");
+            require(error.title().equals("quoted: \"value\""), "escaped error title");
+            require(error.detail().equals("snowman ☃"), "unicode error detail");
         }
     }
 

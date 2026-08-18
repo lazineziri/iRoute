@@ -1683,8 +1683,9 @@ public sealed class ExecutionOrchestrator(
                     step.SideEffectClass,
                     step.TimeoutMilliseconds),
                 cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
             stopwatch.Stop();
+            // The side effect has returned success. Persist that fact even if cancellation raced
+            // with the response; treating a known success as indeterminate would invite a repeat.
             await externalActions.CompleteAsync(
                 snapshot.TenantId,
                 idempotencyReference,

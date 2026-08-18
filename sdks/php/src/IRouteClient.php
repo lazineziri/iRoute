@@ -8,6 +8,7 @@ final class IRouteClient
 {
     /** @var \Closure(IRouteRequest): IRouteResponse */
     private readonly \Closure $transport;
+    private readonly bool $usesDefaultTransport;
 
     /** @param list<string> $permissionScopes */
     public function __construct(
@@ -19,6 +20,7 @@ final class IRouteClient
         private readonly int $timeoutSeconds = 30,
         ?callable $transport = null,
     ) {
+        $this->usesDefaultTransport = $transport === null;
         $this->transport = $transport === null
             ? $this->defaultTransport(...)
             : \Closure::fromCallable($transport);
@@ -97,24 +99,23 @@ final class IRouteClient
     /** @return \Generator<int, array<string, mixed>> */
     public function streamEvents(string $executionId, int $afterSequence = 0): \Generator
     {
-        $response = $this->send(
+        $request = $this->createRequest(
             'GET',
             '/v1/executions/' . rawurlencode($executionId) . '/events?after=' . $afterSequence,
             headers: ['Accept' => 'text/event-stream'],
         );
-        $this->ensureSuccess($response);
-        $data = [];
-        foreach (preg_split('/\r?\n/', $response->body) ?: [] as $line) {
-            if ($line === '') {
-                if ($data !== []) {
-                    yield json_decode(implode("\n", $data), true, flags: JSON_THROW_ON_ERROR);
-                    $data = [];
-                }
-            } elseif (str_starts_with($line, 'data:')) {
-                $data[] = ltrim(substr($line, 5));
-            }
+        if ($this->usesDefaultTransport) {
+            yield from $this->streamDefaultTransport($request);
+            return;
         }
-        if ($data !== []) yield json_decode(implode("\n", $data), true, flags: JSON_THROW_ON_ERROR);
+
+        $response = ($this->transport)($request);
+        $this->ensureSuccess($response);
+        $buffer = $response->body;
+        $data = [];
+        foreach ($this->drainSse($buffer, $data, true) as $event) {
+            yield $event;
+        }
     }
 
     /**
@@ -140,6 +141,16 @@ final class IRouteClient
     /** @param array<string, mixed>|null $body @param array<string, string> $headers */
     private function send(string $method, string $path, ?array $body = null, array $headers = []): IRouteResponse
     {
+        return ($this->transport)($this->createRequest($method, $path, $body, $headers));
+    }
+
+    /** @param array<string, mixed>|null $body @param array<string, string> $headers */
+    private function createRequest(
+        string $method,
+        string $path,
+        ?array $body = null,
+        array $headers = [],
+    ): IRouteRequest {
         if ($this->token !== null && $this->token !== '') {
             $headers['Authorization'] = 'Bearer ' . $this->token;
         }
@@ -149,12 +160,147 @@ final class IRouteClient
         $encodedBody = $body === null
             ? null
             : json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        return ($this->transport)(new IRouteRequest(
+        return new IRouteRequest(
             $method,
             rtrim($this->baseUrl, '/') . $path,
             $headers,
             $encodedBody,
-        ));
+        );
+    }
+
+    /** @return \Generator<int, array<string, mixed>> */
+    private function streamDefaultTransport(IRouteRequest $request): \Generator
+    {
+        $handle = curl_init($request->url);
+        if ($handle === false) throw new \RuntimeException('Could not initialize cURL.');
+        $multi = curl_multi_init();
+        $headers = [];
+        foreach ($request->headers as $name => $value) $headers[] = $name . ': ' . $value;
+        $status = 0;
+        $buffer = '';
+        $errorBody = '';
+        $data = [];
+        curl_setopt_array($handle, [
+            CURLOPT_CUSTOMREQUEST => $request->method,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_POSTFIELDS => $request->body,
+            CURLOPT_RETURNTRANSFER => false,
+            CURLOPT_CONNECTTIMEOUT => $this->timeoutSeconds,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_NOSIGNAL => true,
+            CURLOPT_HEADERFUNCTION => static function ($unused, string $line) use (&$status): int {
+                if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $line, $match) === 1) {
+                    $status = (int) $match[1];
+                }
+                return strlen($line);
+            },
+            CURLOPT_WRITEFUNCTION => static function ($unused, string $chunk) use (
+                &$status,
+                &$buffer,
+                &$errorBody,
+            ): int {
+                if ($status >= 200 && $status < 300) {
+                    $buffer .= $chunk;
+                } else {
+                    $errorBody .= $chunk;
+                }
+                return strlen($chunk);
+            },
+        ]);
+        curl_multi_add_handle($multi, $handle);
+
+        try {
+            $running = null;
+            do {
+                do {
+                    $multiCode = curl_multi_exec($multi, $running);
+                } while ($multiCode === CURLM_CALL_MULTI_PERFORM);
+                if ($multiCode !== CURLM_OK) {
+                    throw new \RuntimeException(curl_multi_strerror($multiCode));
+                }
+
+                foreach ($this->drainSse($buffer, $data, false) as $event) {
+                    yield $event;
+                }
+
+                if ($running > 0 && curl_multi_select($multi, 1.0) === -1) {
+                    usleep(10_000);
+                }
+            } while ($running > 0);
+
+            if (curl_errno($handle) !== 0) {
+                throw new \RuntimeException(curl_error($handle));
+            }
+            $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+            if ($status < 200 || $status >= 300) {
+                $this->ensureSuccess(new IRouteResponse($status, $errorBody));
+            }
+            foreach ($this->drainSse($buffer, $data, true) as $event) {
+                yield $event;
+            }
+        } finally {
+            curl_multi_remove_handle($multi, $handle);
+            curl_multi_close($multi);
+        }
+    }
+
+    /**
+     * @param list<string> $data
+     * @return list<array<string, mixed>>
+     */
+    private function drainSse(string &$buffer, array &$data, bool $endOfStream): array
+    {
+        $events = [];
+        while (true) {
+            $lineFeed = strpos($buffer, "\n");
+            $carriageReturn = strpos($buffer, "\r");
+            if ($lineFeed === false && $carriageReturn === false) break;
+            $separator = $lineFeed === false
+                ? $carriageReturn
+                : ($carriageReturn === false ? $lineFeed : min($lineFeed, $carriageReturn));
+            if ($separator === strlen($buffer) - 1 && $buffer[$separator] === "\r" && !$endOfStream) {
+                break;
+            }
+            $line = substr($buffer, 0, $separator);
+            $separatorLength = $buffer[$separator] === "\r" &&
+                isset($buffer[$separator + 1]) && $buffer[$separator + 1] === "\n" ? 2 : 1;
+            $buffer = substr($buffer, $separator + $separatorLength);
+
+            if ($line === '') {
+                if ($data !== []) {
+                    $events[] = json_decode(
+                        implode("\n", $data),
+                        true,
+                        flags: JSON_THROW_ON_ERROR,
+                    );
+                    $data = [];
+                }
+            } elseif (str_starts_with($line, 'data:')) {
+                $value = substr($line, 5);
+                $data[] = str_starts_with($value, ' ') ? substr($value, 1) : $value;
+            }
+        }
+
+        if ($endOfStream) {
+            if ($buffer !== '' && str_starts_with($buffer, 'data:')) {
+                $value = substr($buffer, 5);
+                $data[] = str_starts_with($value, ' ') ? substr($value, 1) : $value;
+            }
+            if ($data !== []) {
+                try {
+                    $events[] = json_decode(
+                        implode("\n", $data),
+                        true,
+                        flags: JSON_THROW_ON_ERROR,
+                    );
+                } catch (\JsonException) {
+                    // Discard a connection that ended in the middle of a JSON event.
+                }
+            }
+            $buffer = '';
+            $data = [];
+        }
+        return $events;
     }
 
     private function ensureSuccess(IRouteResponse $response): void

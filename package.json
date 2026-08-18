@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test:contracts": "node --test tools/schema-smoke.test.mjs tools/contract-compatibility.test.mjs",
+    "contracts:snapshot": "node tools/update-contract-snapshot.mjs",
     "test:deployment": "node --test tools/deployment-smoke.test.mjs",
     "test:regression": "node --test tools/evaluation-harness.test.mjs && node tools/run-regression.mjs --check",
     "test:release": "node --test tools/release-readiness.test.mjs",

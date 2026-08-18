@@ -707,7 +707,10 @@ export class IRouteClient {
       new URL(`/v1/executions/${encodeURIComponent(executionId)}`, this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
-    if (response.status === 404) return undefined;
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return undefined;
+    }
     return await this.readJson<ExecutionSnapshot>(response);
   }
 
@@ -716,7 +719,10 @@ export class IRouteClient {
       new URL(`/v1/executions/${encodeURIComponent(executionId)}/cancel`, this.baseUrl),
       this.requestInit({ method: 'POST', ...(signal ? { signal } : {}) })
     );
-    if (response.status === 404) return false;
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return false;
+    }
     if (!response.ok) throw await this.createError(response);
     return true;
   }
@@ -743,7 +749,10 @@ export class IRouteClient {
       new URL(`/v1/artifacts/${encodeURIComponent(artifactId)}`, this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
-    if (response.status === 404) return undefined;
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return undefined;
+    }
     return await this.readJson<ArtifactSnapshot>(response);
   }
 
@@ -782,7 +791,10 @@ export class IRouteClient {
       new URL(`/v1/observability/executions/${encodeURIComponent(executionId)}`, this.baseUrl),
       this.requestInit({ method: 'GET', ...(signal ? { signal } : {}) })
     );
-    if (response.status === 404) return undefined;
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return undefined;
+    }
     return await this.readJson<ExecutionTimeline>(response);
   }
 
@@ -807,19 +819,24 @@ export class IRouteClient {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        buffer += value.replaceAll('\r\n', '\n');
-        let boundary = buffer.indexOf('\n\n');
-        while (boundary >= 0) {
-          const block = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
+        buffer += value;
+        let boundary = /\r?\n\r?\n/.exec(buffer);
+        while (boundary) {
+          const block = buffer.slice(0, boundary.index);
+          buffer = buffer.slice(boundary.index + boundary[0].length);
           const event = parseSseBlock(block);
           if (event) yield event;
-          boundary = buffer.indexOf('\n\n');
+          boundary = /\r?\n\r?\n/.exec(buffer);
         }
       }
       const finalEvent = parseSseBlock(buffer);
       if (finalEvent) yield finalEvent;
     } finally {
+      try {
+        await reader.cancel();
+      } catch {
+        // Preserve the original stream/consumer outcome when cancellation itself fails.
+      }
       reader.releaseLock();
     }
   }

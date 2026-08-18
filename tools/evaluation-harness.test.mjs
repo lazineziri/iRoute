@@ -66,7 +66,8 @@ test('task evaluator rejects unsupported claims and forbidden side effects', () 
 test('built-in task parsing is independent of the golden dataset', () => {
   const source = `
     ["alpha.task"] = new(
-    ["beta.task"] = new(
+    ["beta.task"] = new TaskDefinition(
+    ["gamma.task"] = new iRoute.Contracts.TaskDefinition(
   `;
-  assert.deepEqual(parseBuiltInTaskTypes(source), ['alpha.task', 'beta.task']);
+  assert.deepEqual(parseBuiltInTaskTypes(source), ['alpha.task', 'beta.task', 'gamma.task']);
 });
