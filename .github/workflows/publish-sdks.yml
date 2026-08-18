@@ -121,11 +121,20 @@ jobs:
       # rather than reconstructed here.
       - name: Publish the Node.js SDK
         shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           tarball="$(ls artifacts/release/*.tgz)"
           test -f "${tarball}"
-          npm publish "${tarball}" --access public
+
+          dist_tag="latest"
+          if [[ "${VERSION}" == *-* ]]; then
+            dist_tag="${VERSION#*-}"
+            dist_tag="${dist_tag%%.*}"
+          fi
+
+          npm publish "${tarball}" --access public --tag "${dist_tag}"
 
   nuget:
     if: inputs.registry == 'nuget'
