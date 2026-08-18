@@ -296,6 +296,7 @@ public sealed class MeasuredCapabilityMatcher(IModelProfileRegistry modelProfile
         {
             failures.Add("model-call budget is zero");
         }
+        ValidateMeasurementProvenance(profile, failures);
 
         return new CapabilityCandidate(
             profile.Capability,
@@ -304,14 +305,46 @@ public sealed class MeasuredCapabilityMatcher(IModelProfileRegistry modelProfile
             profile.ProfileId,
             profile.Tier,
             failures.Count == 0,
-            failures.Count == 0 ? "eligible measured model profile" : string.Join("; ", failures),
+            failures.Count == 0
+                ? $"eligible {profile.MeasurementSource.ToString().ToLowerInvariant()} model profile"
+                : string.Join("; ", failures),
             profile.ExpectedQuality,
             profile.EstimatedCost,
             profile.ExpectedLatencyMilliseconds,
             profile.Uncertainty,
             profile.Reliability,
             profile.Availability,
-            Score(definition.EffectiveRoutingWeights, profile));
+            Score(definition.EffectiveRoutingWeights, profile),
+            profile.MeasurementSource,
+            profile.Measurement);
+    }
+
+    private static void ValidateMeasurementProvenance(
+        ModelProfile profile,
+        List<string> failures)
+    {
+        if (profile.MeasurementSource != ModelProfileSource.Measured)
+        {
+            if (profile.Measurement is not null)
+            {
+                failures.Add("only measured profiles may carry measurement metadata");
+            }
+            return;
+        }
+
+        if (profile.Measurement is null)
+        {
+            failures.Add("measured profile is missing measurement metadata");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.Measurement.Provider) ||
+            string.IsNullOrWhiteSpace(profile.Measurement.Model) ||
+            profile.Measurement.MeasuredAt == default ||
+            profile.Measurement.SampleCount <= 0)
+        {
+            failures.Add("measured profile has invalid measurement metadata");
+        }
     }
 
     private static CapabilityCandidate EvaluateNonModel(

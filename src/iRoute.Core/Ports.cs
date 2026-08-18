@@ -661,7 +661,8 @@ public sealed record ModelProfile(
     int MaxInputTokens,
     int MaxOutputTokens,
     bool Healthy = true,
-    string MeasurementSource = "evaluation");
+    ModelProfileSource MeasurementSource = ModelProfileSource.Synthetic,
+    ModelProfileMeasurement? Measurement = null);
 
 public sealed record CapabilityCandidate(
     string Capability,
@@ -677,7 +678,9 @@ public sealed record CapabilityCandidate(
     decimal Uncertainty,
     decimal Reliability,
     decimal Availability,
-    decimal Score)
+    decimal Score,
+    ModelProfileSource? MeasurementSource = null,
+    ModelProfileMeasurement? Measurement = null)
 {
     public RoutingCandidateEvaluation ToContract() => new(
         Capability,
@@ -691,7 +694,9 @@ public sealed record CapabilityCandidate(
         Uncertainty,
         Reliability,
         Availability,
-        Score);
+        Score,
+        MeasurementSource,
+        Measurement);
 }
 
 public sealed record CapabilityMatchResult(

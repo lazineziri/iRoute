@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.iroute.dev/v1/model-profile-measurement.schema.json",
+  "title": "ModelProfileMeasurement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider",
+    "model",
+    "measuredAt",
+    "sampleCount",
+    "qualityIsDeclaredNotMeasured"
+  ],
+  "properties": {
+    "provider": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "model": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "measuredAt": { "type": "string", "format": "date-time" },
+    "sampleCount": { "type": "integer", "minimum": 1 },
+    "qualityIsDeclaredNotMeasured": { "type": "boolean" }
+  }
+}

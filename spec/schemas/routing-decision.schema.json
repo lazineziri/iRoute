@@ -88,7 +88,14 @@
         "uncertainty": { "type": "number", "minimum": 0, "maximum": 1 },
         "reliability": { "type": "number", "minimum": 0, "maximum": 1 },
         "availability": { "type": "number", "minimum": 0, "maximum": 1 },
-        "score": { "type": "number" }
+        "score": { "type": "number" },
+        "measurementSource": { "enum": ["Synthetic", "Unverified", "Measured", null] },
+        "measurement": {
+          "oneOf": [
+            { "$ref": "model-profile-measurement.schema.json" },
+            { "type": "null" }
+          ]
+        }
       }
     }
   }

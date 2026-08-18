@@ -936,6 +936,14 @@ components:
         reliability: { type: number, minimum: 0, maximum: 1 }
         availability: { type: number, minimum: 0, maximum: 1 }
         score: { type: number }
+        measurementSource:
+          oneOf:
+            - $ref: '#/components/schemas/ModelProfileSource'
+            - type: 'null'
+        measurement:
+          oneOf:
+            - $ref: '#/components/schemas/ModelProfileMeasurement'
+            - type: 'null'
     GatewayDeploymentReference:
       type: object
       additionalProperties: false
@@ -1003,6 +1011,19 @@ components:
     ModelTier:
       type: string
       enum: [Small, Strong, Verifier]
+    ModelProfileSource:
+      type: string
+      enum: [Synthetic, Unverified, Measured]
+    ModelProfileMeasurement:
+      type: object
+      additionalProperties: false
+      required: [provider, model, measuredAt, sampleCount, qualityIsDeclaredNotMeasured]
+      properties:
+        provider: { type: string, minLength: 1, maxLength: 200 }
+        model: { type: string, minLength: 1, maxLength: 200 }
+        measuredAt: { type: string, format: date-time }
+        sampleCount: { type: integer, minimum: 1 }
+        qualityIsDeclaredNotMeasured: { type: boolean }
     ModelProfile:
       type: object
       additionalProperties: false
@@ -1024,7 +1045,11 @@ components:
         maxInputTokens: { type: integer, minimum: 1 }
         maxOutputTokens: { type: integer, minimum: 1 }
         healthy: { type: boolean }
-        measurementSource: { type: string }
+        measurementSource: { $ref: '#/components/schemas/ModelProfileSource' }
+        measurement:
+          oneOf:
+            - $ref: '#/components/schemas/ModelProfileMeasurement'
+            - type: 'null'
     ModelGatewayHealth:
       type: object
       additionalProperties: false

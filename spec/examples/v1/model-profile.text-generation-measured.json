@@ -1,0 +1,23 @@
+{
+  "profileId": "text.generation.hosted.measured-v1",
+  "capability": "text.generation",
+  "tier": "Strong",
+  "supportedTaskTypes": ["email.draft"],
+  "expectedQuality": 0.94,
+  "estimatedCost": 0.012,
+  "expectedLatencyMilliseconds": 872,
+  "uncertainty": 0.03,
+  "reliability": 0.99,
+  "availability": 0.995,
+  "maxInputTokens": 32000,
+  "maxOutputTokens": 4000,
+  "healthy": true,
+  "measurementSource": "Measured",
+  "measurement": {
+    "provider": "hosted-openai-compatible",
+    "model": "deployment-alias",
+    "measuredAt": "2026-08-18T09:30:00Z",
+    "sampleCount": 20,
+    "qualityIsDeclaredNotMeasured": true
+  }
+}

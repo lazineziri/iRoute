@@ -12,5 +12,6 @@
   "maxInputTokens": 8000,
   "maxOutputTokens": 1500,
   "healthy": true,
-  "measurementSource": "evaluation"
+  "measurementSource": "Synthetic",
+  "measurement": null
 }

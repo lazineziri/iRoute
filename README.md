@@ -31,7 +31,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - deterministic artifact/memory supersession with tenant-scoped, dependency-aware invalidation
 - explainable no-model resolution from exact results, project facts/decisions, explicit artifacts, and registered deterministic handlers
 - ranked context compilation with explicit artifact sections, full-history exclusion, serialized token bounds, and fact-level provenance
-- measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
+- provenance-bearing direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
 - provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
 - multiple registered generic gateway deployments with deterministic policy fallback and durable per-deployment circuit breaking
 - fenced half-open probes, Retry-After-aware open intervals, exhaustion evidence, and gateway/deployment resilience metrics

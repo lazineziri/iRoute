@@ -124,7 +124,7 @@
     },
     "RoutingCandidateEvaluation": {
       "required": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"],
-      "properties": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score"]
+      "properties": ["capability", "profileId", "modelTier", "eligible", "reason", "expectedQuality", "expectedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "score", "measurementSource", "measurement"]
     },
     "GatewayDeploymentReference": {
       "required": ["gatewayId", "provider", "deploymentId", "region", "residency", "modelVersion"],
@@ -144,7 +144,11 @@
     },
     "ModelProfile": {
       "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
-      "properties": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"]
+      "properties": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource", "measurement"]
+    },
+    "ModelProfileMeasurement": {
+      "required": ["provider", "model", "measuredAt", "sampleCount", "qualityIsDeclaredNotMeasured"],
+      "properties": ["provider", "model", "measuredAt", "sampleCount", "qualityIsDeclaredNotMeasured"]
     },
     "ModelGatewayHealth": {
       "required": ["gatewayId", "status", "latencyMilliseconds", "checkedAt"],
@@ -178,6 +182,7 @@
     "ObservabilityPayloadMode": ["MetadataOnly", "Redacted"],
     "RoutingPath": ["Direct", "Workflow"],
     "ModelTier": ["Small", "Strong", "Verifier"],
+    "ModelProfileSource": ["Synthetic", "Unverified", "Measured"],
     "ModelGatewayHealthStatus": ["Healthy", "Degraded", "Unavailable"],
     "GatewayFailureClass": ["Timeout", "Throttling", "Transport", "Provider", "MalformedOutput", "Validation", "Policy", "Permanent", null],
     "GatewayCircuitState": ["Closed", "Open", "HalfOpen"],
@@ -280,7 +285,11 @@
     },
     "https://schemas.iroute.dev/v1/model-profile.schema.json": {
       "required": ["profileId", "capability", "tier", "supportedTaskTypes", "expectedQuality", "estimatedCost", "expectedLatencyMilliseconds", "uncertainty", "reliability", "availability", "maxInputTokens", "maxOutputTokens", "healthy", "measurementSource"],
-      "properties": ["availability", "capability", "estimatedCost", "expectedLatencyMilliseconds", "expectedQuality", "healthy", "maxInputTokens", "maxOutputTokens", "measurementSource", "profileId", "reliability", "supportedTaskTypes", "tier", "uncertainty"]
+      "properties": ["availability", "capability", "estimatedCost", "expectedLatencyMilliseconds", "expectedQuality", "healthy", "maxInputTokens", "maxOutputTokens", "measurement", "measurementSource", "profileId", "reliability", "supportedTaskTypes", "tier", "uncertainty"]
+    },
+    "https://schemas.iroute.dev/v1/model-profile-measurement.schema.json": {
+      "required": ["provider", "model", "measuredAt", "sampleCount", "qualityIsDeclaredNotMeasured"],
+      "properties": ["measuredAt", "model", "provider", "qualityIsDeclaredNotMeasured", "sampleCount"]
     },
     "https://schemas.iroute.dev/v1/model-gateway-result.schema.json": {
       "required": ["output", "usage", "confidence", "evidence"],

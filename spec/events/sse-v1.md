@@ -83,7 +83,7 @@ Every `context.compiled` event contains `estimatedTokens`, `budgetTokens`, `proj
 
 ## Routing decision data
 
-Every `routing.decided` event contains the routing policy version, direct/workflow path, selected capability and model profile, quality floor, expected quality/cost/latency, uncertainty, score, planner invocation count, escalation result, and all measured candidates with eligibility reasons. `routing.escalated` repeats that payload only when a cheaper candidate was rejected. These events contain policy measurements and identifiers, never prompts or outputs. The outcome's `RoutingDecision` is the durable public explanation.
+Every `routing.decided` event contains the routing policy version, direct/workflow path, selected capability and model profile, quality floor, expected quality/cost/latency, uncertainty, score, planner invocation count, escalation result, and all candidates with eligibility reasons. Model candidates also carry a `Synthetic`, `Unverified`, or `Measured` source and an optional measurement record; a measured record identifies the provider, model, timestamp, sample count, and whether quality remained declared rather than measured. `routing.escalated` repeats that payload only when a cheaper candidate was rejected. These events contain policy measurements and identifiers, never prompts or outputs. The outcome's `RoutingDecision` is the durable public explanation.
 
 ## Model gateway data
 
