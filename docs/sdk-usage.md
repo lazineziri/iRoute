@@ -10,13 +10,13 @@ remain server-side.
 
 | Language | Guide | Public representation |
 |---|---|---|
-| .NET | [iRoute.Sdk](../src/Clients/iRoute.Sdk.DotNet/README.md) | Typed contracts and asynchronous streams |
+| .NET | [iRoute runtime client](../src/iRoute.Runtime/Documentation/CLIENT.md) | Typed contracts and asynchronous streams |
 
 ## Release status
 
-The source tree and release archives contain version `0.1.0-alpha.3`. The
-supported client is published as `iRoute.Sdk` on NuGet and can also be consumed
-from a source checkout or a locally built package.
+The published `0.1.0-alpha.3` client remains immutable. The restructured source
+keeps the typed client in `iRoute.Runtime`; it can be referenced from a source
+checkout while the next alpha package set is reviewed.
 
 Breaking source and configuration changes are expected before `1.0`. The v1 wire
 contract follows the repository's [compatibility promise](compatibility.md).
@@ -30,22 +30,17 @@ docker compose --file deploy/compose.sqlite.yaml up --build --wait
 curl --fail http://localhost:8080/health/ready
 ```
 
-To run from source, use two terminals from the repository root:
+To run from source, start the single runtime from the repository root:
 
 ```bash
 ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/Hosts/iRoute.Api -- --urls http://localhost:8080
+  dotnet run --project src/iRoute.Runtime -- serve --urls http://localhost:8080
 ```
 
-```bash
-ASPNETCORE_ENVIRONMENT=Development \
-  dotnet run --project src/Hosts/iRoute.Worker
-```
-
-The deterministic development gateway requires no provider credential. The API
-persists a submission before returning; the worker claims and processes queued
-work. Starting only the API is sufficient for reads and no-model fast paths, but
-ordinary queued model work will not finish without a worker.
+The deterministic development gateway requires no provider credential. In the
+SQLite profile, `serve` embeds execution and lifecycle workers in the same
+process. Durable deployments may instead use separate `serve` and `worker`
+process modes from the same executable.
 
 ## Shared client configuration
 

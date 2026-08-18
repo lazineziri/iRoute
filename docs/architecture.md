@@ -2,31 +2,30 @@
 
 ## Repository structure
 
-The repository is one .NET codebase. Directories under `src` describe
-architectural boundaries, not packaging or programming languages:
+The repository is one .NET codebase with six top-level projects. There are no
+`Application`, `Infrastructure`, `Hosts`, or `Clients` wrapper directories:
 
-| Directory | Projects | Responsibility |
-|---|---|---|
-| `src/Core` | `iRoute.Contracts`, `iRoute.Core` | Public wire types, domain rules, policies, and ports |
-| `src/Application` | `iRoute.Runtime` | Use cases, orchestration, routing, scheduling, and materialization |
-| `src/Infrastructure` | `iRoute.Infrastructure` | Persistence, gateways, connectors, telemetry, and port implementations |
-| `src/Hosts` | `iRoute.Api`, `iRoute.Worker`, `iRoute.Migrations` | Executable composition roots and process configuration |
-| `src/Clients` | `iRoute.Sdk.DotNet`, `iRoute.Cli` | Public .NET client and commands built on that client |
+| Project | Responsibility |
+|---|---|
+| `src/iRoute.Common` | The single home for public contracts, DTOs, interfaces, ports, options, and shared primitives |
+| `src/iRoute.Services` | Policies, routing, capability/gateway logic, and execution implementations |
+| `src/iRoute.Data` | EF Core contexts, entities, migrations, and durable/in-memory stores |
+| `src/iRoute.Core` | Small execution facade that delegates through contracts owned by Common |
+| `src/iRoute.Runtime` | The only executable and composition root: API, workers, migrations, and client CLI |
+| `src/iRoute.Tests` | Boundary tests and behavior tests across the five production projects |
 
-The modular monolith has two independent middle layers. Application coordinates
-product behavior; Infrastructure implements Core ports. Hosts are the only
-place where both are assembled. Moving an implementation between these
-directories requires changing its responsibility, not merely its namespace.
+The modular monolith has one composition root and an acyclic dependency graph.
+Common is the only contract boundary. Core, Services, and Data each depend on
+Common, but never on one another. Runtime is the only project allowed to assemble
+concrete services and stores. A return from a service or store to Core is a method
+result, not a reverse project reference.
 
-Within each project, code follows the same feature-first rule. Application
-separates executions, routing, resolution, policies, context, validation,
-project state, and observability. Infrastructure separates capabilities,
-gateways, routing registries, observability, dependency injection, and
-persistence; persistence then separates Entity Framework, in-memory adapters,
-and schema migrations. Host project roots contain composition only, with API
-endpoints, identity, and worker processes in their own folders. Catch-all
-`Services` or `Helpers` files are not an accepted destination for unrelated
-logic.
+Within each project, code is grouped by feature. Services separates executions,
+routing, resolution, policies, context, validation, capabilities, gateways,
+project state, and observability. Data separates Entity Framework, in-memory
+stores, migrations, gateway state, and observability projections. Runtime
+separates API, hosting, migrations, client commands, and composition. Catch-all
+files and unrelated `Helpers` classes are not accepted destinations.
 
 ## Runtime topology
 
@@ -247,37 +246,33 @@ The durable execution snapshot and event stream remain the query source for the 
 
 ```mermaid
 flowchart TD
-    A["Contracts"] --> B["Core"]
-    A --> C["Runtime / Application"]
-    B --> C
-    A --> D["Infrastructure"]
-    B --> D
-    A --> E["API host"]
-    B --> E
-    C --> E
-    D --> E
-    C --> F["Worker host"]
-    D --> F
-    D --> G["Migration host"]
-    A --> H[".NET SDK"]
-    H --> I["CLI"]
+    B["Services"] --> A["Common"]
+    C --> A
+    D --> A
+    E["Runtime"] --> A
+    E --> B
+    E --> C
+    E --> D
+    F["Tests"] --> A
+    F --> B
+    F --> C
+    F --> D
+    F --> E
 ```
 
-Arrows mean “may be depended upon by.” Reverse references are forbidden.
+Arrows mean “depends on.” Reverse references and cycles are forbidden and are
+checked by `iRoute.Tests`.
 
 ## Module ownership
 
 | Project | Owns | Must not own |
 |---|---|---|
-| Contracts | wire records, enums, compatibility | persistence or routing behavior |
-| Core | state rules, entities, ports, policies | HTTP, EF Core, provider formats |
-| Runtime | use cases, orchestration, context, scheduling | host configuration or provider SDKs |
-| Infrastructure | persistence, HTTP gateway, telemetry projection | product policy decisions |
-| API | HTTP/SSE, observability views, static dashboard, and composition | business logic |
-| Worker | durable jobs and lifecycle host | duplicate runtime rules |
-| Migrations | schema-management process and configuration | persistence behavior outside Infrastructure |
-| .NET SDK | idiomatic client | routing, prompts, memory logic |
-| CLI | local/operator commands delegated to an SDK | duplicate HTTP, routing, or runtime logic |
+| Common | contracts, DTOs, interfaces, ports, enums, shared options and primitives | execution, routing, persistence, hosting implementations |
+| Services | routing/policy logic, connectors, gateways, execution implementation | duplicate contracts, EF contexts, migrations, API endpoints |
+| Data | DbContext, entities, migrations, store implementations | routing or request policy decisions |
+| Core | stable execution facade and delegation | persistence, provider calls, routing rules, composition |
+| Runtime | DI composition, API/SSE, dashboard, workers, migrations, client CLI | duplicate business or persistence rules |
+| Tests | architecture and behavior verification | production implementation |
 
 ## State transition
 

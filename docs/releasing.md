@@ -10,9 +10,8 @@ agree with it.
 The prerelease builder produces:
 
 - source archive;
-- `iRoute.Contracts` NuGet package;
-- `iRoute.Sdk` NuGet package;
-- `iRoute.Cli` .NET tool package;
+- `iRoute.Common`, `iRoute.Services`, `iRoute.Data`, and `iRoute.Core` NuGet packages;
+- the `iRoute` .NET tool package containing the complete runtime and CLI;
 - release notes;
 - `SHA256SUMS` covering every distributed file.
 
@@ -50,9 +49,11 @@ the supported .NET artifacts into a new empty directory:
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --configuration Release --no-restore
-dotnet pack src/Core/iRoute.Contracts --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/Clients/iRoute.Sdk.DotNet --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/Clients/iRoute.Cli --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/iRoute.Common --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/iRoute.Services --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/iRoute.Data --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/iRoute.Core --configuration Release --no-restore --output /tmp/iroute-release
+dotnet pack src/iRoute.Runtime --configuration Release --no-restore --output /tmp/iroute-release
 ```
 
 Inspect the packages and verify every line in the workflow-produced

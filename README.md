@@ -44,7 +44,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - a tenant-scoped observability read model with redacted timelines, task/policy comparisons, and memory-hit diagnostics
 - a dependency-free operator dashboard at `/dashboard/` with bounded query windows and metadata-only timelines by default
 - versioned schema migration shared by SQLite and PostgreSQL
-- one supported, typed .NET client published as `iRoute.Sdk` on NuGet
+- a typed .NET HTTP/SSE client included in the single Runtime project
 - a thin `iroute` CLI and runnable .NET SDK quick start
 - non-root SQLite/PostgreSQL container profiles, explicit schema migrations, and horizontally scalable Kubernetes API manifests
 - Apache-2.0 community governance, private security reporting, explicit compatibility windows, and reproducible checksummed release artifacts
@@ -57,24 +57,24 @@ For a clean clone or source archive, follow the [installation guide](docs/instal
 
 Prerequisite: .NET SDK `10.0.100` or newer on the .NET 10 line. The repository is currently verified with SDK `10.0.102`.
 
-iRoute has one runtime and two distribution surfaces. The API, execution worker,
-and migration job run as containers. .NET applications install the thin
-`iRoute.Sdk` package to call that runtime. Installing the SDK does not embed or start iRoute, and
-self-hosters may call the HTTP API directly without an SDK.
+iRoute now has one .NET executable and composition root. The API, execution
+worker, migration runner, and client commands are explicit modes of the same
+`iroute` runtime. The five production libraries remain separate projects so
+their dependency boundaries stay enforceable.
 
 ```bash
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --no-restore
-ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/Hosts/iRoute.Api -- --urls http://localhost:8080
+dotnet test --solution iRoute.slnx --configuration Release --no-build
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project src/iRoute.Runtime -- serve --urls http://localhost:8080
 ```
 
-In a second terminal, start the execution and lifecycle host:
-
-```bash
-dotnet run --project src/Hosts/iRoute.Worker
-```
-
-The default developer profile uses the deterministic gateway, so it needs no provider credential. A relative SQLite `Data Source` is resolved against one per-user directory (`%LOCALAPPDATA%\iRoute` on Windows, `~/Library/Application Support/iRoute` on macOS, `$XDG_DATA_HOME/iRoute` on Linux) so the API and worker share one database regardless of the directory each host is started from. Set `ConnectionStrings__iRoute` to an absolute path to choose your own location. In another terminal:
+The local SQLite profile embeds the execution and lifecycle workers in that one
+process. The deterministic gateway needs no provider credential. A relative
+SQLite `Data Source` resolves against one per-user directory
+(`%LOCALAPPDATA%\iRoute` on Windows, `~/Library/Application Support/iRoute` on
+macOS, `$XDG_DATA_HOME/iRoute` on Linux). Set `ConnectionStrings__iRoute` to an
+absolute path to choose another location. In another terminal:
 
 ```bash
 curl --request POST http://localhost:8080/v1/executions \
@@ -90,7 +90,7 @@ The first request returns HTTP `202` with a durable execution ID, normally in `Q
 The CLI uses the same local defaults and delegates to the .NET SDK:
 
 ```bash
-dotnet run --project src/Clients/iRoute.Cli -- \
+dotnet run --project src/iRoute.Runtime -- \
   execute --request @examples/email-draft.json --idempotency-key cli-example-001
 ```
 
@@ -102,10 +102,10 @@ Open `http://localhost:8080/dashboard/` to inspect persisted executions, provide
 
 Dashboard cost is the normalized value reported by the configured gateway. The Core contract does not assign it a currency, so it is not an Azure invoice or billing reconciliation. Configure gateway cost units consistently and use provider billing data for financial reporting.
 
-The worker host processes durable executions and also enforces TTL, quota, archival, and deletion policies asynchronously:
+Production deployments may run the same executable in worker-only mode:
 
 ```bash
-dotnet run --project src/Hosts/iRoute.Worker
+dotnet run --project src/iRoute.Runtime -- worker
 ```
 
 For the PostgreSQL profile, `docker compose -f deploy/compose.yaml up --build` starts the API, execution/lifecycle worker, migration job, and database together.
