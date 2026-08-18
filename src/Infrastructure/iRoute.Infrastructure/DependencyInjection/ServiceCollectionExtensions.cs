@@ -2,6 +2,7 @@ using iRoute.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace iRoute.Infrastructure;
 
@@ -11,21 +12,32 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<ModelGatewayOptions>(configuration.GetSection("ModelGateway"));
-        var modelGatewayOptions = configuration.GetSection("ModelGateway").Get<ModelGatewayOptions>()
-            ?? new ModelGatewayOptions();
-        modelGatewayOptions.Resilience.EnsureValid();
-        services.AddSingleton(modelGatewayOptions.Resilience);
-        services.Configure<StorageOptions>(configuration.GetSection("Storage"));
-        var observabilityOptions = configuration.GetSection("Observability").Get<ObservabilityOptions>()
-            ?? new ObservabilityOptions();
-        observabilityOptions.EnsureValid();
-        services.AddSingleton(observabilityOptions);
-        var lifecyclePolicy = configuration.GetSection("Lifecycle").Get<LifecyclePolicy>()
-            ?? new LifecyclePolicy();
-        lifecyclePolicy.EnsureValid();
-        services.AddSingleton(lifecyclePolicy);
-        services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IValidateOptions<ModelGatewayOptions>, ModelGatewayOptionsValidator>();
+        services.AddOptions<ModelGatewayOptions>()
+            .Bind(configuration.GetSection("ModelGateway"))
+            .ValidateOnStart();
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<ModelGatewayOptions>>().Value.Resilience);
+
+        services.AddSingleton<IValidateOptions<StorageOptions>, StorageOptionsValidator>();
+        services.AddOptions<StorageOptions>()
+            .Bind(configuration.GetSection("Storage"))
+            .ValidateOnStart();
+
+        services.AddSingleton<IValidateOptions<ObservabilityOptions>, ObservabilityOptionsValidator>();
+        services.AddOptions<ObservabilityOptions>()
+            .Bind(configuration.GetSection("Observability"))
+            .ValidateOnStart();
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<ObservabilityOptions>>().Value);
+
+        services.AddSingleton<IValidateOptions<LifecyclePolicy>, LifecyclePolicyValidator>();
+        services.AddOptions<LifecyclePolicy>()
+            .Bind(configuration.GetSection("Lifecycle"))
+            .ValidateOnStart();
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<IOptions<LifecyclePolicy>>().Value);
+        services.AddSingleton(TimeProvider.System);
         var storageProvider = StorageProvider.Parse(configuration["Storage:Provider"]);
         {
             var connectionString = SqliteStoragePath.ResolveForProvider(

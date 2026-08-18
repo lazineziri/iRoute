@@ -130,7 +130,8 @@ public sealed class ConfiguredGatewayDeploymentRegistry : IGatewayDeploymentRegi
 
 public sealed class ConfiguredGatewayDeploymentClientFactory(
     IHttpClientFactory httpClients,
-    IOptions<ModelGatewayOptions> configuredOptions) : IGatewayDeploymentClientFactory
+    IOptions<ModelGatewayOptions> configuredOptions,
+    TimeProvider clock) : IGatewayDeploymentClientFactory
 {
     private readonly ModelGatewayOptions _options = configuredOptions.Value;
     private readonly ConcurrentDictionary<string, IModelGateway> _clients = new(StringComparer.Ordinal);
@@ -160,7 +161,8 @@ public sealed class ConfiguredGatewayDeploymentClientFactory(
                 ExecutePath = route.ExecutePath,
                 StreamPath = route.StreamPath,
                 HealthPath = route.HealthPath
-            }));
+            }),
+            clock);
     }
 }
 
@@ -168,7 +170,7 @@ public sealed class ResilientModelGateway(
     IGatewayDeploymentRegistry registry,
     IGatewayDeploymentClientFactory clients,
     IGatewayCircuitStore circuits,
-    IClock clock,
+    TimeProvider clock,
     GatewayResilienceOptions options) : IModelGateway
 {
     public const string PolicyVersion = "gateway-resilience.w18.v1";
@@ -197,7 +199,7 @@ public sealed class ResilientModelGateway(
         foreach (var deployment in deployments)
         {
             var circuit = circuitStates.GetValueOrDefault(deployment.DeploymentId) ??
-                InMemoryGatewayCircuitStore.Initial(deployment.DeploymentId, clock.UtcNow);
+                InMemoryGatewayCircuitStore.Initial(deployment.DeploymentId, clock.GetUtcNow());
             var rejection = StaticRejection(deployment, request);
             if (rejection is null)
             {
@@ -276,7 +278,7 @@ public sealed class ResilientModelGateway(
                 deployment.DeploymentId,
                 _ownerId,
                 options.Circuit,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 cancellationToken);
             circuitStates[deployment.DeploymentId] = permit.Snapshot;
             if (!permit.Granted)
@@ -324,7 +326,7 @@ public sealed class ResilientModelGateway(
                 attemptTimer.Stop();
                 var after = await circuits.RecordSuccessAsync(
                     permit,
-                    clock.UtcNow,
+                    clock.GetUtcNow(),
                     cancellationToken);
                 circuitStates[deployment.DeploymentId] = after;
                 attempts.Add(new GatewayAttemptEvidence(
@@ -485,7 +487,7 @@ public sealed class ResilientModelGateway(
             GatewayId,
             status,
             0,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             $"{available} of {enabled.Length} registered generic gateway deployments are circuit-eligible.");
     }
 
@@ -508,7 +510,7 @@ public sealed class ResilientModelGateway(
             CountsTowardCircuit(failureClass),
             exception.RetryAfter,
             options.Circuit,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             cancellationToken);
         return new FailureObservation(
             new GatewayAttemptEvidence(

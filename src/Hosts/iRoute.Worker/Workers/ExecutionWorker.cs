@@ -6,81 +6,12 @@ using Microsoft.Extensions.Options;
 
 namespace iRoute.Worker;
 
-public sealed record ExecutionWorkerOptions
-{
-    public string? WorkerId { get; init; }
-    public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(250);
-    public TimeSpan LeaseDuration { get; init; } = TimeSpan.FromSeconds(30);
-    public TimeSpan HeartbeatInterval { get; init; } = TimeSpan.FromSeconds(5);
-    public TimeSpan AbandonDelay { get; init; } = TimeSpan.FromSeconds(1);
-
-    /// <summary>
-    /// Upper bound on the redelivery delay, which doubles with each failed delivery.
-    /// </summary>
-    public TimeSpan MaxAbandonDelay { get; init; } = TimeSpan.FromMinutes(5);
-
-    /// <summary>
-    /// Deliveries allowed before an execution is failed terminally instead of being redelivered.
-    /// Zero disables the ceiling and restores unbounded redelivery.
-    /// </summary>
-    public int MaxDeliveryAttempts { get; init; } = 5;
-
-    public bool HasExhaustedDeliveries(int deliveryAttempt) =>
-        MaxDeliveryAttempts > 0 && deliveryAttempt >= MaxDeliveryAttempts;
-
-    /// <summary>
-    /// Redelivery delay for a given attempt: doubles per attempt, clamped to
-    /// <see cref="MaxAbandonDelay"/>, so one poison item cannot spin the queue.
-    /// </summary>
-    public TimeSpan AbandonDelayFor(int deliveryAttempt)
-    {
-        if (deliveryAttempt <= 1)
-        {
-            return AbandonDelay;
-        }
-
-        // Cap the shift before it can overflow the multiplication.
-        var doublings = Math.Min(deliveryAttempt - 1, 30);
-        var scaled = AbandonDelay * Math.Pow(2, doublings);
-        return scaled >= MaxAbandonDelay ? MaxAbandonDelay : scaled;
-    }
-
-    public void EnsureValid()
-    {
-        if (MaxDeliveryAttempts < 0)
-        {
-            throw new InvalidOperationException(
-                "ExecutionWorker:MaxDeliveryAttempts cannot be negative; use 0 for unlimited redelivery.");
-        }
-
-        if (MaxAbandonDelay < AbandonDelay)
-        {
-            throw new InvalidOperationException(
-                "ExecutionWorker:MaxAbandonDelay must be greater than or equal to AbandonDelay.");
-        }
-
-        if (PollInterval <= TimeSpan.Zero ||
-            LeaseDuration <= TimeSpan.Zero ||
-            HeartbeatInterval <= TimeSpan.Zero ||
-            AbandonDelay < TimeSpan.Zero)
-        {
-            throw new InvalidOperationException("Execution worker intervals must be positive.");
-        }
-
-        if (HeartbeatInterval >= LeaseDuration / 2)
-        {
-            throw new InvalidOperationException(
-                "ExecutionWorker:HeartbeatInterval must be less than half of LeaseDuration.");
-        }
-    }
-}
-
-public sealed partial class ExecutionWorker(
+internal sealed partial class ExecutionWorker(
     IServiceScopeFactory scopes,
     IExecutionWorkStore work,
     IExecutionStore executions,
     IExecutionFence fence,
-    IClock clock,
+    TimeProvider clock,
     IOptions<ExecutionWorkerOptions> configuredOptions,
     ILogger<ExecutionWorker> logger) : BackgroundService
 {
@@ -89,7 +20,6 @@ public sealed partial class ExecutionWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _options.EnsureValid();
         LogWorkerStarted(logger, _workerId);
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -98,7 +28,7 @@ public sealed partial class ExecutionWorker(
             {
                 lease = await work.TryClaimAsync(
                     _workerId,
-                    clock.UtcNow,
+                    clock.GetUtcNow(),
                     _options.LeaseDuration,
                     stoppingToken);
             }
@@ -156,7 +86,7 @@ public sealed partial class ExecutionWorker(
                     ExecutionEventTypes.LeaseReleased,
                     new { workerId = _workerId, reason = "completed", snapshot.Status },
                     CancellationToken.None);
-                if (!await work.CompleteAsync(lease, clock.UtcNow, CancellationToken.None))
+                if (!await work.CompleteAsync(lease, clock.GetUtcNow(), CancellationToken.None))
                 {
                     LogLeaseLost(logger, lease.ExecutionId, _workerId);
                 }
@@ -234,13 +164,13 @@ public sealed partial class ExecutionWorker(
         ArmLeaseExpiry(processCancellation, lease.ExpiresAt);
         while (!heartbeatCancellation.IsCancellationRequested)
         {
-            await Task.Delay(_options.HeartbeatInterval, heartbeatCancellation.Token);
+            await Task.Delay(_options.HeartbeatInterval, clock, heartbeatCancellation.Token);
             ExecutionLeaseHeartbeat heartbeat;
             try
             {
                 heartbeat = await work.RenewAsync(
                     lease,
-                    clock.UtcNow,
+                    clock.GetUtcNow(),
                     _options.LeaseDuration,
                     heartbeatCancellation.Token);
             }
@@ -290,7 +220,7 @@ public sealed partial class ExecutionWorker(
     /// </summary>
     private async Task DeadLetterAsync(ExecutionLease lease, Exception exception)
     {
-        var now = clock.UtcNow;
+        var now = clock.GetUtcNow();
         var problem = new Problem(
             ErrorCodes.ExecutionFailed,
             "Execution delivery attempts exhausted",
@@ -332,7 +262,7 @@ public sealed partial class ExecutionWorker(
 
     private async Task AbandonAsync(ExecutionLease lease, string reason)
     {
-        var availableAt = clock.UtcNow.Add(_options.AbandonDelayFor(lease.DeliveryAttempt));
+        var availableAt = clock.GetUtcNow().Add(_options.AbandonDelayFor(lease.DeliveryAttempt));
         if (await work.AbandonAsync(lease, availableAt, CancellationToken.None))
         {
             await TryAppendEventAsync(
@@ -354,7 +284,7 @@ public sealed partial class ExecutionWorker(
             await executions.AppendEventAsync(
                 executionId,
                 eventType,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 JsonSerializer.SerializeToElement(data),
                 cancellationToken);
         }
@@ -364,11 +294,11 @@ public sealed partial class ExecutionWorker(
         }
     }
 
-    private static async Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    private async Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
     {
         try
         {
-            await Task.Delay(delay, cancellationToken);
+            await Task.Delay(delay, clock, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -382,7 +312,7 @@ public sealed partial class ExecutionWorker(
 
     private void ArmLeaseExpiry(CancellationTokenSource processCancellation, DateTimeOffset expiresAt)
     {
-        var remaining = expiresAt - clock.UtcNow;
+        var remaining = expiresAt - clock.GetUtcNow();
         processCancellation.CancelAfter(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
     }
 

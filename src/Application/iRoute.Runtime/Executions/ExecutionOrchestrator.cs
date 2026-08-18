@@ -25,7 +25,7 @@ public sealed class ExecutionOrchestrator(
     IEnumerable<ITaskOutcomeValidator> validators,
     IInputFingerprint fingerprint,
     IExecutionCancellationRegistry cancellations,
-    IClock clock,
+    TimeProvider clock,
     IExecutionTelemetry? executionTelemetry = null,
     IExecutionWorkStore? executionWork = null)
 {
@@ -63,7 +63,7 @@ public sealed class ExecutionOrchestrator(
             }
         }
 
-        var now = clock.UtcNow;
+        var now = clock.GetUtcNow();
         var snapshot = new ExecutionSnapshot(
             Guid.CreateVersion7(),
             request.TaskType,
@@ -131,7 +131,7 @@ public sealed class ExecutionOrchestrator(
                     ErrorCodes.UnknownTaskType,
                     "Unknown task type",
                     $"No active task definition exists for '{request.TaskType}'.");
-            snapshot = snapshot with { TaskDefinitionVersion = definition.Version, UpdatedAt = clock.UtcNow };
+            snapshot = snapshot with { TaskDefinitionVersion = definition.Version, UpdatedAt = clock.GetUtcNow() };
             await store.UpdateAsync(snapshot, executionToken);
 
             snapshot = await TransitionAsync(snapshot, ExecutionStatus.Resolving, executionToken);
@@ -260,7 +260,7 @@ public sealed class ExecutionOrchestrator(
                 request,
                 plan,
                 routing.Decision,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 executionToken);
             if (initialization.Created)
             {
@@ -569,7 +569,7 @@ public sealed class ExecutionOrchestrator(
                 decision.Approved,
                 actorId,
                 decision.Reason,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 cancellationToken);
         }
         catch (InvalidOperationException exception)
@@ -667,7 +667,7 @@ public sealed class ExecutionOrchestrator(
             return new ApprovalResult(approval.ToSnapshot(), snapshot);
         }
 
-        var resumedAt = clock.UtcNow;
+        var resumedAt = clock.GetUtcNow();
         var claimed = await store.TryTransitionAsync(
             executionId,
             ExecutionStatus.WaitingForApproval,
@@ -1008,7 +1008,7 @@ public sealed class ExecutionOrchestrator(
             .Concat(context.Evidence)
             .DistinctBy(x => (x.Kind, x.Reference))
             .ToArray();
-        var createdAt = clock.UtcNow;
+        var createdAt = clock.GetUtcNow();
         var dependencies = combinedEvidence
             .Select(item => new DependencyReference(item.Kind, item.Reference, item.ContentHash))
             .Concat(memory.Select(item => new DependencyReference(
@@ -1114,10 +1114,10 @@ public sealed class ExecutionOrchestrator(
         await AppendEventAsync(
             executionId,
             ExecutionEventTypes.GatewayStarted,
-                new
-                {
-                    stepId = step.Id,
-                    capability = step.Capability,
+            new
+            {
+                stepId = step.Id,
+                capability = step.Capability,
                 step.ProfileId,
                 gatewayId = modelGateway.GatewayId,
                 deadlineMilliseconds = step.TimeoutMilliseconds
@@ -1590,7 +1590,7 @@ public sealed class ExecutionOrchestrator(
             request.IdempotencyKey!,
             step.Id,
             step.Capability);
-        var now = clock.UtcNow;
+        var now = clock.GetUtcNow();
         var reservation = await externalActions.ReserveAsync(
             new ExternalActionRecord(
                 snapshot.ExecutionId,
@@ -1690,7 +1690,7 @@ public sealed class ExecutionOrchestrator(
                 snapshot.TenantId,
                 idempotencyReference,
                 result,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 CancellationToken.None);
             await AppendEventAsync(
                 snapshot.ExecutionId,
@@ -1738,7 +1738,7 @@ public sealed class ExecutionOrchestrator(
                 snapshot.TenantId,
                 idempotencyReference,
                 problem,
-                clock.UtcNow,
+                clock.GetUtcNow(),
                 CancellationToken.None);
             await AppendEventAsync(
                 snapshot.ExecutionId,
@@ -1794,7 +1794,7 @@ public sealed class ExecutionOrchestrator(
                 request.IdempotencyKey!,
                 step.Id,
                 step.Capability),
-            clock.UtcNow);
+            clock.GetUtcNow());
         return await approvals.CreatePendingAsync(approval, cancellationToken);
     }
 
@@ -1999,7 +1999,7 @@ public sealed class ExecutionOrchestrator(
         TaskOutcome outcome,
         CancellationToken cancellationToken)
     {
-        snapshot = snapshot with { Outcome = outcome, UpdatedAt = clock.UtcNow };
+        snapshot = snapshot with { Outcome = outcome, UpdatedAt = clock.GetUtcNow() };
         await store.UpdateAsync(snapshot, cancellationToken);
         snapshot = await TransitionAsync(snapshot, ExecutionStatus.Succeeded, cancellationToken);
         await AppendEventAsync(
@@ -2024,7 +2024,7 @@ public sealed class ExecutionOrchestrator(
     {
         var work = executionWork ?? throw new InvalidOperationException(
             "Durable execution work is not configured for asynchronous submission.");
-        var queuedAt = clock.UtcNow;
+        var queuedAt = clock.GetUtcNow();
         await work.EnqueueAsync(
             snapshot.ExecutionId,
             expectedStatus,
@@ -2051,7 +2051,7 @@ public sealed class ExecutionOrchestrator(
                 ErrorCodes.ExecutionCancelled,
                 "Execution stopped",
                 "The durable execution stopped before all steps completed."),
-            clock.UtcNow,
+            clock.GetUtcNow(),
             cancellationToken);
 
     private async Task<TimeSpan> RemainingWorkerDeadlineAsync(
@@ -2068,8 +2068,8 @@ public sealed class ExecutionOrchestrator(
             }
         }
 
-        var startedAt = queuedAt ?? clock.UtcNow;
-        return startedAt.AddMilliseconds(deadlineMilliseconds) - clock.UtcNow;
+        var startedAt = queuedAt ?? clock.GetUtcNow();
+        return startedAt.AddMilliseconds(deadlineMilliseconds) - clock.GetUtcNow();
     }
 
     private async Task<ExecutionSnapshot> TerminalAsync(
@@ -2085,7 +2085,7 @@ public sealed class ExecutionOrchestrator(
         }
 
         ExecutionStateMachine.EnsureCanTransition(latest.Status, terminal);
-        var updated = latest with { Status = terminal, UpdatedAt = clock.UtcNow, Error = problem };
+        var updated = latest with { Status = terminal, UpdatedAt = clock.GetUtcNow(), Error = problem };
         await store.UpdateAsync(updated, cancellationToken);
         await AppendEventAsync(
             updated.ExecutionId,
@@ -2107,7 +2107,7 @@ public sealed class ExecutionOrchestrator(
         CancellationToken cancellationToken)
     {
         ExecutionStateMachine.EnsureCanTransition(snapshot.Status, target);
-        var updated = snapshot with { Status = target, UpdatedAt = clock.UtcNow };
+        var updated = snapshot with { Status = target, UpdatedAt = clock.GetUtcNow() };
         await store.UpdateAsync(updated, cancellationToken);
         await AppendEventAsync(
             updated.ExecutionId,
@@ -2126,7 +2126,7 @@ public sealed class ExecutionOrchestrator(
         var executionEvent = await store.AppendEventAsync(
             executionId,
             eventType,
-            clock.UtcNow,
+            clock.GetUtcNow(),
             JsonSerializer.SerializeToElement(data),
             cancellationToken);
         _telemetry.RecordEvent(eventType);

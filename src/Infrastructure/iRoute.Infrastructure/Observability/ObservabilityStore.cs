@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -130,17 +131,17 @@ public sealed class EfObservabilityStore(
 
 internal static class ObservabilityProjection
 {
-    private static readonly HashSet<string> MemoryResolvers = new(
-        ["exact-cache", "fact-decision", "artifact-lookup", "semantic-memory"],
-        StringComparer.Ordinal);
-    private static readonly HashSet<string> RedactedProperties = new(
-        [
+    private static readonly FrozenSet<string> MemoryResolvers =
+        new[] { "exact-cache", "fact-decision", "artifact-lookup", "semantic-memory" }
+            .ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> RedactedProperties =
+        new[]
+        {
             "input", "output", "content", "value", "body", "prompt", "response",
             "request", "raw", "credentials", "credential", "secret", "apiKey",
             "authorization", "headers", "password", "tenantId", "actorId", "projectId",
             "permissionScopes"
-        ],
-        StringComparer.OrdinalIgnoreCase);
+        }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     public static void Validate(ObservabilityQuery query, ObservabilityOptions options)
     {

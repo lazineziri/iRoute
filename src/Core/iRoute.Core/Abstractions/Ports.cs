@@ -224,7 +224,7 @@ public interface IModelGateway
             GatewayId,
             ModelGatewayHealthStatus.Degraded,
             0,
-            DateTimeOffset.UtcNow,
+            TimeProvider.System.GetUtcNow(),
             "The gateway does not expose a health probe."));
     }
 }
@@ -474,11 +474,6 @@ public interface IExecutionPlanValidator
 {
     ExecutionPlanValidationResult Validate(ExecutionPlan plan);
     void EnsureValid(ExecutionPlan plan);
-}
-
-public interface IClock
-{
-    DateTimeOffset UtcNow { get; }
 }
 
 public enum ExecutionWorkState

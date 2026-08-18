@@ -638,14 +638,14 @@ public sealed class EfLifecycleStore(IDbContextFactory<IRouteDbContext> contextF
         LifecycleResourceKind kind,
         Guid resourceId,
         CancellationToken cancellationToken) => kind switch
-    {
-        LifecycleResourceKind.Artifact => await context.Artifacts.AsNoTracking().AnyAsync(
-            item => item.TenantId == tenantId && item.ArtifactId == resourceId,
-            cancellationToken),
-        _ => await context.MemoryRecords.AsNoTracking().AnyAsync(
-            item => item.TenantId == tenantId && item.MemoryId == resourceId,
-            cancellationToken)
-    };
+        {
+            LifecycleResourceKind.Artifact => await context.Artifacts.AsNoTracking().AnyAsync(
+                item => item.TenantId == tenantId && item.ArtifactId == resourceId,
+                cancellationToken),
+            _ => await context.MemoryRecords.AsNoTracking().AnyAsync(
+                item => item.TenantId == tenantId && item.MemoryId == resourceId,
+                cancellationToken)
+        };
 
     private static async Task<LifecycleStorageSnapshot> SnapshotAsync(
         IRouteDbContext context,

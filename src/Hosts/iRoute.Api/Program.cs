@@ -17,8 +17,13 @@ builder.Services.AddHealthChecks();
 var identityOptions = builder.Services.AddIRouteIdentity(
     builder.Configuration,
     builder.Environment.EnvironmentName);
-builder.Services.AddIRouteRuntime(
-    builder.Configuration.GetSection("Workflow").Get<WorkflowSchedulerOptions>());
+builder.Services.AddOptions<WorkflowSchedulerOptions>()
+    .BindConfiguration("Workflow")
+    .Validate(
+        options => options.RetryMaxDelayMilliseconds >= options.RetryBaseDelayMilliseconds,
+        "Workflow:RetryMaxDelayMilliseconds must be greater than or equal to RetryBaseDelayMilliseconds.")
+    .ValidateOnStart();
+builder.Services.AddIRouteRuntime();
 builder.Services.AddIRouteInfrastructure(builder.Configuration);
 
 var telemetry = builder.Services.AddOpenTelemetry()

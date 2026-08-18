@@ -1,6 +1,6 @@
+using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using iRoute.Contracts;
 using iRoute.Core;
@@ -14,8 +14,8 @@ public sealed class BuiltInCapabilityDefinitionRegistry : ICapabilityDefinitionR
         type = "object"
     });
 
-    private static readonly IReadOnlyDictionary<string, CapabilityDefinition> Definitions =
-        CreateDefinitions().ToDictionary(
+    private static readonly FrozenDictionary<string, CapabilityDefinition> Definitions =
+        CreateDefinitions().ToFrozenDictionary(
             item => Key(item.Capability, item.Version),
             StringComparer.OrdinalIgnoreCase);
 
@@ -403,17 +403,17 @@ public sealed class ReferenceCalendarConnector : ICapabilityConnector
         return Task.FromResult(new CapabilityConnectorResult(
             output,
             1m,
-            [new EvidenceReference("calendar", $"tenant:{request.TenantId}:availability")])) ;
+            [new EvidenceReference("calendar", $"tenant:{request.TenantId}:availability")]));
     }
 }
 
 public sealed class ReferenceDatabaseConnector : ICapabilityConnector
 {
-    private static readonly HashSet<string> AllowedQueries = new(StringComparer.Ordinal)
+    private static readonly FrozenSet<string> AllowedQueries = new[]
     {
         "project-status",
         "open-actions"
-    };
+    }.ToFrozenSet(StringComparer.Ordinal);
 
     public string ConnectorId => "reference-database-v1";
     public string Transport => "database";
@@ -459,7 +459,7 @@ public sealed class ReferenceDatabaseConnector : ICapabilityConnector
         return Task.FromResult(new CapabilityConnectorResult(
             output,
             1m,
-            [new EvidenceReference("database-query", $"tenant:{request.TenantId}:query:{queryId}")])) ;
+            [new EvidenceReference("database-query", $"tenant:{request.TenantId}:query:{queryId}")]));
     }
 }
 
@@ -498,7 +498,7 @@ public sealed class ReferenceOpenApiConnector : ICapabilityConnector
         return Task.FromResult(new CapabilityConnectorResult(
             output,
             0.99m,
-            [new EvidenceReference("openapi-operation", "project-service:getProjectStatus")])) ;
+            [new EvidenceReference("openapi-operation", "project-service:getProjectStatus")]));
     }
 }
 
@@ -533,11 +533,11 @@ public sealed class ReferenceMcpConnector : ICapabilityConnector
         return Task.FromResult(new CapabilityConnectorResult(
             output,
             0.97m,
-            [new EvidenceReference("mcp-tool", $"{server}:{tool}")])) ;
+            [new EvidenceReference("mcp-tool", $"{server}:{tool}")]));
     }
 }
 
-public sealed class ReferenceAgentResultConnector(IClock clock) : ICapabilityConnector
+public sealed class ReferenceAgentResultConnector(TimeProvider clock) : ICapabilityConnector
 {
     public string ConnectorId => "reference-agent-result-v1";
     public string Transport => "agent-result";
@@ -558,8 +558,8 @@ public sealed class ReferenceAgentResultConnector(IClock clock) : ICapabilityCon
         }
 
         if (!DateTimeOffset.TryParse(observedAtText, out var observedAt) ||
-            observedAt > clock.UtcNow.AddMinutes(1) ||
-            clock.UtcNow - observedAt > TimeSpan.FromMinutes(5))
+            observedAt > clock.GetUtcNow().AddMinutes(1) ||
+            clock.GetUtcNow() - observedAt > TimeSpan.FromMinutes(5))
         {
             throw JsonInput.Invalid(request, ConnectorId, "The agent result is stale or has an invalid observedAt value.");
         }

@@ -40,11 +40,18 @@ public sealed class IRouteApiException(
 
 public sealed class IRouteClient(HttpClient httpClient, IRouteClientOptions? options = null)
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private readonly IRouteClientOptions _options = options ?? new();
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+        serializerOptions.TypeInfoResolverChain.Add(IRouteSdkJsonContext.Default);
+        return serializerOptions;
+    }
 
     public async Task<ExecutionSnapshot> ExecuteAsync(
         TaskRequest request,

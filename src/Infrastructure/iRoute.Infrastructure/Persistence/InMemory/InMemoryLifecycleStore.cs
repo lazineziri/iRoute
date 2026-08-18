@@ -39,12 +39,12 @@ public sealed class InMemoryLifecycleStore(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!artifacts.LifecycleUpdate(artifact with
-                    {
-                        IsActive = false,
-                        LifecycleStatus = ArtifactLifecycleStatus.Invalidated,
-                        InvalidatedAt = now,
-                        InvalidationReason = "Artifact TTL expired."
-                    }))
+                {
+                    IsActive = false,
+                    LifecycleStatus = ArtifactLifecycleStatus.Invalidated,
+                    InvalidatedAt = now,
+                    InvalidationReason = "Artifact TTL expired."
+                }))
                 {
                     continue;
                 }
@@ -71,11 +71,11 @@ public sealed class InMemoryLifecycleStore(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!memories.LifecycleUpdate(memory with
-                    {
-                        LifecycleStatus = MemoryLifecycleStatus.Invalidated,
-                        InvalidatedAt = now,
-                        InvalidationReason = "Memory TTL expired."
-                    }))
+                {
+                    LifecycleStatus = MemoryLifecycleStatus.Invalidated,
+                    InvalidatedAt = now,
+                    InvalidationReason = "Memory TTL expired."
+                }))
                 {
                     continue;
                 }
