@@ -10,7 +10,7 @@ server-side.
 
 ## Status and requirements
 
-- SDK version: `0.1.0a2`
+- SDK version: `0.1.0a3`
 - Minimum Python: `3.12`
 - Verified baseline: Python `3.14`
 - Runtime dependencies: standard library only
@@ -32,7 +32,7 @@ options.
 ## Install from PyPI
 
 ```bash
-python -m pip install --pre iroute==0.1.0a2
+python -m pip install --pre iroute==0.1.0a3
 ```
 
 ## Install from source

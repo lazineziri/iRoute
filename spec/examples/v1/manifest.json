@@ -9,6 +9,7 @@
     { "file": "capability-invocation-result.email-read.json", "schema": "https://schemas.iroute.dev/v1/capability-invocation-result.schema.json" },
     { "file": "capability-failure.unregistered.json", "schema": "https://schemas.iroute.dev/v1/capability-failure.schema.json" },
     { "file": "model-profile.text-generation-small.json", "schema": "https://schemas.iroute.dev/v1/model-profile.schema.json" },
+    { "file": "model-profile.text-generation-measured.json", "schema": "https://schemas.iroute.dev/v1/model-profile.schema.json" },
     { "file": "model-gateway-request.email-draft.json", "schema": "https://schemas.iroute.dev/v1/model-gateway-request.schema.json" },
     { "file": "model-gateway-result.email-draft.json", "schema": "https://schemas.iroute.dev/v1/model-gateway-result.schema.json" },
     { "file": "model-gateway-stream.completed.json", "schema": "https://schemas.iroute.dev/v1/model-gateway-stream-event.schema.json" },

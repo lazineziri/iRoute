@@ -2,15 +2,15 @@
 
 iRoute is an open-source, task-aware AI execution runtime. It resolves work from trusted state first, sends only unresolved work to capabilities or models, validates the result, and materializes reusable project artifacts with evidence and cost metadata.
 
-> **Experimental alpha:** `0.1.0-alpha.2` is intended for evaluation and controlled
+> **Experimental alpha:** `0.1.0-alpha.3` is intended for evaluation and controlled
 > pilots. Breaking changes are expected before `1.0`. There is no production or
 > security-response SLA. Reference connectors are not production integrations,
 > and checked provider cost/performance figures are not production measurements.
 
 ## Current release
 
-The first adoption-ready source baseline is `0.1.0-alpha.2`. See the
-[release notes](docs/releases/0.1.0-alpha.2.md) for its verified capabilities,
+The current adoption-ready source baseline is `0.1.0-alpha.3`. See the
+[release notes](docs/releases/0.1.0-alpha.3.md) for its verified capabilities,
 known limits, and upgrade guidance.
 
 The first end-to-end P0 slice is operational for `email.draft`:
@@ -31,7 +31,7 @@ The first end-to-end P0 slice is operational for `email.draft`:
 - deterministic artifact/memory supersession with tenant-scoped, dependency-aware invalidation
 - explainable no-model resolution from exact results, project facts/decisions, explicit artifacts, and registered deterministic handlers
 - ranked context compilation with explicit artifact sections, full-history exclusion, serialized token bounds, and fact-level provenance
-- measured direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
+- provenance-bearing direct routing, bounded workflow planning, model-profile selection, and explainable quality-driven escalation
 - provider-neutral gateway deadlines, cancellation, normalized usage/latency, health, and classified failure reporting
 - multiple registered generic gateway deployments with deterministic policy fallback and durable per-deployment circuit breaking
 - fenced half-open probes, Retry-After-aware open intervals, exhaustion evidence, and gateway/deployment resilience metrics

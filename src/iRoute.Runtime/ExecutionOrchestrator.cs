@@ -97,30 +97,35 @@ public sealed class ExecutionOrchestrator(
 
             return ReplayOrConflict(winner, request.IdempotencyKey, submissionFingerprint);
         }
-        await AppendEventAsync(
-            snapshot.ExecutionId,
-            ExecutionEventTypes.Created,
-            new
-            {
-                snapshot.TaskType,
-                snapshot.TenantId,
-                snapshot.ActorId,
-                snapshot.ProjectId,
-                traceId = trace.TraceId
-            },
-            cancellationToken);
-
-        var registeredCancellation = cancellations.Register(snapshot.ExecutionId, cancellationToken);
-        using var deadlineSource = new CancellationTokenSource();
-        var requestedDeadline = request.Constraints?.DeadlineMilliseconds ?? 30000;
-        deadlineSource.CancelAfter(TimeSpan.FromMilliseconds(requestedDeadline));
-        using var executionSource = CancellationTokenSource.CreateLinkedTokenSource(
-            registeredCancellation,
-            deadlineSource.Token);
-        var executionToken = executionSource.Token;
-
+        var registeredCancellation = default(CancellationToken);
+        CancellationTokenSource? deadlineSource = null;
+        CancellationTokenSource? executionSource = null;
+        var cancellationRegistered = false;
         try
         {
+            await AppendEventAsync(
+                snapshot.ExecutionId,
+                ExecutionEventTypes.Created,
+                new
+                {
+                    snapshot.TaskType,
+                    snapshot.TenantId,
+                    snapshot.ActorId,
+                    snapshot.ProjectId,
+                    traceId = trace.TraceId
+                },
+                cancellationToken);
+
+            registeredCancellation = cancellations.Register(snapshot.ExecutionId, cancellationToken);
+            cancellationRegistered = true;
+            deadlineSource = new CancellationTokenSource();
+            var requestedDeadline = request.Constraints?.DeadlineMilliseconds ?? 30000;
+            deadlineSource.CancelAfter(TimeSpan.FromMilliseconds(requestedDeadline));
+            executionSource = CancellationTokenSource.CreateLinkedTokenSource(
+                registeredCancellation,
+                deadlineSource.Token);
+            var executionToken = executionSource.Token;
+
             var definition = await taskDefinitions.FindAsync(request.TaskType, executionToken)
                 ?? throw new TaskExecutionException(
                     ErrorCodes.UnknownTaskType,
@@ -282,7 +287,7 @@ public sealed class ExecutionOrchestrator(
                 var approval = await CreateApprovalAsync(
                     snapshot,
                     request,
-                    plan.Steps.Single(),
+                    plan,
                     policy,
                     executionToken);
                 snapshot = await TransitionAsync(snapshot, ExecutionStatus.WaitingForApproval, executionToken);
@@ -320,7 +325,8 @@ public sealed class ExecutionOrchestrator(
         }
         catch (OperationCanceledException)
         {
-            var timedOut = deadlineSource.IsCancellationRequested && !registeredCancellation.IsCancellationRequested;
+            var timedOut = deadlineSource?.IsCancellationRequested is true &&
+                !registeredCancellation.IsCancellationRequested;
             return await TerminalAsync(
                 snapshot,
                 timedOut ? ExecutionStatus.TimedOut : ExecutionStatus.Cancelled,
@@ -458,7 +464,12 @@ public sealed class ExecutionOrchestrator(
         }
         finally
         {
-            cancellations.Complete(snapshot.ExecutionId);
+            executionSource?.Dispose();
+            deadlineSource?.Dispose();
+            if (cancellationRegistered)
+            {
+                cancellations.Complete(snapshot.ExecutionId);
+            }
         }
     }
 
@@ -656,14 +667,51 @@ public sealed class ExecutionOrchestrator(
             return new ApprovalResult(approval.ToSnapshot(), snapshot);
         }
 
-        var registeredCancellation = cancellations.Register(executionId, cancellationToken);
-        using var deadlineSource = new CancellationTokenSource();
-        deadlineSource.CancelAfter(TimeSpan.FromMilliseconds(checkpoint.Plan.Budget.DeadlineMilliseconds));
-        using var executionSource = CancellationTokenSource.CreateLinkedTokenSource(
-            registeredCancellation,
-            deadlineSource.Token);
+        var resumedAt = clock.UtcNow;
+        var claimed = await store.TryTransitionAsync(
+            executionId,
+            ExecutionStatus.WaitingForApproval,
+            ExecutionStatus.Running,
+            resumedAt,
+            cancellationToken);
+        if (claimed is null)
+        {
+            var current = await store.GetAsync(executionId, cancellationToken)
+                ?? throw new ApprovalSubmissionException(
+                    ErrorCodes.ApprovalNotFound,
+                    "Approval not found",
+                    "The approved execution no longer exists.");
+            if (current.Status != ExecutionStatus.WaitingForApproval)
+            {
+                return new ApprovalResult(approval.ToSnapshot(), current);
+            }
+
+            throw new ApprovalSubmissionException(
+                ErrorCodes.ApprovalAlreadyDecided,
+                "Execution is not awaiting approval",
+                $"Execution '{executionId}' could not be claimed for approved execution.");
+        }
+
+        snapshot = claimed;
+        var registeredCancellation = default(CancellationToken);
+        CancellationTokenSource? deadlineSource = null;
+        CancellationTokenSource? executionSource = null;
+        var cancellationRegistered = false;
         try
         {
+            await AppendEventAsync(
+                executionId,
+                ExecutionEventTypes.StatusChanged,
+                new { from = ExecutionStatus.WaitingForApproval, to = ExecutionStatus.Running },
+                cancellationToken);
+            registeredCancellation = cancellations.Register(executionId, cancellationToken);
+            cancellationRegistered = true;
+            deadlineSource = new CancellationTokenSource();
+            deadlineSource.CancelAfter(
+                TimeSpan.FromMilliseconds(checkpoint.Plan.Budget.DeadlineMilliseconds));
+            executionSource = CancellationTokenSource.CreateLinkedTokenSource(
+                registeredCancellation,
+                deadlineSource.Token);
             snapshot = await RunPlanAsync(
                 snapshot,
                 checkpoint.Request,
@@ -678,11 +726,17 @@ public sealed class ExecutionOrchestrator(
             snapshot = await HandleResumedFailureAsync(
                 snapshot,
                 exception,
-                deadlineSource.IsCancellationRequested && !registeredCancellation.IsCancellationRequested);
+                deadlineSource?.IsCancellationRequested is true &&
+                    !registeredCancellation.IsCancellationRequested);
         }
         finally
         {
-            cancellations.Complete(executionId);
+            executionSource?.Dispose();
+            deadlineSource?.Dispose();
+            if (cancellationRegistered)
+            {
+                cancellations.Complete(executionId);
+            }
         }
 
         return new ApprovalResult(approval.ToSnapshot(), snapshot);
@@ -876,10 +930,11 @@ public sealed class ExecutionOrchestrator(
                 "The direct workflow completed without an 'execute' step output.");
         }
 
-        var capabilityResult = resultOutput.Deserialize<ModelGatewayResult>(ContractJsonOptions)
+        var finalResult = resultOutput.Deserialize<ModelGatewayResult>(ContractJsonOptions)
             ?? throw new WorkflowStepExecutionException(
                 "execute",
                 "The checkpointed capability result is invalid.");
+        var capabilityResult = AggregateWorkflowResult(plan, workflow.Outputs, finalResult);
         if (capabilityResult.Resilience is { } resilience)
         {
             routing = routing with
@@ -1168,32 +1223,6 @@ public sealed class ExecutionOrchestrator(
                 executionId,
                 resilienceTrace,
                 cancellationToken);
-        }
-        var dependencyResults = dependencyOutputs.Values
-            .Select(value => value.Deserialize<ModelGatewayResult>(ContractJsonOptions)
-                ?? throw new WorkflowStepExecutionException(
-                    step.Id,
-                    $"A dependency of step '{step.Id}' has an invalid normalized result envelope."))
-            .ToArray();
-        if (dependencyResults.Length > 0)
-        {
-            normalized = normalized with
-            {
-                Usage = normalized.Usage with
-                {
-                    Cost = normalized.Usage.Cost + dependencyResults.Sum(item => item.Usage.Cost),
-                    DurationMilliseconds = normalized.Usage.DurationMilliseconds +
-                        dependencyResults.Sum(item => item.Usage.DurationMilliseconds),
-                    ModelCalls = normalized.Usage.ModelCalls +
-                        dependencyResults.Sum(item => item.Usage.ModelCalls),
-                    ToolCalls = normalized.Usage.ToolCalls +
-                        dependencyResults.Sum(item => item.Usage.ToolCalls)
-                },
-                Evidence = normalized.Evidence
-                    .Concat(dependencyResults.SelectMany(item => item.Evidence))
-                    .DistinctBy(item => (item.Kind, item.Reference, item.ContentHash))
-                    .ToArray()
-            };
         }
         if (normalized.Transport == ModelGatewayTransport.Streaming)
         {
@@ -1734,10 +1763,20 @@ public sealed class ExecutionOrchestrator(
     private async Task<ApprovalRecord> CreateApprovalAsync(
         ExecutionSnapshot snapshot,
         TaskRequest request,
-        ExecutionPlanStep step,
+        ExecutionPlan plan,
         PolicyEvaluation policy,
         CancellationToken cancellationToken)
     {
+        var step = plan.Steps.LastOrDefault(item =>
+            string.Equals(item.Capability, policy.Capability, StringComparison.Ordinal) &&
+            item.SideEffectClass == policy.SideEffectClass)
+            ?? throw new InvalidExecutionPlanException(
+            [
+                new ExecutionPlanValidationIssue(
+                    "approval_action_missing",
+                    "steps",
+                    "The policy-selected approval action does not exist in the execution plan.")
+            ]);
         var approval = new ApprovalRecord(
             snapshot.ExecutionId,
             snapshot.TenantId,
@@ -2209,6 +2248,50 @@ public sealed class ExecutionOrchestrator(
                     costShare)
             })
             .ToDictionary(item => item.Id, item => item.Budget, StringComparer.Ordinal);
+    }
+
+    private static ModelGatewayResult AggregateWorkflowResult(
+        ExecutionPlan plan,
+        IReadOnlyDictionary<string, JsonElement> outputs,
+        ModelGatewayResult finalResult)
+    {
+        var completed = plan.Steps
+            .Where(step => outputs.ContainsKey(step.Id))
+            .Select(step => new
+            {
+                Step = step,
+                Result = outputs[step.Id].Deserialize<ModelGatewayResult>(ContractJsonOptions)
+                    ?? throw new WorkflowStepExecutionException(
+                        step.Id,
+                        $"The checkpointed result for step '{step.Id}' is invalid.")
+            })
+            .ToArray();
+        var usage = new UsageSummary(
+            completed.Sum(item => item.Result.Usage.InputTokens),
+            completed.Sum(item => item.Result.Usage.OutputTokens),
+            completed.Sum(item => item.Result.Usage.Cost),
+            completed.Sum(item => item.Result.Usage.DurationMilliseconds),
+            completed.Sum(item => item.Result.Usage.ModelCalls),
+            completed.Sum(item => item.Result.Usage.ToolCalls));
+        var evidence = completed
+            .SelectMany(item => item.Result.Evidence)
+            .DistinctBy(item => (item.Kind, item.Reference, item.ContentHash))
+            .ToArray();
+        var lastModelResult = completed
+            .LastOrDefault(item => item.Step.Kind == ExecutionStepKind.Model)
+            ?.Result;
+        var modelMetadata = finalResult.Usage.ModelCalls > 0 ? finalResult : lastModelResult;
+
+        return finalResult with
+        {
+            Usage = usage,
+            Evidence = evidence,
+            GatewayId = finalResult.GatewayId ?? modelMetadata?.GatewayId,
+            Transport = modelMetadata?.Transport ?? finalResult.Transport,
+            FinishReason = modelMetadata?.FinishReason ?? finalResult.FinishReason,
+            Deployment = finalResult.Deployment ?? modelMetadata?.Deployment,
+            Resilience = finalResult.Resilience ?? modelMetadata?.Resilience
+        };
     }
 
     private static void EnsureUsageWithinBudget(TaskRequest request, ModelGatewayResult result)

@@ -98,7 +98,7 @@ flowchart LR
 
 Current request state outranks stored memory for the same logical key. Active decisions outrank artifacts, preferences, summaries, and raw history. Stored candidates must match tenant/project scope and be active and unexpired; artifacts are retrieved only from explicit `contextArtifacts` references and projected to requested top-level sections. Context-source fields are removed from the model's task input and reintroduced only through the bounded package. Every included JSON path maps to an `EvidenceReference`, while excluded candidates retain a safe reason in the manifest. The compiler estimates projected task input plus the complete serialized context after each proposed insertion, so raw history and object/array framing cannot push the model request above its task budget.
 
-W08 routes unresolved work from measured policy inputs:
+W08 routes unresolved work from provenance-bearing policy inputs:
 
 ```mermaid
 flowchart LR
@@ -107,7 +107,7 @@ flowchart LR
     B -->|"no"| D["Bounded task planner"]
     C --> E["Capability matcher"]
     D --> E
-    F["Measured model profiles"] --> E
+    F["Sourced model profiles"] --> E
     E --> G["Quality and safety eligibility"]
     G --> H["Cost, latency, and uncertainty score"]
     H --> I["Cheapest eligible route"]
@@ -116,7 +116,7 @@ flowchart LR
     J --> K
 ```
 
-The direct selector never invokes the planner for a one-capability task. The deterministic planner compiles multiple required capabilities into a typed DAG once and cannot raise task-definition or request limits. Capability matching rejects candidates that miss the allow list, measured task coverage, health, mandatory quality floor, deadline, context/output capacity, cost ceiling, or call budget. The versioned routing decision preserves every candidate's measurements, score, eligibility, and reason; it is emitted as an event, persisted beside the workflow plan, passed to the model gateway through the selected profile ID, and returned with generated outcomes.
+The direct selector never invokes the planner for a one-capability task. The deterministic planner compiles multiple required capabilities into a typed DAG once and cannot raise task-definition or request limits. Capability matching rejects candidates that miss the allow list, task coverage, health, mandatory quality floor, deadline, context/output capacity, cost ceiling, call budget, or model-profile provenance invariants. Every profile is explicitly `Synthetic`, `Unverified`, or `Measured`; a measured profile is eligible only when it carries provider, model, timestamp, and positive sample-count metadata. The versioned routing decision preserves every candidate's policy inputs, source, optional measurement record, score, eligibility, and reason; it is emitted as an event, persisted beside the workflow plan, passed to the model gateway through the selected profile ID, and returned with generated outcomes.
 
 W09 keeps every provider protocol behind one external gateway boundary:
 

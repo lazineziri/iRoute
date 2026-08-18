@@ -128,6 +128,8 @@ export interface RoutingCandidateEvaluation {
   reliability: number;
   availability: number;
   score: number;
+  measurementSource?: ModelProfileSource | null;
+  measurement?: ModelProfileMeasurement | null;
 }
 
 export interface RoutingDecision {
@@ -152,6 +154,16 @@ export interface RoutingDecision {
   resilience?: GatewayResilienceTrace | null;
 }
 
+export type ModelProfileSource = 'Synthetic' | 'Unverified' | 'Measured';
+
+export interface ModelProfileMeasurement {
+  provider: string;
+  model: string;
+  measuredAt: string;
+  sampleCount: number;
+  qualityIsDeclaredNotMeasured: boolean;
+}
+
 export interface ModelProfile {
   profileId: string;
   capability: string;
@@ -166,7 +178,8 @@ export interface ModelProfile {
   maxInputTokens: number;
   maxOutputTokens: number;
   healthy: boolean;
-  measurementSource: string;
+  measurementSource: ModelProfileSource;
+  measurement?: ModelProfileMeasurement | null;
 }
 
 export type ModelGatewayHealthStatus = 'Healthy' | 'Degraded' | 'Unavailable';

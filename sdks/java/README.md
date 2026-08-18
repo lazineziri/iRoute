@@ -10,7 +10,7 @@ remain server-side.
 
 ## Status and requirements
 
-- SDK version: `0.1.0-alpha.2`
+- SDK version: `0.1.0-alpha.3`
 - Java baseline: Java 25 LTS
 - Maven coordinates: `dev.iroute:iroute-sdk`
 - Runtime dependencies: JDK only
@@ -35,7 +35,7 @@ options.
 <dependency>
   <groupId>dev.iroute</groupId>
   <artifactId>iroute-sdk</artifactId>
-  <version>0.1.0-alpha.2</version>
+  <version>0.1.0-alpha.3</version>
 </dependency>
 ```
 
@@ -53,7 +53,7 @@ Then add it to the application:
 <dependency>
   <groupId>dev.iroute</groupId>
   <artifactId>iroute-sdk</artifactId>
-  <version>0.1.0-alpha.2</version>
+  <version>0.1.0-alpha.3</version>
 </dependency>
 ```
 

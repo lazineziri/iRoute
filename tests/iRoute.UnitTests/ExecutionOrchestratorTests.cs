@@ -17,6 +17,58 @@ public sealed class ExecutionOrchestratorTests
         ["Use PostgreSQL as the production source of truth."];
 
     [Fact]
+    public async Task CreatedEventFailureTerminalizesInsertedExecutionAndItsReplay()
+    {
+        var inner = new InMemoryExecutionStore();
+        var store = new FailCreatedEventOnceExecutionStore(
+            inner,
+            new InvalidOperationException("Synthetic Created-event write failure."));
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateTestOrchestrator(store, cancellations);
+        var request = CreateRequest("tenant-a", "created-event-failure");
+
+        var failed = await orchestrator.ExecuteAsync(
+            request,
+            TestContext.Current.CancellationToken);
+        var replayed = await orchestrator.ExecuteAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Failed, failed.Status);
+        Assert.Equal(ErrorCodes.ExecutionFailed, Assert.IsType<Problem>(failed.Error).Code);
+        Assert.Equal(failed.ExecutionId, replayed.ExecutionId);
+        Assert.Equal(ExecutionStatus.Failed, replayed.Status);
+        Assert.Equal(
+            ExecutionStatus.Failed,
+            Assert.IsType<ExecutionSnapshot>(await inner.GetAsync(
+                failed.ExecutionId,
+                TestContext.Current.CancellationToken)).Status);
+    }
+
+    [Fact]
+    public async Task CancellationDuringCreatedEventTerminalizesInsertedExecution()
+    {
+        var inner = new InMemoryExecutionStore();
+        var store = new FailCreatedEventOnceExecutionStore(
+            inner,
+            new OperationCanceledException("The submitting client disconnected."));
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateTestOrchestrator(store, cancellations);
+
+        var cancelled = await orchestrator.ExecuteAsync(
+            CreateRequest("tenant-a", "created-event-cancellation"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Cancelled, cancelled.Status);
+        Assert.Equal(ErrorCodes.ExecutionCancelled, Assert.IsType<Problem>(cancelled.Error).Code);
+        Assert.Equal(
+            ExecutionStatus.Cancelled,
+            Assert.IsType<ExecutionSnapshot>(await inner.GetAsync(
+                cancelled.ExecutionId,
+                TestContext.Current.CancellationToken)).Status);
+    }
+
+    [Fact]
     public async Task EmailDraftCompletesWithValidatedArtifactAndOrderedEvents()
     {
         var store = new InMemoryExecutionStore();
@@ -611,6 +663,67 @@ public sealed class ExecutionOrchestratorTests
         Assert.False(message.TryGetProperty("headers", out _));
         Assert.False(capabilityOutput.TryGetProperty("metadata", out _));
         Assert.DoesNotContain("IGNORE", gatewayRequest.Context.GetRawText(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ModelFirstReadOnlyWorkflowAggregatesUsageAcrossFinalToolStep()
+    {
+        var definition = ModelThenCalendarDefinition();
+        var plan = ModelThenCalendarPlan(definition);
+        var store = new InMemoryExecutionStore();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            new InMemoryArtifactStore(),
+            cancellations,
+            taskRouter: new FixedTaskRouter(plan),
+            taskDefinitions: new SingleTaskDefinitionRegistry(definition));
+
+        var result = await orchestrator.ExecuteAsync(
+            ModelThenCalendarRequest(definition.TaskType, "model-tool-usage"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Succeeded, result.Status);
+        var outcome = Assert.IsType<TaskOutcome>(result.Outcome);
+        Assert.Equal(1, outcome.Usage.ModelCalls);
+        Assert.Equal(1, outcome.Usage.ToolCalls);
+        Assert.True(outcome.Usage.InputTokens > 0);
+        var events = await ReadEventsAsync(store, result.ExecutionId);
+        Assert.Single(events, item => item.Type == ExecutionEventTypes.GatewayCompleted);
+    }
+
+    [Fact]
+    public async Task FinalToolCannotHideModelCostFromWorkflowBudget()
+    {
+        var definition = ModelThenCalendarDefinition();
+        var plan = ModelThenCalendarPlan(definition) with
+        {
+            Budget = ModelThenCalendarPlan(definition).Budget with { MaxCost = 1m }
+        };
+        var store = new InMemoryExecutionStore();
+        using var cancellations = new ExecutionCancellationRegistry();
+        var orchestrator = CreateOrchestrator(
+            store,
+            new InMemoryArtifactStore(),
+            cancellations,
+            new FixedCostModelGateway(0.5m),
+            new FixedTaskRouter(plan),
+            taskDefinitions: new SingleTaskDefinitionRegistry(definition));
+        var request = ModelThenCalendarRequest(definition.TaskType, "model-tool-cost") with
+        {
+            Constraints = new TaskConstraints(
+                MaxCost: 0.25m,
+                MaxModelCalls: 1,
+                MaxToolCalls: 1,
+                MaxTaskDepth: 2)
+        };
+
+        var result = await orchestrator.ExecuteAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Failed, result.Status);
+        Assert.Equal(ErrorCodes.CostBudgetExceeded, Assert.IsType<Problem>(result.Error).Code);
     }
 
     [Fact]
@@ -1326,6 +1439,62 @@ public sealed class ExecutionOrchestratorTests
         ActorId: "test-runner",
         PermissionScopes: permissionScopes);
 
+    private static TaskDefinition ModelThenCalendarDefinition() => new(
+        "calendar.generate_then_read",
+        1,
+        "calendar.read",
+        800,
+        0.8m,
+        true,
+        SideEffectClass.ReadOnly,
+        "calendar.generated-slots",
+        DefaultMaxInputTokens: 4000,
+        DefaultDeadlineMilliseconds: 30000,
+        DefaultMaxModelCalls: 1,
+        AllowedCapabilities: ["text.generation", "calendar.read"],
+        PermissionScopes: ["calendar:read"],
+        RequiredCapabilities: ["text.generation", "calendar.read"],
+        DefaultMaxToolCalls: 1,
+        DefaultMaxTaskDepth: 2);
+
+    private static ExecutionPlan ModelThenCalendarPlan(TaskDefinition definition) => new(
+        "calendar.generate_then_read@1:test",
+        1,
+        definition.TaskType,
+        definition.Version,
+        [
+            new ExecutionPlanStep(
+                "step-1",
+                ExecutionStepKind.Model,
+                "text.generation",
+                [],
+                SideEffectClass.None,
+                5000,
+                ProfileId: "text.generation.small.eval-v1"),
+            new ExecutionPlanStep(
+                "execute",
+                ExecutionStepKind.Tool,
+                "calendar.read",
+                ["step-1"],
+                SideEffectClass.ReadOnly,
+                5000)
+        ],
+        new ExecutionPlanBudget(2, 1, 1, 1, 2, 30000, 4000, 800));
+
+    private static TaskRequest ModelThenCalendarRequest(string taskType, string idempotencyKey) => new(
+        taskType,
+        JsonSerializer.SerializeToElement(new
+        {
+            timezone = "Europe/Tirane",
+            objective = "Find a suitable project-review slot."
+        }),
+        ProjectId: "project-1",
+        IdempotencyKey: idempotencyKey,
+        Constraints: new TaskConstraints(MaxModelCalls: 1, MaxToolCalls: 1, MaxTaskDepth: 2),
+        TenantId: "tenant-a",
+        ActorId: "test-runner",
+        PermissionScopes: ["calendar:read"]);
+
     private static async Task<IReadOnlyList<ExecutionEvent>> ReadEventsAsync(
         IExecutionStore store,
         Guid executionId)
@@ -1562,6 +1731,96 @@ public sealed class ExecutionOrchestratorTests
         {
             LastRequest = request;
             return _inner.ExecuteAsync(request, cancellationToken);
+        }
+    }
+
+    private sealed class FixedCostModelGateway(decimal cost) : IModelGateway
+    {
+        private readonly DeterministicModelGateway _inner = new();
+
+        public async Task<ModelGatewayResult> ExecuteAsync(
+            ModelGatewayRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result = await _inner.ExecuteAsync(request, cancellationToken);
+            return result with { Usage = result.Usage with { Cost = cost } };
+        }
+    }
+
+    private sealed class FailCreatedEventOnceExecutionStore(
+        InMemoryExecutionStore inner,
+        Exception failure)
+        : IExecutionStore
+    {
+        private int _failed;
+
+        public Task<ExecutionSubmission?> FindByIdempotencyKeyAsync(
+            string tenantId,
+            string key,
+            CancellationToken cancellationToken) =>
+            inner.FindByIdempotencyKeyAsync(tenantId, key, cancellationToken);
+
+        public Task<ExecutionSnapshot?> GetAsync(
+            Guid executionId,
+            CancellationToken cancellationToken) =>
+            inner.GetAsync(executionId, cancellationToken);
+
+        public Task CreateAsync(
+            ExecutionSnapshot execution,
+            string? idempotencyKey,
+            string? inputFingerprint,
+            CancellationToken cancellationToken) =>
+            inner.CreateAsync(execution, idempotencyKey, inputFingerprint, cancellationToken);
+
+        public Task UpdateAsync(
+            ExecutionSnapshot execution,
+            CancellationToken cancellationToken) =>
+            inner.UpdateAsync(execution, cancellationToken);
+
+        public Task<ExecutionSnapshot?> TryTransitionAsync(
+            Guid executionId,
+            ExecutionStatus expectedStatus,
+            ExecutionStatus targetStatus,
+            DateTimeOffset updatedAt,
+            CancellationToken cancellationToken) =>
+            inner.TryTransitionAsync(
+                executionId,
+                expectedStatus,
+                targetStatus,
+                updatedAt,
+                cancellationToken);
+
+        public Task<bool> TryRequestCancellationAsync(
+            Guid executionId,
+            DateTimeOffset requestedAt,
+            CancellationToken cancellationToken) =>
+            inner.TryRequestCancellationAsync(executionId, requestedAt, cancellationToken);
+
+        public IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(
+            Guid executionId,
+            long afterSequence,
+            CancellationToken cancellationToken) =>
+            inner.ReadEventsAsync(executionId, afterSequence, cancellationToken);
+
+        public Task<ExecutionEvent> AppendEventAsync(
+            Guid executionId,
+            string eventType,
+            DateTimeOffset occurredAt,
+            JsonElement data,
+            CancellationToken cancellationToken)
+        {
+            if (eventType == ExecutionEventTypes.Created &&
+                Interlocked.CompareExchange(ref _failed, 1, 0) == 0)
+            {
+                throw failure;
+            }
+
+            return inner.AppendEventAsync(
+                executionId,
+                eventType,
+                occurredAt,
+                data,
+                cancellationToken);
         }
     }
 }
