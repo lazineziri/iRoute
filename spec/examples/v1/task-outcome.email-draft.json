@@ -86,28 +86,32 @@
         "profileId": "text.generation.small.eval-v1",
         "modelTier": "Small",
         "eligible": true,
-        "reason": "eligible measured model profile",
+        "reason": "eligible synthetic model profile",
         "expectedQuality": 0.84,
         "expectedCost": 0.004,
         "expectedLatencyMilliseconds": 900,
         "uncertainty": 0.06,
         "reliability": 0.98,
         "availability": 0.99,
-        "score": 0.749
+        "score": 0.749,
+        "measurementSource": "Synthetic",
+        "measurement": null
       },
       {
         "capability": "text.generation",
         "profileId": "text.generation.strong.eval-v1",
         "modelTier": "Strong",
         "eligible": true,
-        "reason": "eligible measured model profile",
+        "reason": "eligible synthetic model profile",
         "expectedQuality": 0.94,
         "expectedCost": 0.02,
         "expectedLatencyMilliseconds": 2200,
         "uncertainty": 0.03,
         "reliability": 0.99,
         "availability": 0.995,
-        "score": 0.735
+        "score": 0.735,
+        "measurementSource": "Synthetic",
+        "measurement": null
       }
     ]
   }

@@ -18,7 +18,7 @@ The executable baseline is the repository lock/configuration, not an aspirationa
 | AJV | `8.20.0` | contract validation; `$data` mode is not enabled |
 | YAML | `2.9.0` | release/deployment manifest tests use checked repository inputs |
 
-The canonical product release is `0.1.0-alpha.2` in `release.json`. Release
+The canonical product release is `0.1.0-alpha.3` in `release.json`. Release
 readiness fails if .NET, Node.js, Python, Java, Rust, Docker, Kubernetes, release
 notes, or changelog versions diverge. PHP/Composer versions are assigned by the
 immutable Git tag.

@@ -102,6 +102,41 @@ public sealed class IdempotentSubmissionTests
         Assert.NotEqual(a.Execution.ExecutionId, b.Execution.ExecutionId);
     }
 
+    [Theory]
+    [MemberData(nameof(StoreKinds))]
+    public async Task ConcurrentStatusClaimsHaveExactlyOneWinner(string storeKind)
+    {
+        await using var harness = await StoreHarness.CreateAsync(storeKind);
+        var store = harness.Store;
+        var waiting = Snapshot() with { Status = ExecutionStatus.WaitingForApproval };
+        await store.CreateAsync(
+            waiting,
+            null,
+            null,
+            TestContext.Current.CancellationToken);
+
+        var claimed = await Task.WhenAll(
+            store.TryTransitionAsync(
+                waiting.ExecutionId,
+                ExecutionStatus.WaitingForApproval,
+                ExecutionStatus.Running,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken),
+            store.TryTransitionAsync(
+                waiting.ExecutionId,
+                ExecutionStatus.WaitingForApproval,
+                ExecutionStatus.Running,
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken));
+
+        Assert.Single(claimed, result => result is not null);
+        Assert.Equal(
+            ExecutionStatus.Running,
+            Assert.IsType<ExecutionSnapshot>(await store.GetAsync(
+                waiting.ExecutionId,
+                TestContext.Current.CancellationToken)).Status);
+    }
+
     [Fact]
     public async Task ReplayingAKeyWithADifferentPayloadIsRejectedBySubmit()
     {

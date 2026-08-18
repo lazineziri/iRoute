@@ -413,6 +413,38 @@ public sealed class EfExecutionStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task<ExecutionSnapshot?> TryTransitionAsync(
+        Guid executionId,
+        ExecutionStatus expectedStatus,
+        ExecutionStatus targetStatus,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await EnsureLeaseOwnsAsync(context, executionId, cancellationToken);
+        var written = await context.Executions
+            .Where(item => item.ExecutionId == executionId && item.Status == expectedStatus)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.Status, targetStatus)
+                    .SetProperty(
+                        item => item.UpdatedAtUnixMilliseconds,
+                        updatedAt.ToUnixTimeMilliseconds()),
+                cancellationToken);
+        if (written != 1)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        var entity = await context.Executions
+            .AsNoTracking()
+            .SingleAsync(item => item.ExecutionId == executionId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return PersistenceMapping.ToContract(entity);
+    }
+
     public async Task<bool> TryRequestCancellationAsync(
         Guid executionId,
         DateTimeOffset requestedAt,

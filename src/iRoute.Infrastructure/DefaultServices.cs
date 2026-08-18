@@ -99,7 +99,8 @@ public sealed class BuiltInModelProfileRegistry : IModelProfileRegistry
             0.98m,
             0.99m,
             8_000,
-            1_500),
+            1_500,
+            MeasurementSource: ModelProfileSource.Synthetic),
         new(
             "text.generation.strong.eval-v1",
             "text.generation",
@@ -112,7 +113,8 @@ public sealed class BuiltInModelProfileRegistry : IModelProfileRegistry
             0.99m,
             0.995m,
             32_000,
-            4_000),
+            4_000,
+            MeasurementSource: ModelProfileSource.Synthetic),
         new(
             "text.summarization.small.eval-v1",
             "text.summarization",
@@ -125,7 +127,8 @@ public sealed class BuiltInModelProfileRegistry : IModelProfileRegistry
             0.98m,
             0.99m,
             12_000,
-            1_500),
+            1_500,
+            MeasurementSource: ModelProfileSource.Synthetic),
         new(
             "text.summarization.strong.eval-v1",
             "text.summarization",
@@ -138,7 +141,8 @@ public sealed class BuiltInModelProfileRegistry : IModelProfileRegistry
             0.99m,
             0.995m,
             64_000,
-            4_000)
+            4_000,
+            MeasurementSource: ModelProfileSource.Synthetic)
     ];
 
     public Task<IReadOnlyList<ModelProfile>> ListAsync(

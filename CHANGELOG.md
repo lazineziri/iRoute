@@ -9,6 +9,51 @@ additional public-contract promises in `docs/compatibility.md`.
 
 No changes yet.
 
+## [0.1.0-alpha.3] - 2026-08-18
+
+### Added
+
+- Model profiles now declare `Synthetic`, `Unverified`, or `Measured`
+  provenance. Measured profiles carry provider, model, timestamp, sample-count,
+  and quality-calibration metadata through routing decisions and every official
+  SDK contract.
+- Execution stores expose an atomic status-claim operation used to serialize
+  resumable inline workflows across concurrent callers and runtime instances.
+
+### Fixed
+
+- A failed `created` event append or client disconnect after the execution row
+  was inserted no longer strands the execution in `Accepted` and poisons its
+  idempotency key. The inserted execution is terminalized with a durable error.
+- Multi-step plans that require approval now select the plan-wide action step
+  instead of throwing through `Steps.Single()` before creating an approval.
+- Policy evaluation considers the complete plan's effective side effect, so a
+  model-first read-only workflow is not rejected because its first step is
+  side-effect free.
+- Workflow usage and evidence are aggregated exactly once across all completed
+  steps. A final tool step can no longer hide earlier model cost or calls from
+  budgets, events, or outcomes.
+- Concurrent identical inline approvals atomically claim execution once. A
+  replay no longer collides in the cancellation registry, reruns a completed
+  plan, overwrites terminal state, or creates duplicate artifacts and events.
+
+### Changed
+
+- **Breaking source change:** `ModelProfile.MeasurementSource` is now the typed
+  `ModelProfileSource` enum and an optional `ModelProfileMeasurement` record is
+  available for verified measurements.
+- **Breaking extension change:** custom `IExecutionStore` implementations must
+  implement `TryTransitionAsync` with compare-and-set status semantics.
+
+### Upgrading
+
+- Update every official SDK to `0.1.0-alpha.3` (`0.1.0a3` on PyPI).
+- Recompile custom routing/profile integrations for `ModelProfileSource` and
+  provide a measurement record only when the source is `Measured`.
+- Add an atomic conditional status update to custom execution stores before
+  running inline approval resumptions. No database migration is required by the
+  built-in SQLite or PostgreSQL providers.
+
 ## [0.1.0-alpha.2] - 2026-08-03
 
 ### Fixed
