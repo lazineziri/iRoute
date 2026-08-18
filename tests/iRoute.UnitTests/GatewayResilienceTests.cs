@@ -299,6 +299,7 @@ public sealed class GatewayResilienceTests
             await circuits.ListAsync(TestContext.Current.CancellationToken),
             item => item.DeploymentId == "primary");
         Assert.Equal(GatewayCircuitState.Closed, recovered.State);
+        Assert.Equal(0, recovered.OpenCount);
         var afterRecovery = await Create(deployments, factory, circuits, clock, resilience)
             .ExecuteAsync(Request(), TestContext.Current.CancellationToken);
         Assert.Equal("primary", afterRecovery.Deployment?.DeploymentId);
@@ -352,6 +353,42 @@ public sealed class GatewayResilienceTests
         Assert.Equal(GatewayFailureClass.Permanent, Assert.Single(exception.Resilience!.Attempts).FailureClass);
         Assert.Equal(1, permanent.Calls);
         Assert.Equal(0, unusedFallback.Calls);
+    }
+
+    [Fact]
+    public async Task DeploymentAuthenticationFailureOpensCircuitAndFallsBack()
+    {
+        var primary = new ScriptedGateway("gateway-a", (_, _) => throw new ModelGatewayException(
+            ErrorCodes.ModelGatewayHttpError,
+            "deployment credentials were rejected",
+            false,
+            401,
+            failureKind: ModelGatewayFailureKind.Authentication,
+            gatewayId: "gateway-a"));
+        var secondary = new ScriptedGateway(
+            "gateway-b",
+            (_, _) => Task.FromResult(Result("secondary")));
+        var circuits = new InMemoryGatewayCircuitStore();
+        var gateway = Create(
+            [Deployment("first", "gateway-a", priority: 0), Deployment("second", "gateway-b", priority: 1)],
+            Clients(("first", primary), ("second", secondary)),
+            circuits,
+            new MutableClock(DateTimeOffset.UtcNow),
+            Options(maximumAttempts: 2, failureThreshold: 1));
+
+        var result = await gateway.ExecuteAsync(
+            Request(maximumAttempts: 2),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("second", result.Deployment?.DeploymentId);
+        var trace = Assert.IsType<GatewayResilienceTrace>(result.Resilience);
+        Assert.Equal(GatewayFailureClass.Provider, trace.Attempts[0].FailureClass);
+        Assert.Equal(1, primary.Calls);
+        Assert.Equal(1, secondary.Calls);
+        var primaryCircuit = Assert.Single(
+            await circuits.ListAsync(TestContext.Current.CancellationToken),
+            item => item.DeploymentId == "first");
+        Assert.Equal(GatewayCircuitState.Open, primaryCircuit.State);
     }
 
     [Fact]

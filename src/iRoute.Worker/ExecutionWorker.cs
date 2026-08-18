@@ -138,6 +138,7 @@ public sealed partial class ExecutionWorker(
             CancellationToken.None);
         using var processCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         var heartbeat = MaintainLeaseAsync(lease, processCancellation, stoppingToken);
+        using var fenced = fence.Hold(lease.LeaseToken);
         try
         {
             using var scope = scopes.CreateScope();
@@ -145,7 +146,6 @@ public sealed partial class ExecutionWorker(
             // Every durable write made while processing this execution is checked against the
             // lease token, so a worker whose lease was taken over cannot interleave writes with
             // the new owner even if its own cancellation has not fired yet.
-            using var fenced = fence.Hold(lease.LeaseToken);
             var snapshot = await orchestrator.ProcessQueuedAsync(
                 lease.ExecutionId,
                 processCancellation.Token);
@@ -166,11 +166,31 @@ public sealed partial class ExecutionWorker(
                 await AbandonAsync(lease, "non_terminal_result");
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (processCancellation.IsCancellationRequested)
         {
             await AbandonAsync(
                 lease,
                 stoppingToken.IsCancellationRequested ? "worker_stopping" : "lease_or_execution_cancelled");
+        }
+        catch (OperationCanceledException exception)
+        {
+            // A cancellation-shaped exception without cancellation of the worker/lease token is
+            // an execution failure. Count it like any other poison delivery.
+            LogExecutionFailed(logger, lease.ExecutionId, exception);
+            if (_options.HasExhaustedDeliveries(lease.DeliveryAttempt))
+            {
+                await DeadLetterAsync(lease, exception);
+            }
+            else
+            {
+                await AbandonAsync(lease, "worker_failure");
+            }
+        }
+        catch (LeaseFencedException)
+        {
+            // A successor already owns this execution. Do not dead-letter or append cleanup from
+            // the stale worker; its token will also make AbandonAsync a harmless no-op.
+            LogLeaseLost(logger, lease.ExecutionId, _workerId);
         }
         catch (Exception exception)
         {

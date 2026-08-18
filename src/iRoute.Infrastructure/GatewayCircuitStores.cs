@@ -178,6 +178,7 @@ public sealed class InMemoryGatewayCircuitStore : IGatewayCircuitStore
         {
             State = GatewayCircuitState.Closed,
             ConsecutiveFailures = 0,
+            OpenCount = 0,
             OpenedAt = null,
             NextProbeAt = null,
             ProbeOwner = null,

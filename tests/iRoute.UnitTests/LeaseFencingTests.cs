@@ -3,6 +3,7 @@ using iRoute.Core;
 using iRoute.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Text.Json;
 
 namespace iRoute.UnitTests;
 
@@ -61,6 +62,40 @@ public sealed class LeaseFencingTests
     }
 
     [Fact]
+    public async Task AStaleWorkerCannotMutateWorkflowCheckpointsAfterTakeover()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var stale = await harness.ClaimAsync("worker-stale");
+
+        using (harness.Fence.Hold(stale.LeaseToken))
+        {
+            await harness.Checkpoints.StartStepAsync(
+                harness.Snapshot.ExecutionId,
+                "step-a",
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken);
+        }
+
+        var current = await harness.TakeOverAsync("worker-current");
+        Assert.NotEqual(stale.LeaseToken, current.LeaseToken);
+
+        using (harness.Fence.Hold(stale.LeaseToken))
+        {
+            await Assert.ThrowsAsync<LeaseFencedException>(() => harness.Checkpoints.CompleteStepAsync(
+                harness.Snapshot.ExecutionId,
+                "step-a",
+                JsonSerializer.SerializeToElement(new { from = "stale" }),
+                DateTimeOffset.UtcNow,
+                TestContext.Current.CancellationToken));
+        }
+
+        var checkpoint = Assert.IsType<WorkflowCheckpoint>(await harness.Checkpoints.GetAsync(
+            harness.Snapshot.ExecutionId,
+            TestContext.Current.CancellationToken));
+        Assert.Equal(WorkflowStepStatus.Running, Assert.Single(checkpoint.Steps).Status);
+    }
+
+    [Fact]
     public async Task WritesOutsideAnyLeaseAreUnaffected()
     {
         // The synchronous execution path holds no lease, so an unheld fence must not block it.
@@ -109,18 +144,21 @@ public sealed class LeaseFencingTests
             string databasePath,
             EfExecutionStore executions,
             EfExecutionWorkStore work,
+            EfWorkflowCheckpointStore checkpoints,
             AsyncLocalExecutionFence fence,
             ExecutionSnapshot snapshot)
         {
             _databasePath = databasePath;
             Executions = executions;
             Work = work;
+            Checkpoints = checkpoints;
             Fence = fence;
             Snapshot = snapshot;
         }
 
         public EfExecutionStore Executions { get; }
         public EfExecutionWorkStore Work { get; }
+        public EfWorkflowCheckpointStore Checkpoints { get; }
         public AsyncLocalExecutionFence Fence { get; }
         public ExecutionSnapshot Snapshot { get; }
 
@@ -134,6 +172,7 @@ public sealed class LeaseFencingTests
             var fence = new AsyncLocalExecutionFence();
             var executions = new EfExecutionStore(factory, fence);
             var work = new EfExecutionWorkStore(factory);
+            var checkpoints = new EfWorkflowCheckpointStore(factory, fence);
             var now = DateTimeOffset.UtcNow;
             var snapshot = new ExecutionSnapshot(
                 Guid.CreateVersion7(),
@@ -144,12 +183,55 @@ public sealed class LeaseFencingTests
                 TenantId: "tenant-a",
                 ActorId: "test-runner");
             await executions.CreateAsync(snapshot, "fence-test", null, TestContext.Current.CancellationToken);
+            var request = new TaskRequest(
+                "test.workflow",
+                JsonSerializer.SerializeToElement(new { value = "input" }),
+                TenantId: "tenant-a",
+                ActorId: "test-runner");
+            var plan = new ExecutionPlan(
+                "test.workflow@1",
+                1,
+                "test.workflow",
+                1,
+                [new ExecutionPlanStep(
+                    "step-a",
+                    ExecutionStepKind.Deterministic,
+                    "test.step-a",
+                    [],
+                    SideEffectClass.None,
+                    5_000)],
+                new ExecutionPlanBudget(1, 0, 0, 1, 1, 30_000));
+            var routing = new RoutingDecision(
+                "test.v1",
+                RoutingPath.Workflow,
+                "Test workflow route.",
+                "test.step-a",
+                null,
+                null,
+                1m,
+                1m,
+                0m,
+                1,
+                0m,
+                1m,
+                true,
+                1,
+                false,
+                null,
+                []);
+            await checkpoints.InitializeAsync(
+                snapshot.ExecutionId,
+                request,
+                plan,
+                routing,
+                now,
+                TestContext.Current.CancellationToken);
             await work.EnqueueAsync(
                 snapshot.ExecutionId,
                 ExecutionStatus.Planning,
                 now,
                 TestContext.Current.CancellationToken);
-            return new Harness(databasePath, executions, work, fence, snapshot);
+            return new Harness(databasePath, executions, work, checkpoints, fence, snapshot);
         }
 
         public async Task<ExecutionLease> ClaimAsync(string workerId) =>

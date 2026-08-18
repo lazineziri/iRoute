@@ -497,7 +497,11 @@ public sealed class ResilientModelGateway(
         ModelGatewayException exception,
         CancellationToken cancellationToken)
     {
-        var failureClass = exception.FailureClass ?? Classify(exception);
+        // Authentication is deployment configuration, not request semantics. A second
+        // deployment may have valid credentials even when the first one returned 401/403.
+        var failureClass = exception.FailureKind == ModelGatewayFailureKind.Authentication
+            ? GatewayFailureClass.Provider
+            : exception.FailureClass ?? Classify(exception);
         var after = await circuits.RecordFailureAsync(
             permit,
             failureClass,
@@ -629,8 +633,8 @@ public sealed class ResilientModelGateway(
         ModelGatewayFailureKind.Unavailable when exception.StatusCode >= 500 => GatewayFailureClass.Provider,
         ModelGatewayFailureKind.Unavailable => GatewayFailureClass.Transport,
         ModelGatewayFailureKind.InvalidResponse => GatewayFailureClass.MalformedOutput,
+        ModelGatewayFailureKind.Authentication => GatewayFailureClass.Provider,
         ModelGatewayFailureKind.InvalidRequest or
-        ModelGatewayFailureKind.Authentication or
         ModelGatewayFailureKind.Internal => GatewayFailureClass.Permanent,
         ModelGatewayFailureKind.Cancelled => GatewayFailureClass.Permanent,
         _ => GatewayFailureClass.Permanent

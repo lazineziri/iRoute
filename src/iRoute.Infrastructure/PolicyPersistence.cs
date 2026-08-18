@@ -172,7 +172,14 @@ public sealed class EfExternalActionStore(IDbContextFactory<IRouteDbContext> con
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<ExternalActionReservation> ReserveAsync(
+    public Task<ExternalActionReservation> ReserveAsync(
+        ExternalActionRecord action,
+        CancellationToken cancellationToken) =>
+        PersistenceContention.RetryAsync(
+            () => ReserveCoreAsync(action, cancellationToken),
+            cancellationToken);
+
+    private async Task<ExternalActionReservation> ReserveCoreAsync(
         ExternalActionRecord action,
         CancellationToken cancellationToken)
     {
@@ -187,12 +194,44 @@ public sealed class EfExternalActionStore(IDbContextFactory<IRouteDbContext> con
         if (existing is null)
         {
             context.ExternalActions.Add(ToEntity(action));
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return new ExternalActionReservation(ExternalActionReservationKind.Acquired, action);
-        }
+            try
+            {
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return new ExternalActionReservation(ExternalActionReservationKind.Acquired, action);
+            }
+            catch (DbUpdateException exception) when (IsUniqueViolation(exception))
+            {
+                // A concurrent reservation won after our serializable read. PostgreSQL aborts the
+                // transaction on 23505, so roll it back before re-reading the durable winner.
+                // SQLite can surface the uniqueness conflict just before the winning transaction
+                // becomes visible to a new reader, so use fresh contexts for a bounded visibility
+                // wait. If it still is not visible, rethrow the retryable uniqueness exception and
+                // let the outer contention policy retry the whole operation.
+                await transaction.RollbackAsync(cancellationToken);
+                for (var attempt = 1; attempt <= 5 && existing is null; attempt++)
+                {
+                    await using var winnerContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+                    existing = await winnerContext.ExternalActions.AsNoTracking().SingleOrDefaultAsync(
+                        item => item.TenantId == action.TenantId &&
+                            item.IdempotencyReference == action.IdempotencyReference,
+                        cancellationToken);
+                    if (existing is null && attempt < 5)
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(attempt * 5), cancellationToken);
+                    }
+                }
 
-        await transaction.CommitAsync(cancellationToken);
+                if (existing is null)
+                {
+                    throw;
+                }
+            }
+        }
+        else
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
         var record = ToRecord(existing);
         if (!string.Equals(record.ActionId, action.ActionId, StringComparison.Ordinal) ||
             !string.Equals(record.Capability, action.Capability, StringComparison.Ordinal) ||
@@ -210,6 +249,13 @@ public sealed class EfExternalActionStore(IDbContextFactory<IRouteDbContext> con
         };
         return new ExternalActionReservation(kind, record);
     }
+
+    private static bool IsUniqueViolation(DbUpdateException exception) => exception.InnerException switch
+    {
+        Npgsql.PostgresException { SqlState: "23505" } => true,
+        Microsoft.Data.Sqlite.SqliteException { SqliteExtendedErrorCode: 1555 or 2067 } => true,
+        _ => false
+    };
 
     public async Task<ExternalActionRecord> CompleteAsync(
         string tenantId,

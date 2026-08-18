@@ -203,6 +203,55 @@ public sealed class BoundedDependencySchedulerTests
     }
 
     [Fact]
+    public async Task ProviderRetryAfterIsNeverShortenedByTheLocalBackoffCap()
+    {
+        var executions = new InMemoryExecutionStore();
+        var checkpoints = new InMemoryWorkflowCheckpointStore();
+        using var scheduler = new BoundedDependencyScheduler(
+            checkpoints,
+            executions,
+            new SystemClock(),
+            new WorkflowSchedulerOptions
+            {
+                RetryBaseDelayMilliseconds = 1,
+                RetryMaxDelayMilliseconds = 5,
+                RetryJitterRatio = 0
+            });
+        var executionId = Guid.CreateVersion7();
+        var attempts = 0;
+        var startedAt = DateTimeOffset.UtcNow;
+        var plan = CreatePlan([Step("retry") with { MaxAttempts = 2 }]);
+
+        await scheduler.ExecuteAsync(
+            executionId,
+            CreateRequest(),
+            plan,
+            Routing(plan),
+            (_, _, _) =>
+            {
+                if (Interlocked.Increment(ref attempts) == 1)
+                {
+                    throw new ModelGatewayException(
+                        ErrorCodes.ModelGatewayHttpError,
+                        "Temporarily unavailable.",
+                        true,
+                        429,
+                        failureKind: ModelGatewayFailureKind.RateLimited,
+                        retryAfter: TimeSpan.FromMilliseconds(30));
+                }
+
+                return Task.FromResult(JsonSerializer.SerializeToElement(new { value = "recovered" }));
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.True(DateTimeOffset.UtcNow - startedAt >= TimeSpan.FromMilliseconds(25));
+        var retry = Assert.Single(
+            await ReadEventsAsync(executions, executionId),
+            item => item.Type == ExecutionEventTypes.StepRetryScheduled);
+        Assert.Equal(30, retry.Data.GetProperty("delayMilliseconds").GetInt32());
+    }
+
+    [Fact]
     public async Task NonRetryableFailureDoesNotConsumeAdditionalAttempts()
     {
         var executions = new InMemoryExecutionStore();

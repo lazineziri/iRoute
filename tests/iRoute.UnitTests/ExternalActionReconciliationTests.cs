@@ -2,6 +2,8 @@ using System.Text.Json;
 using iRoute.Contracts;
 using iRoute.Core;
 using iRoute.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace iRoute.UnitTests;
 
@@ -127,5 +129,54 @@ public sealed class ExternalActionReconciliationTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(ExternalActionReservationKind.InProgress, replay.Kind);
+    }
+
+    [Fact]
+    public async Task ConcurrentDurableReservationsReturnAcquiredAndInProgress()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"iroute-action-race-{Guid.NewGuid():N}.db");
+        try
+        {
+            var factory = new SqliteContextFactory(databasePath);
+            await new SchemaMigrationManager(factory).UpgradeAsync(
+                cancellationToken: TestContext.Current.CancellationToken);
+            var now = DateTimeOffset.UtcNow;
+            await new EfExecutionStore(factory, new NullExecutionFence()).CreateAsync(
+                new ExecutionSnapshot(
+                    ExecutionId,
+                    "test.external-action-reservation",
+                    ExecutionStatus.Running,
+                    now,
+                    now,
+                    TenantId: Tenant,
+                    ActorId: "test-runner"),
+                null,
+                null,
+                TestContext.Current.CancellationToken);
+            var store = new EfExternalActionStore(factory);
+
+            var reservations = await Task.WhenAll(
+                store.ReserveAsync(Interrupted(now), TestContext.Current.CancellationToken),
+                store.ReserveAsync(Interrupted(now), TestContext.Current.CancellationToken));
+
+            Assert.Contains(reservations, item => item.Kind == ExternalActionReservationKind.Acquired);
+            Assert.Contains(reservations, item => item.Kind == ExternalActionReservationKind.InProgress);
+        }
+        finally
+        {
+            File.Delete(databasePath);
+        }
+    }
+
+    private sealed class SqliteContextFactory(string databasePath)
+        : IDbContextFactory<IRouteDbContext>
+    {
+        private readonly DbContextOptions<IRouteDbContext> _options =
+            new DbContextOptionsBuilder<IRouteDbContext>()
+                .UseSqlite($"Data Source={databasePath}")
+                .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+                .Options;
+
+        public IRouteDbContext CreateDbContext() => new(_options);
     }
 }

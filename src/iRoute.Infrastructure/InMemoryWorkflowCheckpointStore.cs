@@ -5,10 +5,13 @@ using iRoute.Core;
 
 namespace iRoute.Infrastructure;
 
-public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
+public sealed class InMemoryWorkflowCheckpointStore(
+    IExecutionFence? executionFence = null,
+    InMemoryExecutionWorkStore? executionWork = null) : IWorkflowCheckpointStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ConcurrentDictionary<Guid, WorkflowState> _workflows = new();
+    private readonly IExecutionFence _executionFence = executionFence ?? new NullExecutionFence();
 
     public Task<WorkflowCheckpointInitialization> InitializeAsync(
         Guid executionId,
@@ -19,16 +22,19 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var candidate = new WorkflowState(request, plan, routing, createdAt);
-        var state = _workflows.GetOrAdd(executionId, candidate);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            EnsureSamePlan(state.Plan, plan);
-            EnsureSameRouting(state.Routing, routing);
-            return Task.FromResult(new WorkflowCheckpointInitialization(
-                ToCheckpoint(executionId, state),
-                ReferenceEquals(state, candidate)));
-        }
+            var candidate = new WorkflowState(request, plan, routing, createdAt);
+            var state = _workflows.GetOrAdd(executionId, candidate);
+            lock (state.Sync)
+            {
+                EnsureSamePlan(state.Plan, plan);
+                EnsureSameRouting(state.Routing, routing);
+                return Task.FromResult(new WorkflowCheckpointInitialization(
+                    ToCheckpoint(executionId, state),
+                    ReferenceEquals(state, candidate)));
+            }
+        });
     }
 
     public Task<WorkflowCheckpoint?> GetAsync(Guid executionId, CancellationToken cancellationToken)
@@ -51,26 +57,29 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var state = GetState(executionId);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            var recovered = 0;
-            foreach (var step in state.Steps.Values.Where(step => step.Status == WorkflowStepStatus.Running))
+            var state = GetState(executionId);
+            lock (state.Sync)
             {
-                step.Status = WorkflowStepStatus.Pending;
-                step.StartedAt = null;
-                step.CompletedAt = null;
-                step.Error = null;
-                recovered++;
-            }
+                var recovered = 0;
+                foreach (var step in state.Steps.Values.Where(step => step.Status == WorkflowStepStatus.Running))
+                {
+                    step.Status = WorkflowStepStatus.Pending;
+                    step.StartedAt = null;
+                    step.CompletedAt = null;
+                    step.Error = null;
+                    recovered++;
+                }
 
-            if (recovered > 0)
-            {
-                state.UpdatedAt = recoveredAt;
-            }
+                if (recovered > 0)
+                {
+                    state.UpdatedAt = recoveredAt;
+                }
 
-            return Task.FromResult(recovered);
-        }
+                return Task.FromResult(recovered);
+            }
+        });
     }
 
     public Task<WorkflowStepCheckpoint> StartStepAsync(
@@ -80,23 +89,26 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var state = GetState(executionId);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            var step = GetStep(state, stepId);
-            if (step.Status != WorkflowStepStatus.Pending)
+            var state = GetState(executionId);
+            lock (state.Sync)
             {
-                throw new InvalidOperationException($"Step '{stepId}' cannot start from {step.Status}.");
-            }
+                var step = GetStep(state, stepId);
+                if (step.Status != WorkflowStepStatus.Pending)
+                {
+                    throw new InvalidOperationException($"Step '{stepId}' cannot start from {step.Status}.");
+                }
 
-            step.Status = WorkflowStepStatus.Running;
-            step.Attempt = checked(step.Attempt + 1);
-            step.StartedAt = startedAt;
-            step.CompletedAt = null;
-            step.Error = null;
-            state.UpdatedAt = startedAt;
-            return Task.FromResult(ToCheckpoint(executionId, step));
-        }
+                step.Status = WorkflowStepStatus.Running;
+                step.Attempt = checked(step.Attempt + 1);
+                step.StartedAt = startedAt;
+                step.CompletedAt = null;
+                step.Error = null;
+                state.UpdatedAt = startedAt;
+                return Task.FromResult(ToCheckpoint(executionId, step));
+            }
+        });
     }
 
     public Task CompleteStepAsync(
@@ -107,17 +119,20 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var state = GetState(executionId);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            var step = GetRunningStep(state, stepId);
-            step.Status = WorkflowStepStatus.Succeeded;
-            step.Output = output.Clone();
-            step.CompletedAt = completedAt;
-            step.Error = null;
-            state.UpdatedAt = completedAt;
-            return Task.CompletedTask;
-        }
+            var state = GetState(executionId);
+            lock (state.Sync)
+            {
+                var step = GetRunningStep(state, stepId);
+                step.Status = WorkflowStepStatus.Succeeded;
+                step.Output = output.Clone();
+                step.CompletedAt = completedAt;
+                step.Error = null;
+                state.UpdatedAt = completedAt;
+                return Task.CompletedTask;
+            }
+        });
     }
 
     public Task ResetStepForRetryAsync(
@@ -127,17 +142,20 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var state = GetState(executionId);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            var step = GetRunningStep(state, stepId);
-            step.Status = WorkflowStepStatus.Pending;
-            step.StartedAt = null;
-            step.CompletedAt = null;
-            step.Error = null;
-            state.UpdatedAt = updatedAt;
-            return Task.CompletedTask;
-        }
+            var state = GetState(executionId);
+            lock (state.Sync)
+            {
+                var step = GetRunningStep(state, stepId);
+                step.Status = WorkflowStepStatus.Pending;
+                step.StartedAt = null;
+                step.CompletedAt = null;
+                step.Error = null;
+                state.UpdatedAt = updatedAt;
+                return Task.CompletedTask;
+            }
+        });
     }
 
     public Task FailStepAsync(
@@ -154,26 +172,29 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
             throw new ArgumentOutOfRangeException(nameof(status), status, "A failed step requires a terminal failure status.");
         }
 
-        var state = GetState(executionId);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            var step = GetStep(state, stepId);
-            if (step.Status != WorkflowStepStatus.Running && status != WorkflowStepStatus.Cancelled)
+            var state = GetState(executionId);
+            lock (state.Sync)
             {
-                throw new InvalidOperationException($"Step '{stepId}' cannot fail from {step.Status}.");
-            }
+                var step = GetStep(state, stepId);
+                if (step.Status != WorkflowStepStatus.Running && status != WorkflowStepStatus.Cancelled)
+                {
+                    throw new InvalidOperationException($"Step '{stepId}' cannot fail from {step.Status}.");
+                }
 
-            if (step.Status == WorkflowStepStatus.Succeeded)
-            {
+                if (step.Status == WorkflowStepStatus.Succeeded)
+                {
+                    return Task.CompletedTask;
+                }
+
+                step.Status = status;
+                step.CompletedAt = completedAt;
+                step.Error = problem;
+                state.UpdatedAt = completedAt;
                 return Task.CompletedTask;
             }
-
-            step.Status = status;
-            step.CompletedAt = completedAt;
-            step.Error = problem;
-            state.UpdatedAt = completedAt;
-            return Task.CompletedTask;
-        }
+        });
     }
 
     public Task CancelIncompleteStepsAsync(
@@ -183,20 +204,23 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var state = GetState(executionId);
-        lock (state.Sync)
+        return WithLease(executionId, () =>
         {
-            foreach (var step in state.Steps.Values.Where(step =>
-                         step.Status is WorkflowStepStatus.Pending or WorkflowStepStatus.Running))
+            var state = GetState(executionId);
+            lock (state.Sync)
             {
-                step.Status = WorkflowStepStatus.Cancelled;
-                step.CompletedAt = completedAt;
-                step.Error = problem;
-            }
+                foreach (var step in state.Steps.Values.Where(step =>
+                             step.Status is WorkflowStepStatus.Pending or WorkflowStepStatus.Running))
+                {
+                    step.Status = WorkflowStepStatus.Cancelled;
+                    step.CompletedAt = completedAt;
+                    step.Error = problem;
+                }
 
-            state.UpdatedAt = completedAt;
-            return Task.CompletedTask;
-        }
+                state.UpdatedAt = completedAt;
+                return Task.CompletedTask;
+            }
+        });
     }
 
     private static WorkflowCheckpoint ToCheckpoint(Guid executionId, WorkflowState state) => new(
@@ -220,6 +244,22 @@ public sealed class InMemoryWorkflowCheckpointStore : IWorkflowCheckpointStore
         step.CompletedAt,
         step.Output?.Clone(),
         step.Error);
+
+    private T WithLease<T>(Guid executionId, Func<T> action)
+    {
+        if (_executionFence.CurrentToken is not { } token)
+        {
+            return action();
+        }
+
+        if (executionWork is null)
+        {
+            throw new InvalidOperationException(
+                "An in-memory execution work store is required when a lease fence is active.");
+        }
+
+        return executionWork.ExecuteIfOwned(executionId, token, action);
+    }
 
     private WorkflowState GetState(Guid executionId) =>
         _workflows.GetValueOrDefault(executionId)

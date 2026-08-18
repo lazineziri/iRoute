@@ -211,6 +211,21 @@ public sealed class InMemoryExecutionWorkStore(InMemoryExecutionStore executions
         item.LeaseToken == lease.LeaseToken &&
         string.Equals(item.LeaseOwner, lease.WorkerId, StringComparison.Ordinal);
 
+    internal T ExecuteIfOwned<T>(Guid executionId, Guid leaseToken, Func<T> action)
+    {
+        lock (_gate)
+        {
+            if (!_items.TryGetValue(executionId, out var current) ||
+                current.State != ExecutionWorkState.Leased ||
+                current.LeaseToken != leaseToken)
+            {
+                throw new LeaseFencedException(executionId);
+            }
+
+            return action();
+        }
+    }
+
     private static void EnsureWorker(string workerId)
     {
         if (string.IsNullOrWhiteSpace(workerId))

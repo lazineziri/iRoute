@@ -53,7 +53,14 @@ public sealed class EfMemoryStore(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly LifecyclePolicy _lifecyclePolicy = lifecyclePolicy ?? new LifecyclePolicy();
 
-    public async Task<MemoryWriteResult> UpsertAsync(
+    public Task<MemoryWriteResult> UpsertAsync(
+        MemoryRecord record,
+        CancellationToken cancellationToken) =>
+        PersistenceContention.RetryAsync(
+            () => UpsertCoreAsync(record, cancellationToken),
+            cancellationToken);
+
+    private async Task<MemoryWriteResult> UpsertCoreAsync(
         MemoryRecord record,
         CancellationToken cancellationToken)
     {
@@ -175,7 +182,14 @@ public sealed class EfMemoryStore(
         return entity is null ? null : await ToRecordAsync(context, entity, cancellationToken);
     }
 
-    public async Task<MemoryInvalidationResult> InvalidateByDependencyAsync(
+    public Task<MemoryInvalidationResult> InvalidateByDependencyAsync(
+        DependencyChange change,
+        CancellationToken cancellationToken) =>
+        PersistenceContention.RetryAsync(
+            () => InvalidateByDependencyCoreAsync(change, cancellationToken),
+            cancellationToken);
+
+    private async Task<MemoryInvalidationResult> InvalidateByDependencyCoreAsync(
         DependencyChange change,
         CancellationToken cancellationToken)
     {
