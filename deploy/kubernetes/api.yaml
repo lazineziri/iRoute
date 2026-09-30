@@ -42,8 +42,9 @@ spec:
               app.kubernetes.io/component: api
       containers:
         - name: api
-          image: ghcr.io/your-org/iroute-api:0.1.0-alpha.3
+          image: ghcr.io/lazineziri/iroute:0.1.0-alpha.4
           imagePullPolicy: IfNotPresent
+          args: ["serve"]
           ports:
             - name: http
               containerPort: 8080

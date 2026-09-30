@@ -28,6 +28,8 @@ data:
   ExecutionWorker__LeaseDuration: 00:00:30
   ExecutionWorker__HeartbeatInterval: 00:00:05
   ExecutionWorker__AbandonDelay: 00:00:01
+  ExecutionWorker__MaxAbandonDelay: 00:05:00
+  ExecutionWorker__MaxDeliveryAttempts: "5"
   Identity__Mode: Jwt
   Identity__Authority: https://identity.example.invalid
   Identity__Audience: iroute

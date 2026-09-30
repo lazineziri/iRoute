@@ -1,10 +1,11 @@
 name: iroute-local
 services:
   api:
+    image: ghcr.io/lazineziri/iroute:${IROUTE_VERSION:-0.1.0-alpha.4}
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-      target: api
+      target: runtime
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Storage__Provider: Sqlite

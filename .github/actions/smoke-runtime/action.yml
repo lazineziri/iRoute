@@ -1,0 +1,127 @@
+name: Smoke-test iRoute runtime
+description: Verify migrations, process modes, asynchronous execution, SSE, and tenant-scoped reads.
+inputs:
+  image:
+    description: Local image tag to test
+    required: true
+  provider:
+    description: Sqlite or Postgres
+    default: Sqlite
+  connection-string:
+    description: Database connection string
+    default: Data Source=/var/lib/iroute/iroute.db
+runs:
+  using: composite
+  steps:
+    - name: Verify runtime with durable storage
+      shell: bash
+      env:
+        IROUTE_TEST_IMAGE: ${{ inputs.image }}
+        IROUTE_TEST_PROVIDER: ${{ inputs.provider }}
+        IROUTE_TEST_CONNECTION: ${{ inputs.connection-string }}
+      run: |
+        set -euo pipefail
+        container="iroute-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        worker="${container}-worker"
+        volume="${container}-data"
+        task_dir="$(mktemp -d)"
+        cleanup() {
+          docker logs "${container}" 2>/dev/null || true
+          docker logs "${worker}" 2>/dev/null || true
+          docker rm --force "${container}" "${worker}" 2>/dev/null || true
+          docker volume rm "${volume}" 2>/dev/null || true
+          rm -rf "${task_dir}"
+        }
+        trap cleanup EXIT
+
+        docker run --rm "${IROUTE_TEST_IMAGE}" help
+        docker run --rm "${IROUTE_TEST_IMAGE}" client help
+        docker run --rm "${IROUTE_TEST_IMAGE}" migrate help
+
+        docker volume create "${volume}" >/dev/null
+        runtime_options=(
+          --read-only
+          --tmpfs /tmp
+          --mount "type=volume,source=${volume},target=/var/lib/iroute"
+          --add-host host.docker.internal:host-gateway
+          --env "Storage__Provider=${IROUTE_TEST_PROVIDER}"
+          --env Storage__AutoInitialize=false
+          --env "ConnectionStrings__iRoute=${IROUTE_TEST_CONNECTION}"
+          --env ModelGateway__Mode=Deterministic
+        )
+
+        docker run --rm "${runtime_options[@]}" "${IROUTE_TEST_IMAGE}" migrate up
+        docker run --rm "${runtime_options[@]}" "${IROUTE_TEST_IMAGE}" migrate status > "${task_dir}/migrations.json"
+        cat "${task_dir}/migrations.json"
+        jq -e '.isCurrent == true and (.pendingMigrations | length == 0)' "${task_dir}/migrations.json"
+
+        embedded=true
+        if [[ "${IROUTE_TEST_PROVIDER}" = Postgres ]]; then
+          embedded=false
+          docker run --detach --name "${worker}" \
+            "${runtime_options[@]}" "${IROUTE_TEST_IMAGE}" worker
+        fi
+
+        docker run --detach --name "${container}" \
+          "${runtime_options[@]}" \
+          --publish 127.0.0.1:18080:8080 \
+          --env ASPNETCORE_ENVIRONMENT=Development \
+          --env "Runtime__RunBackgroundWorkers=${embedded}" \
+          --env Identity__Mode=DevelopmentHeaders \
+          "${IROUTE_TEST_IMAGE}" serve
+
+        base_url=http://127.0.0.1:18080
+        for _ in {1..30}; do
+          if curl --fail --silent --max-time 2 "${base_url}/health/ready" >/dev/null; then
+            break
+          fi
+          sleep 2
+        done
+        for endpoint in /health/live /health/ready /health/model-gateway /openapi/v1.json /dashboard/; do
+          curl --fail --silent --show-error --max-time 10 "${base_url}${endpoint}" >/dev/null
+        done
+
+        identity=(--header 'X-Tenant-Id: ci' --header 'X-Actor-Id: smoke')
+        submission=(
+          --request POST
+          --header 'Content-Type: application/json'
+          --header 'Idempotency-Key: runtime-smoke-001'
+          --data @examples/email-draft.json
+        )
+        status="$(curl --silent --show-error --max-time 30 \
+          "${identity[@]}" "${submission[@]}" \
+          --output "${task_dir}/accepted.json" --write-out '%{http_code}' \
+          "${base_url}/v1/executions/" )"
+        cat "${task_dir}/accepted.json"
+        test "${status}" = 202
+        execution_id="$(jq -er '.executionId' "${task_dir}/accepted.json")"
+
+        for _ in {1..30}; do
+          curl --fail --silent --show-error --max-time 10 "${identity[@]}" \
+            "${base_url}/v1/executions/${execution_id}" > "${task_dir}/snapshot.json"
+          status="$(jq -r '.status' "${task_dir}/snapshot.json")"
+          case "${status}" in
+            Succeeded|Failed|Cancelled|TimedOut) break ;;
+          esac
+          sleep 2
+        done
+        cat "${task_dir}/snapshot.json"
+        test "${status}" = Succeeded
+        jq -e '.outcome.validation.passed == true' "${task_dir}/snapshot.json"
+        artifact_id="$(jq -er '.outcome.artifacts[0].artifactId' "${task_dir}/snapshot.json")"
+        curl --fail --silent --show-error --max-time 10 "${identity[@]}" \
+          "${base_url}/v1/artifacts/${artifact_id}" >/dev/null
+
+        curl --fail --silent --show-error --max-time 30 "${identity[@]}" \
+          "${base_url}/v1/executions/${execution_id}/events?after=0" > "${task_dir}/events.txt"
+        grep -q 'event: execution.completed' "${task_dir}/events.txt"
+        curl --fail --silent --show-error --max-time 10 "${identity[@]}" \
+          "${base_url}/v1/observability/summary" >/dev/null
+
+        replay_id="$(curl --fail --silent --show-error --max-time 30 \
+          "${identity[@]}" "${submission[@]}" "${base_url}/v1/executions/" | jq -er '.executionId')"
+        test "${replay_id}" = "${execution_id}"
+        status="$(curl --silent --show-error --max-time 10 \
+          --header 'X-Tenant-Id: another-tenant' --output /dev/null --write-out '%{http_code}' \
+          "${base_url}/v1/executions/${execution_id}")"
+        test "${status}" = 404

@@ -33,8 +33,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: execution-worker
-          image: ghcr.io/your-org/iroute-worker:0.1.0-alpha.3
+          image: ghcr.io/lazineziri/iroute:0.1.0-alpha.4
           imagePullPolicy: IfNotPresent
+          args: ["worker"]
           envFrom:
             - configMapRef:
                 name: iroute-config
@@ -105,8 +106,9 @@ spec:
           type: RuntimeDefault
       containers:
         - name: lifecycle-worker
-          image: ghcr.io/your-org/iroute-worker:0.1.0-alpha.3
+          image: ghcr.io/lazineziri/iroute:0.1.0-alpha.4
           imagePullPolicy: IfNotPresent
+          args: ["worker"]
           envFrom:
             - configMapRef:
                 name: iroute-config

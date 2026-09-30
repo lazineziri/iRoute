@@ -4,14 +4,27 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  NUGET_XMLDOC_MODE: skip
+
 jobs:
   dependency-review:
+    name: dependency-review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
@@ -20,7 +33,9 @@ jobs:
       - uses: actions/dependency-review-action@v5
 
   dotnet:
+    name: dotnet
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -28,38 +43,121 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: Directory.Packages.props
-      - run: dotnet restore iRoute.slnx
-      - run: dotnet format iRoute.slnx --verify-no-changes --severity warn --no-restore
-      - run: dotnet build iRoute.slnx --configuration Release --no-restore
-      - run: dotnet test --solution iRoute.slnx --configuration Release --no-build
 
-  container:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - run: docker build --file deploy/Dockerfile --target api --tag iroute-api:test .
-      - run: docker build --file deploy/Dockerfile --target worker --tag iroute-worker:test .
-      - run: docker build --file deploy/Dockerfile --target migrate --tag iroute-migrations:test .
+      - name: Restore
+        run: dotnet restore iRoute.slnx
 
-  release-readiness:
-    needs: [dotnet, container]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-          cache: true
-          cache-dependency-path: Directory.Packages.props
-      - run: dotnet restore iRoute.slnx
-      - run: dotnet pack src/iRoute.Common --configuration Release --no-restore --output artifacts/release
-      - run: dotnet pack src/iRoute.Services --configuration Release --no-restore --output artifacts/release
-      - run: dotnet pack src/iRoute.Data --configuration Release --no-restore --output artifacts/release
-      - run: dotnet pack src/iRoute.Core --configuration Release --no-restore --output artifacts/release
-      - run: dotnet pack src/iRoute.Runtime --configuration Release --no-restore --output artifacts/release
+      - name: Verify formatting
+        run: dotnet format iRoute.slnx --verify-no-changes --severity warn --no-restore
+
+      - name: Build
+        run: dotnet build iRoute.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --solution iRoute.slnx --configuration Release --no-build
+
+      - name: Pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(jq -r '.version' release.json)"
+          dotnet pack iRoute.slnx \
+            --configuration Release \
+            --no-build \
+            --output artifacts/packages
+
+          packages=(iRoute.Common iRoute.Services iRoute.Data iRoute.Core iRoute)
+          for package in "${packages[@]}"; do
+            test -f "artifacts/packages/${package}.${version}.nupkg"
+          done
+          test "$(find artifacts/packages -maxdepth 1 -type f -name '*.nupkg' | wc -l | tr -d ' ')" -eq 5
+
+      - name: Verify the packaged tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(jq -r '.version' release.json)"
+          dotnet tool install iRoute --version "${version}" \
+            --source artifacts/packages --tool-path artifacts/tool
+          artifacts/tool/iroute help
+          artifacts/tool/iroute client help
+          artifacts/tool/iroute migrate help
+
       - uses: actions/upload-artifact@v7
         with:
-          name: iroute-dotnet-${{ github.sha }}
-          path: artifacts/release/
+          name: iroute-packages-${{ github.sha }}
+          path: artifacts/packages/*.nupkg
           if-no-files-found: error
           retention-days: 7
+
+  container:
+    name: container
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.4-alpine
+        env:
+          POSTGRES_DB: iroute
+          POSTGRES_USER: iroute
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U iroute -d iroute"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate Compose files
+        run: |
+          docker compose -f deploy/compose.sqlite.yaml config --quiet
+          docker compose -f deploy/compose.yaml config --quiet
+
+      - name: Build the unified runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(jq -r '.version' release.json)"
+          docker build \
+            --file deploy/Dockerfile \
+            --target runtime \
+            --build-arg "VERSION=${version}" \
+            --build-arg "REVISION=${GITHUB_SHA}" \
+            --tag "iroute-ci:${GITHUB_SHA}" \
+            .
+
+      - name: Verify SQLite runtime
+        uses: ./.github/actions/smoke-runtime
+        with:
+          image: iroute-ci:${{ github.sha }}
+
+      - name: Verify PostgreSQL API and worker
+        uses: ./.github/actions/smoke-runtime
+        with:
+          image: iroute-ci:${{ github.sha }}
+          provider: Postgres
+          connection-string: Host=host.docker.internal;Port=5432;Database=iroute;Username=iroute;Password=ci-only-password
+
+  required:
+    name: required
+    if: always()
+    needs: [dependency-review, dotnet, container]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check required jobs
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
+          DOTNET: ${{ needs.dotnet.result }}
+          CONTAINER: ${{ needs.container.result }}
+        run: |
+          set -euo pipefail
+          test "${DOTNET}" = success
+          test "${CONTAINER}" = success
+          if [[ "${EVENT}" = pull_request ]]; then
+            test "${DEPENDENCY_REVIEW}" = success
+          else
+            test "${DEPENDENCY_REVIEW}" = skipped
+          fi
