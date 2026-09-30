@@ -14,7 +14,7 @@ Thumbs.db
 # .NET build, test, package, and profiling output
 **/[Bb]in/
 **/[Oo]bj/
-artifacts/
+/artifacts/
 TestResults/
 coverage/
 coverage.*

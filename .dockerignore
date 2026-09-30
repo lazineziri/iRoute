@@ -13,7 +13,7 @@
 *.db
 *.db-*
 *.sqlite*
-artifacts
+/artifacts
 docs
 examples
 spec
