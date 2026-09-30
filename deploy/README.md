@@ -1,57 +1,81 @@
-# Deployment profiles
+# Deployment
 
-iRoute publishes three non-root process modes from one runtime image:
+iRoute publishes one non-root image:
 
-| Target | Process | Intended use |
-|---|---|---|
-| `api` | `iroute serve` | HTTP, SSE, health, OpenAPI, dashboard, and optional local workers |
-| `worker` | `iroute worker` | Durable execution worker and optional lifecycle worker |
-| `migrate` | `iroute migrate` | Explicit schema status, upgrade, and rollback |
+```text
+ghcr.io/lazineziri/iroute:<version>
+```
 
-## SQLite API and worker
+Its entry point is `dotnet iroute.dll`; the default command is `serve`. The same
+artifact runs every operational mode:
 
-This profile starts one runtime process with embedded workers, persists SQLite under `/var/lib/iroute`,
-uses the deterministic gateway, runs explicitly in the Development environment,
-and needs no provider credential:
+| Command | Use |
+|---|---|
+| `serve` | API, health, OpenAPI, dashboard, and optional local workers |
+| `worker` | execution and lifecycle background services |
+| `migrate status` | schema inspection |
+| `migrate up` | schema upgrade |
+
+## SQLite Compose
+
+The loopback-only development profile builds the image, persists SQLite under
+`/var/lib/iroute`, embeds workers in the API process, and uses deterministic
+model execution:
 
 ```bash
 docker compose -f deploy/compose.sqlite.yaml up --build --wait
 curl --fail http://localhost:8080/health/ready
 ```
 
-Stop it with `docker compose -f deploy/compose.sqlite.yaml down`. Add `--volumes`
-only when the local SQLite data should be deliberately discarded.
+Stop it with:
+
+```bash
+docker compose -f deploy/compose.sqlite.yaml down
+```
+
+Add `--volumes` only when you intentionally want to delete local SQLite data.
 
 ## PostgreSQL Compose
 
-The production-shaped Compose profile starts PostgreSQL, runs migrations once,
-then starts the API and a combined execution/lifecycle worker:
+The production-shaped profile runs one image as migration, API, and worker
+processes, plus PostgreSQL:
 
 ```bash
 cp .env.example .env
-# Set IROUTE_IDENTITY_AUTHORITY and IROUTE_IDENTITY_AUDIENCE before startup.
+# Replace the database password and configure a real JWT authority/audience.
 docker compose -f deploy/compose.yaml up --build --wait
 ```
 
-This profile runs in Production and defaults to JWT. It fails startup until a
-non-empty authority and audience are supplied. The checked database password is
-still only a local placeholder; configure managed PostgreSQL, TLS ingress, and
-external secret management before exposing iRoute publicly.
+For a released image, omit `--build` and set `IROUTE_VERSION` to the immutable
+version. Do not rely on the checked development password or expose the profile
+without TLS ingress and external secret management.
 
-HTTP model execution can register multiple provider-neutral routes with
-`ModelGateway__Deployments__{index}__...`. Supply the same ordered list to every
-execution worker; each entry declares gateway/deployment identity, operational
-provider/region/residency/model-version metadata, supported capabilities and
-profiles, expected quality/cost/latency, priority, transport, URL, and a
-secret-sourced API key. PostgreSQL persists shared circuit state so only one
-replica receives a half-open probe. The checked Compose and Kubernetes defaults
-show the resilience thresholds but intentionally do not guess real provider
-routes or credentials.
+## Kubernetes
 
-## Kubernetes reference
+The reference manifests under `deploy/kubernetes` contain API replicas, an HPA,
+execution workers, one lifecycle worker, service accounts, configuration, and a
+separate migration Job. They expect external PostgreSQL and JWT identity.
 
-The manifests under `deploy/kubernetes` use external PostgreSQL, a dedicated
-migration Job, two API replicas with an HPA, two leased execution workers, and one lifecycle worker. Replace all
-`example.invalid`, `your-org`, image tags, and secret values before deployment.
-The complete ordering, upgrade, rollback, and scaling procedure is documented in
-`docs/operations.md`.
+1. Copy `secret.example.yaml` to a secret managed by your platform; do not commit it.
+2. Replace `example.invalid` gateway/identity values.
+3. Pin `ghcr.io/lazineziri/iroute` by version or digest.
+4. Apply namespace, configuration, service accounts, and the migration Job.
+5. Wait for migration success.
+6. Apply the Kustomize workload and verify readiness/canary execution.
+
+```bash
+kubectl apply -f deploy/kubernetes/namespace.yaml
+kubectl apply -f <your-secret-manifest-or-external-secret>
+kubectl apply -f deploy/kubernetes/configmap.yaml
+kubectl apply -f deploy/kubernetes/serviceaccounts.yaml
+kubectl create -f deploy/kubernetes/migrate-job.yaml
+kubectl -n iroute wait --for=condition=complete job/<generated-job-name> --timeout=10m
+kubectl apply -k deploy/kubernetes
+```
+
+The manifests are a hardened reference, not a complete platform: supply ingress,
+TLS, network policy, external secrets, database backup/PITR, image admission,
+telemetry export, and measured resource limits for your environment.
+
+See [operations](../docs/operations.md) for configuration, upgrade, rollback,
+backup, identity, gateway, and worker guidance.

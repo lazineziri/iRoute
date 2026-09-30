@@ -43,4 +43,12 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `model_gateway_invalid_response` | execution | no | The gateway returned an invalid result, usage envelope, stream event, sequence, or completion boundary. |
 | `model_gateway_exhausted` | execution | no | No registered deployment remained eligible after deterministic policy, circuit, deadline, cost, and attempt-budget evaluation. |
 
-`model_gateway_http_error` is classified as `InvalidRequest`, `Authentication`, `RateLimited`, `Timeout`, `Unavailable`, or `Internal`. W18 adds provider-resilience classes `Timeout`, `Throttling`, `Transport`, `Provider`, `MalformedOutput`, `Validation`, `Policy`, and `Permanent`. The gateway resilience layer owns model-deployment fallback and records Retry-After in circuit state; the workflow scheduler does not retry model steps. Transport cancellation is classified as `Cancelled` and remains an execution cancellation rather than an HTTP failure. New codes may be added within v1; consumers must preserve and surface unknown codes rather than converting them to success.
+`model_gateway_http_error` is classified as `InvalidRequest`, `Authentication`,
+`RateLimited`, `Timeout`, `Unavailable`, or `Internal`. Provider-resilience
+classes are `Timeout`, `Throttling`, `Transport`, `Provider`, `MalformedOutput`,
+`Validation`, `Policy`, and `Permanent`. The gateway resilience layer owns
+model-deployment fallback and records Retry-After in circuit state; the workflow
+scheduler does not retry model steps. Transport cancellation is classified as
+`Cancelled` and remains an execution cancellation rather than an HTTP failure.
+New codes may be added within v1; consumers must preserve and surface unknown
+codes rather than converting them to success.

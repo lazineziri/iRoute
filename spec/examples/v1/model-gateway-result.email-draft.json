@@ -1,6 +1,6 @@
 {
   "output": {
-    "subject": "iRoute W09 update",
+    "subject": "iRoute gateway update",
     "body": "The provider-neutral gateway now supports bounded streaming.",
     "tone": "professional"
   },

@@ -27,8 +27,8 @@ or hide those decisions.
   code-style analysis, and repository formatting centrally.
 - Keep iRoute's explicit gateway resilience policy. Do not layer a generic HTTP
   retry pipeline over it.
-- Keep public APIs and assembly namespaces stable while organizing source by
-  layer, feature, and cohesive responsibility.
+- Keep public APIs and assembly namespaces deliberate while organizing source by
+  owning project, feature, and cohesive responsibility.
 
 ## Consequences
 
@@ -37,9 +37,8 @@ errors fail during host startup, known wire types can avoid reflection metadata,
 and immutable registries have lower lookup overhead. The compiler and formatter
 now enforce the baseline instead of relying on reviewer memory.
 
-The solution still contains historically large orchestration and persistence
-types. They must be decomposed by capability and store responsibility in staged,
-behavior-preserving changes; this ADR deliberately does not conceal that debt
-behind arbitrary partial classes. The absence of in-repository tests after the
-.NET-only reset makes large behavioral refactors inappropriate until a new .NET
-verification strategy is approved.
+Large orchestration and persistence types are decomposed by capability and store
+responsibility in staged, behavior-preserving changes; this ADR does not conceal
+coupling behind arbitrary partial classes. Architecture and behavior tests now
+protect the six-project dependency graph, and deeper feature coverage is required
+before large behavioral refactors.

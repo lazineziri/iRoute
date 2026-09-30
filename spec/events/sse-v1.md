@@ -87,7 +87,16 @@ Every `routing.decided` event contains the routing policy version, direct/workfl
 
 ## Model gateway data
 
-`gateway.started` records only the step, capability, selected profile, and effective deadline. For streaming transports, `gateway.streamed` reports aggregate stream counts without persisting deltas. `gateway.completed` uses camel-case normalized usage fields and records gateway, provider, deployment, region, residency, model version, transport, finish reason, and fallback-attempt count. `gateway.failed` records the normalized failure kind, failure class, and Retry-After delay. The W18 resilience events expose rejected candidates, breaker state, bounded attempts, fallback reason, and final deployment without copying a provider response body, credential, prompt, context, or generated output into the event stream.
+`gateway.started` records only the step, capability, selected profile, and
+effective deadline. For streaming transports, `gateway.streamed` reports
+aggregate stream counts without persisting deltas. `gateway.completed` uses
+camel-case normalized usage fields and records gateway, provider, deployment,
+region, residency, model version, transport, finish reason, and fallback-attempt
+count. `gateway.failed` records the normalized failure kind, failure class, and
+Retry-After delay. The resilience events expose rejected candidates, breaker
+state, bounded attempts, fallback reason, and final deployment without copying a
+provider response body, credential, prompt, context, or generated output into
+the event stream.
 
 ## Capability connector data
 

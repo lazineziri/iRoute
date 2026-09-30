@@ -1,17 +1,18 @@
-# Verified version baseline — 1 August 2026
+# Version baseline
 
-The executable baseline is the repository lock/configuration, not an aspirational version list.
-
-| Component | Repository baseline | Verification policy |
+| Component | Baseline | Source of truth |
 |---|---|---|
-| .NET SDK | minimum `10.0.100`; verified with `10.0.102` | latest installed .NET 10 feature band for container compatibility |
-| .NET runtime | .NET 10; verified with `10.0.2` | update after build, test, and container checks |
-| EF Core | `10.0.10` | keep Microsoft EF packages aligned |
-| Npgsql EF | `10.0.3` | verify against both persistence providers |
-| OpenTelemetry | `1.17.0` | telemetry export stays opt-in |
+| Product development line | `0.1.0-alpha.4` | `release.json` and production `.csproj` files |
+| Public HTTP API | `v1` | `spec/openapi/iroute.v1.yaml` |
+| JSON Schema draft | 2020-12 | `release.json` and `spec/schemas` |
+| .NET SDK | minimum `10.0.100`, latest compatible feature band | `global.json` |
+| Target framework | `net10.0` | `Directory.Build.props` |
+| C# | `14.0` | `Directory.Build.props` |
+| PostgreSQL container for local profile | `18.4-alpine` | `deploy/compose.yaml` |
 
-The canonical product release is `0.1.0-alpha.3` in `release.json`. Release
-metadata, .NET package versions, Docker/Kubernetes tags, release notes, and the
-changelog must remain aligned with the immutable Git tag.
+`alpha.4` is not published until a verified annotated `v0.1.0-alpha.4` tag
+completes the release workflow. Historical registries can contain older package
+IDs and non-.NET clients; they are not part of the current release line.
 
-Dependency updates merge only after build, contracts, evaluation, vulnerability, and compatibility checks.
+Dependency versions are centrally managed in `Directory.Packages.props`.
+Dependabot checks NuGet, Docker, and GitHub Actions dependencies weekly.

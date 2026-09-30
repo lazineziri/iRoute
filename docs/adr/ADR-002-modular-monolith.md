@@ -2,4 +2,8 @@
 
 Status: Accepted
 
-The first runtime is a modular .NET monolith with separately deployable API and worker hosts. Services will be split only when independent scaling, isolation, ownership, or availability evidence exceeds distributed-system cost.
+The runtime is a modular .NET monolith with one executable and one composition
+root. API, worker, migration, and client behavior are process modes of that
+executable; API and worker processes may still scale independently in deployment.
+Services will be split into separate deployables only when measured scaling,
+isolation, ownership, or availability needs exceed the distributed-system cost.

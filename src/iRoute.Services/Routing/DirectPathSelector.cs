@@ -71,7 +71,7 @@ public sealed class DirectPathSelector(
     {
         if (candidate.StepKind == ExecutionStepKind.Model)
         {
-            // W18 assigns model retry/fallback ownership to the provider-neutral resilience gateway.
+            // Model retry/fallback belongs to the provider-neutral resilience gateway.
             // Repeating the whole deployment sequence in the workflow scheduler would duplicate retries.
             return 1;
         }

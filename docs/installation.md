@@ -1,84 +1,106 @@
-# Clean installation
+# Installation
 
-This is the supported installation path for `0.1.0-alpha.3`. Start from a clean
-clone or source archive; do not copy `bin`, `obj`, databases, or
-local secret files from another environment.
+`0.1.0-alpha.4` is the current development line. Until its verified release tag
+completes, use a source checkout or build the container locally.
 
-## Prerequisites
+## Requirements
 
-- .NET SDK `10.0.100` or newer on the .NET 10 line
-- Docker with Compose v2 for the local container path
 - Git for a source checkout
+- .NET SDK `10.0.100` or a compatible newer .NET 10 feature band
+- Docker with Compose v2 for container profiles
+- PostgreSQL only when running without the provided Compose database
 
 ## Source installation
 
-From the repository root:
-
 ```bash
-dotnet --version
-docker version
+git clone https://github.com/lazineziri/iRoute.git
+cd iRoute
 dotnet restore iRoute.slnx
 dotnet build iRoute.slnx --configuration Release --no-restore
+dotnet test --solution iRoute.slnx --configuration Release --no-build
 ```
 
-Direct source runs that use `DevelopmentHeaders` must explicitly set
-`ASPNETCORE_ENVIRONMENT=Development`. The API rejects development identity
-headers at startup in every other environment.
-
-## Smallest runnable deployment
-
-Start durable SQLite API and worker containers with no provider credentials:
+Run the local SQLite profile:
 
 ```bash
-docker compose --file deploy/compose.sqlite.yaml up --build --wait
-curl --fail http://localhost:8080/health/live
+ASPNETCORE_ENVIRONMENT=Development \
+  dotnet run --project src/iRoute.Runtime -- serve --urls http://localhost:8080
+```
+
+Readiness should return HTTP 200:
+
+```bash
 curl --fail http://localhost:8080/health/ready
 ```
 
-Submit the checked example from another terminal:
+## .NET tool
+
+After `alpha.4` is published, install the complete Runtime/CLI tool from NuGet:
+
+```bash
+dotnet tool install --global iRoute --version 0.1.0-alpha.4
+iroute help
+```
+
+For a source-built local tool package:
+
+```bash
+dotnet pack src/iRoute.Runtime --configuration Release --output artifacts/packages
+dotnet tool install --global iRoute \
+  --version 0.1.0-alpha.4 \
+  --add-source artifacts/packages
+```
+
+Remove it with `dotnet tool uninstall --global iRoute`.
+
+## Container
+
+Build and run the loopback-only SQLite profile:
+
+```bash
+docker compose -f deploy/compose.sqlite.yaml up --build --wait
+curl --fail http://localhost:8080/health/ready
+```
+
+After release, the equivalent image is
+`ghcr.io/lazineziri/iroute:0.1.0-alpha.4`. It runs `serve` by default:
+
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -e ASPNETCORE_ENVIRONMENT=Development \
+  -e Identity__Mode=DevelopmentHeaders \
+  -e Storage__Provider=Sqlite \
+  -e Storage__AutoInitialize=true \
+  -e 'ConnectionStrings__iRoute=Data Source=/var/lib/iroute/iroute.db' \
+  -v iroute-data:/var/lib/iroute \
+  ghcr.io/lazineziri/iroute:0.1.0-alpha.4
+```
+
+Do not expose `DevelopmentHeaders` outside loopback. Production must use JWT.
+
+## PostgreSQL profile
+
+```bash
+cp .env.example .env
+# Set IROUTE_DB_PASSWORD, IROUTE_IDENTITY_AUTHORITY, and IROUTE_IDENTITY_AUDIENCE.
+docker compose -f deploy/compose.yaml up --build --wait
+```
+
+Compose runs `migrate up` before starting API and worker processes. For an
+external database, use the same connection string in the migration, API, and
+worker processes.
+
+## Verify an execution
 
 ```bash
 curl --request POST http://localhost:8080/v1/executions \
   --header 'Content-Type: application/json' \
-  --header 'X-Tenant-Id: clean-install' \
-  --header 'X-Actor-Id: adopter' \
-  --header 'Idempotency-Key: clean-install-email-001' \
+  --header 'X-Tenant-Id: demo' \
+  --header 'X-Actor-Id: installer' \
+  --header 'Idempotency-Key: install-check-001' \
   --data @examples/email-draft.json
 ```
 
-Submission returns HTTP `202`; poll the execution URL or reconnect to its SSE stream until it reaches `Succeeded`. Shut down without deleting the named
-SQLite volume:
-
-```bash
-docker compose --file deploy/compose.sqlite.yaml down
-```
-
-Use `down --volumes` only when deliberately discarding local state.
-
-## Production-shaped deployment
-
-The PostgreSQL Compose and Kubernetes paths require operator configuration. Read
-[deploy/README.md](../deploy/README.md) and [operations.md](operations.md) before
-using them. In particular:
-
-- configure JWT identity; `DevelopmentHeaders` cannot start outside Development;
-- replace all example secret, host, registry, and image values;
-- use an external backed-up PostgreSQL service;
-- run the release-matched migration job before workloads;
-- keep exactly one lifecycle worker per database;
-- run at least two execution workers for takeover capacity;
-- configure TLS ingress, secret management, and at least one generic gateway deployment;
-- keep the registered gateway route list identical across execution workers and use PostgreSQL for shared circuit state;
-- run sustained load, soak, and production failover validation before declaring the installation production-ready.
-
-## Installation failures
-
-- A failing `/health/ready` with a reachable database usually means migrations
-  are pending; run the migration image `status` command.
-- A .NET SDK outside the `global.json` policy fails before compilation; install
-  a compatible .NET 10 SDK.
-- Do not work around a contract or regression failure by regenerating a golden
-  baseline without reviewing the behavioral change.
-
-Report reproducible non-security failures through the bug template. Report
-vulnerabilities privately according to [SECURITY.md](../SECURITY.md).
+Use the returned execution ID with `iroute get <id>` or follow the
+[client guide](client-usage.md). Common installation failures and operational
+checks are covered in [operations](operations.md).

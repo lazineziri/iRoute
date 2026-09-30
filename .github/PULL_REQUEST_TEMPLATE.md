@@ -5,7 +5,7 @@ Describe the problem, the chosen boundary, and the observable result.
 ## Evidence
 
 - [ ] Tests cover success and failure paths.
-- [ ] Relevant contract, deployment, regression, and SDK gates pass.
+- [ ] Relevant contract, architecture, behavior, package, and deployment gates pass.
 - [ ] Documentation and changelog are updated.
 
 List the exact commands and material results.
@@ -21,7 +21,7 @@ List the exact commands and material results.
 
 ## Review checklist
 
-- [ ] The dependency direction and provider boundary are preserved.
+- [ ] The six-project dependency graph, single Common contract boundary, and provider boundary are preserved.
 - [ ] No credentials, customer data, private advisories, or unredacted traces are included.
 - [ ] An issue or ADR is linked when required by `CONTRIBUTING.md`.
 - [ ] The change is focused and has a safe rollback path.

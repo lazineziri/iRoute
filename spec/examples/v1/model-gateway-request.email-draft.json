@@ -3,7 +3,7 @@
   "input": {
     "recipient": { "name": "Ada" },
     "projectName": "iRoute",
-    "objective": "Share the W09 gateway milestone."
+    "objective": "Share the provider-neutral gateway milestone."
   },
   "context": {
     "activeDecisions": ["Keep provider protocols outside Core and Runtime."]

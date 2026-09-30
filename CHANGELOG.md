@@ -7,30 +7,55 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Added `iRoute.Common`, `iRoute.Services`, `iRoute.Data`, `iRoute.Core`,
+  `iRoute.Runtime`, and `iRoute.Tests` as the complete six-project solution.
+- Added architecture tests for allowed project references and the single Common
+  contract boundary.
+- Added one unified non-root runtime image for `serve`, `worker`, `migrate`, and
+  client commands.
+- Added package, Compose, container-command, health, OpenAPI, and dashboard
+  smoke gates to CI.
+- Added package installation plus SQLite/PostgreSQL migration, API/worker task
+  completion, artifact read, SSE replay, idempotency, and tenant-denial smoke
+  gates shared by CI and release validation.
+- Added verified-tag NuGet OIDC publishing, multi-architecture GHCR publication
+  with provenance/SBOM, source archive, checksums, and GitHub release ordering.
+
 ### Changed
 
-- The active repository is now a strictly .NET codebase containing the runtime,
-  hosts, contracts, .NET SDK, CLI, migrations, and deployment assets.
-- The remaining projects are grouped into explicit Core, Application,
-  Infrastructure, Hosts, and Clients layers while preserving assembly and NuGet
-  identities.
-- Code within each project now follows feature folders, including separated
-  execution, routing, validation, endpoint, gateway, and persistence adapter
-  concerns; former catch-all runtime and infrastructure services were split.
-- CI and release publication now restore, build, pack, and analyze only .NET
-  projects; NuGet is the only supported language-package registry.
+- The active repository and `alpha.4` release line are strictly .NET-only.
+- All cross-project DTOs, interfaces, ports, options, enums, and primitives now
+  live in `iRoute.Common`; Services owns behavior, Data owns persistence, Core is
+  a small facade, and Runtime is the only executable/composition root.
+- Code follows feature folders inside its owning project instead of wrapper
+  `Application`, `Infrastructure`, `Hosts`, or `Clients` directories.
+- CI/CD now targets NuGet, GHCR, and GitHub Releases only.
 - Runtime time and delay handling now uses the BCL `TimeProvider`; host settings
-  use startup-validated options; known SDK, API, and gateway JSON boundaries use
+  use startup-validated options; known client, API, and gateway JSON boundaries use
   source-generated metadata; and immutable registries use frozen collections.
 - Central build policy now enforces recommended .NET analyzers, code-style
   analysis, warnings as errors, and repository-wide formatting conventions.
+- Current README, architecture, installation, client, operations, publishing,
+  release, compatibility, status, and product specification documentation now
+  describe the six-project system and unified image.
+
+### Fixed
+
+- Anchored the root build-artifact ignore rules so the legitimate
+  `iRoute.Common/Contracts/Artifacts` source folder is included in Git and the
+  Docker build context.
+- Included the Alpine Kerberos/GSSAPI runtime libraries required by the
+  PostgreSQL driver, eliminating native-library load errors in container logs.
 
 ### Removed
 
 - Removed the Node.js, Python, Java, PHP, and Rust SDK implementations, package
   manifests, examples, native CI jobs, and registry publishing jobs.
-- Removed the in-repository test projects, evaluation corpus, JavaScript tooling,
-  SDK examples, and Node dependency tree as part of the repository reset.
+- Removed the former project wrapper trees, redundant per-component container
+  targets, old SDK documentation folder, JavaScript tooling, and Node dependency
+  tree.
 
 ## [0.1.0-alpha.3] - 2026-08-18
 

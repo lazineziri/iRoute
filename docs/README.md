@@ -1,24 +1,37 @@
-# Documentation map
+# Documentation
 
-The canonical, reviewable project documentation is maintained as Markdown.
+The Markdown files in this directory describe the current .NET-only source tree.
+Historical release notes are preserved under `releases/`; they describe the
+repository as it existed at each tag and are not current architecture guidance.
+
+## Start here
+
+- [Installation](installation.md) — source, tool, and container setup
+- [Architecture](architecture.md) — six projects, allowed dependencies, and request flow
+- [Client and CLI usage](client-usage.md) — submitting, polling, streaming, approvals, and errors
+- [Operations](operations.md) — configuration, identity, storage, workers, gateways, telemetry, and rollback
+- [Project status](project-status.md) — implemented capabilities and known gaps
+
+## Contracts and compatibility
 
 - [Product and engineering specification](iRoute-Product-Engineering-Specification.md)
-- [Architecture](architecture.md)
-- [Modern .NET foundations decision](adr/ADR-005-modern-dotnet-foundations.md)
-- [Operations](operations.md)
-- [Clean installation](installation.md)
 - [Compatibility promise](compatibility.md)
 - [Contract versioning](contract-versioning.md)
-- [Release process](releasing.md)
-- [Public package publishing](package-publishing.md)
-- [0.1.0-alpha.1 release notes](releases/0.1.0-alpha.1.md)
 - [Version baseline](version-baseline.md)
-- [Workstream status](workstream-status.md)
-- [.NET SDK usage](sdk-usage.md)
-- [.NET client reference](../src/iRoute.Runtime/Documentation/CLIENT.md)
-- [Container and Kubernetes profiles](../deploy/README.md)
-- [Architecture decision records](adr/)
+- [OpenAPI](../spec/openapi/iroute.v1.yaml)
+- [JSON Schemas](../spec/schemas)
+- [SSE event contract](../spec/events/sse-v1.md)
+- [Error taxonomy](../spec/errors/error-taxonomy.v1.md)
 
-Public protocol definitions live under [`spec/`](../spec/), including OpenAPI,
-JSON Schema, event framing, error taxonomy, examples, and the v1 compatibility
-snapshot.
+## Delivery
+
+- [Deployment profiles](../deploy/README.md)
+- [Package publishing](package-publishing.md)
+- [Release procedure](releasing.md)
+- [Release notes](releases)
+
+## Decisions
+
+Accepted architectural decisions live under [`adr/`](adr/). If an ADR and a
+current guide appear to conflict, open an issue: implementation, current guide,
+and accepted decision should converge rather than creating a second convention.

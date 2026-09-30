@@ -1,104 +1,77 @@
-# Release process
+# Releasing
 
-Releases are immutable, version-aligned, and built from reviewed commits. The
-canonical release metadata is [release.json](../release.json); package manifests,
-container labels, Kubernetes tags, changelog entries, and release notes must
-agree with it.
+One workflow owns package verification and publication:
+`.github/workflows/release.yml`.
 
-## Release artifacts
+Manual dispatch is a dry run: it validates metadata, formatting, build, tests,
+five packages, source archive, release notes, checksums, and the runtime image
+with SQLite and PostgreSQL migrations and API/worker execution. A verified
+annotated tag additionally publishes NuGet and GHCR, then
+creates the GitHub prerelease only after both registries succeed.
 
-The prerelease builder produces:
+## Before tagging
 
-- source archive;
-- `iRoute.Common`, `iRoute.Services`, `iRoute.Data`, and `iRoute.Core` NuGet packages;
-- the `iRoute` .NET tool package containing the complete runtime and CLI;
-- release notes;
-- `SHA256SUMS` covering every distributed file.
+1. Start from clean `main` and pull the latest origin.
+2. Choose a SemVer version. Update `release.json` and all five production
+   `.csproj` files to the same value, and set `releaseDate` to the intended UTC
+   release date.
+3. Add `docs/releases/<version>.md` and point `release.json.releaseNotes` to it.
+4. Update `CHANGELOG.md`, `README.md`, deployment image references, and version
+   baseline.
+5. Run locally:
 
-The repository supports the .NET SDK only. NuGet publication is a separate,
-explicit maintainer action after the GitHub release artifacts are verified.
+   ```bash
+   dotnet restore iRoute.slnx
+   dotnet format iRoute.slnx --verify-no-changes --severity warn --no-restore
+   dotnet build iRoute.slnx --configuration Release --no-restore
+   dotnet test --solution iRoute.slnx --configuration Release --no-build
+   dotnet pack iRoute.slnx --configuration Release --no-build --output artifacts/release
+   docker compose -f deploy/compose.sqlite.yaml config --quiet
+   docker compose -f deploy/compose.yaml config --quiet
+   docker build --file deploy/Dockerfile --target runtime --tag iroute:release-check .
+   docker run --rm iroute:release-check help
+   ```
 
-Container images are built from the same commit using the `api`, `worker`, and
-`migrate` Dockerfile targets. Operators must publish immutable tags to their
-controlled registry and replace the registry placeholders in the Kubernetes
-reference before production use.
-
-## Prepare
-
-1. Choose a SemVer version and channel. Update `release.json` first.
-2. Align every package version and immutable image tag.
-3. Move user-visible `Unreleased` entries into the versioned changelog section.
-4. Add `docs/releases/<version>.md` with capabilities, known limits, upgrade,
-   rollback, and checksum guidance.
-5. Run dependency, secret, license, contract, migration, and compatibility
-   review. Resolve every unexplained change.
-6. Confirm the security advisory channel is enabled and a maintainer can receive
-   private reports.
-7. Confirm the release notes explicitly identify the experimental alpha status,
-   expected breaking changes, absence of production/security-response SLAs,
-   reference-connector limitations, unvalidated provider measurements, and the
-   self-hoster security/operations boundary.
-8. Prove `DevelopmentHeaders` fails startup outside Development and that every
-   production-shaped manifest defaults to JWT.
-
-## Verify from a clean checkout
-
-Run the full installation path in [installation.md](installation.md), then pack
-the supported .NET artifacts into a new empty directory:
-
-```bash
-dotnet restore iRoute.slnx
-dotnet build iRoute.slnx --configuration Release --no-restore
-dotnet pack src/iRoute.Common --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/iRoute.Services --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/iRoute.Data --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/iRoute.Core --configuration Release --no-restore --output /tmp/iroute-release
-dotnet pack src/iRoute.Runtime --configuration Release --no-restore --output /tmp/iroute-release
-```
-
-Inspect the packages and verify every line in the workflow-produced
-`SHA256SUMS`. Build the
-three Docker targets, run the SQLite container smoke test, render the Kubernetes
-base with `kubectl kustomize`, and test the PostgreSQL migration/rollback path
-against a disposable database.
-
-No release may proceed with a dirty worktree, a failing required check, a
-tracked credential/reference document, an unexplained compatibility snapshot
-change, a floating image tag, or an unreviewed migration.
+6. Push the release-preparation commit and wait for `ci`, `codeql`, and
+   `secret-scan` to succeed.
+7. Manually dispatch `release` on that commit and confirm `verify-release` and
+   `verify-container` pass.
 
 ## Tag and publish
 
-1. Merge the release commit to the default branch.
-2. Create a signed annotated tag `v<version>` on that exact commit.
-3. Push the commit and tag. The tag-triggered `release.yml` workflow reruns the
-   release gate and artifact build.
-4. The workflow creates a GitHub prerelease from the checked release notes and
-   attaches the checksummed artifacts. It never publishes on a manual dry run.
-5. Download the published assets, recompute SHA-256 digests independently, and
-   compare them with `SHA256SUMS`.
-6. Publish immutable container and NuGet packages only after the
-   GitHub artifacts are verified. Record their digests in the release notes or
-   an attestation before announcing availability.
+Create a signed annotated tag on the verified commit:
 
-Never move or recreate a published tag. If a release is incorrect, preserve it,
-mark it superseded when necessary, and publish a new patch/prerelease version.
+```bash
+git tag --sign v0.1.0-alpha.4 --message 'iRoute 0.1.0-alpha.4'
+git push origin v0.1.0-alpha.4
+```
 
-## Post-release
+The workflow rejects a lightweight tag, a GitHub-unverified signature, a tag
+that does not match `release.json`, missing release notes, formatting drift,
+test failure, package count/name mismatch, or a failed container build.
 
-- Verify the documented clean install using only published source/assets.
-- Verify API liveness/readiness, one deterministic execution, SSE replay, and
-  observability.
-- Confirm the changelog and support table identify the released version.
-- Open the next `Unreleased` section and record follow-up issues.
-- Monitor private security advisories and installation reports.
+Approve the `nuget` environment deployment after reviewing the tag and package
+artifact. The workflow then:
 
-## Rollback and failed publication
+1. publishes five NuGet packages with an OIDC-issued short-lived key;
+2. publishes the multi-architecture `ghcr.io/lazineziri/iroute` image with
+   version/channel tags, provenance, and SBOM;
+3. creates the GitHub prerelease with NuGet files, source archive, and
+   `SHA256SUMS`.
 
-Before a GitHub release is public, stop the workflow, delete incomplete draft
-artifacts, fix the release commit, and use a new tag. After publication, do not
-replace assets under the same version. Publish a correcting version and follow
-the application-first rollback procedure in [operations.md](operations.md).
+The GitHub release is deliberately last, so it never advertises a release whose
+registry publication failed.
 
-A registry artifact whose checksum does not match is treated as a supply-chain
-incident: stop distribution, preserve evidence, rotate affected credentials,
-and use the private security process.
+## Verification after publication
+
+- Install the exact tool version from NuGet and run `iroute help`.
+- Pull the exact GHCR version by digest and run `help`, `migrate help`, and a
+  SQLite API health/dashboard smoke test.
+- Verify all five package versions and dependency metadata on NuGet.
+- Download release assets and run `sha256sum --check SHA256SUMS` from the asset
+  directory.
+- Confirm the GitHub Actions run, image provenance, and SBOM are visible.
+
+Do not move or recreate the signed version tag. If publication is wrong, keep
+the release immutable, document the issue, fix forward with a new version, and
+deprecate the affected package version in its registry where appropriate.

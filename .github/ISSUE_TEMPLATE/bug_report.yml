@@ -12,7 +12,7 @@ body:
     attributes:
       label: iRoute version
       description: Use a tag or full commit SHA.
-      placeholder: 0.1.0-alpha.1
+      placeholder: 0.1.0-alpha.4 or full commit SHA
     validations:
       required: true
   - type: dropdown
@@ -24,7 +24,7 @@ body:
         - SQLite container
         - PostgreSQL Compose
         - Kubernetes
-        - SDK or CLI only
+        - Runtime or CLI only
         - Other
     validations:
       required: true
@@ -32,7 +32,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: OS, architecture, .NET/Node version, and storage provider as relevant.
+      description: OS, architecture, .NET SDK/runtime version, and storage provider as relevant.
     validations:
       required: true
   - type: textarea

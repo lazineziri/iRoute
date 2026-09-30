@@ -4,7 +4,7 @@
   "idempotencyKey": "email-send-example-001",
   "input": {
     "to": "ada@example.com",
-    "subject": "iRoute W04 approval flow",
+    "subject": "iRoute approval flow",
     "body": "The policy-controlled external action is ready for review."
   },
   "constraints": {

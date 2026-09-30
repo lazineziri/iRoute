@@ -1,112 +1,99 @@
 # Contributing to iRoute
 
-Thank you for helping improve iRoute. Contributions should preserve the central
-constraint: improve validated task completion without adding unjustified model
-calls, context, latency, cost, permissions, or infrastructure.
+Contributions should improve validated task completion without adding
+unjustified model calls, context, latency, cost, permissions, or infrastructure.
+By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
-By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). For
-security vulnerabilities, follow [SECURITY.md](SECURITY.md) instead of opening a
-public issue.
+## Before changing code
 
-## Before opening a change
-
-- Search existing issues and pull requests.
-- Use a discussion or feature request for a design that changes public behavior.
-- Open a security advisory for a suspected vulnerability.
+- Search issues and pull requests.
+- Open an issue first for public-contract, persistence, security, architecture,
+  routing-policy, or externally visible behavior changes.
 - Keep one pull request focused on one coherent outcome.
+- Read [architecture](docs/architecture.md) and the relevant accepted ADR.
 
-Small bug fixes and documentation corrections can go directly to a pull
-request. Open an issue first for public-contract, persistence, security,
-architecture, routing-policy, or externally visible behavior changes.
-
-## Development setup
-
-The canonical clean setup is documented in [docs/installation.md](docs/installation.md).
-For the standard development loop:
+## Development loop
 
 ```bash
 dotnet restore iRoute.slnx
-dotnet build iRoute.slnx --no-restore
+dotnet format iRoute.slnx --verify-no-changes --severity warn --no-restore
+dotnet build iRoute.slnx --configuration Release --no-restore
+dotnet test --solution iRoute.slnx --configuration Release --no-build
+dotnet pack iRoute.slnx --configuration Release --no-build --output artifacts/packages
 ```
 
-CI restores and builds the complete supported .NET runtime and client surface.
+Container/deployment changes also run:
 
-## Architecture rules
+```bash
+docker compose -f deploy/compose.sqlite.yaml config --quiet
+docker compose -f deploy/compose.yaml config --quiet
+docker build --file deploy/Dockerfile --target runtime --tag iroute:check .
+docker run --rm iroute:check help
+```
 
-Read [docs/architecture.md](docs/architecture.md) before changing runtime code.
-`Runtime` and `Infrastructure` are sibling layers over `Contracts` and `Core`.
-Only hosts may compose both layers. The .NET SDK depends only on public
-contracts, and the CLI depends on the SDK.
+## Six-project rule
 
-- Update OpenAPI and JSON Schemas before changing .NET SDK wire behavior.
-- Keep provider-specific protocols behind the generic model gateway.
-- Keep transport and persistence concerns out of Core.
-- Follow the `layer/project/feature` source layout and do not add unrelated
-  logic to a project root or catch-all services file.
-- Treat connector responses as untrusted until projected and validated.
-- Preserve tenant scoping at every persistence and query boundary.
-- Add an ADR for a durable architectural or product-boundary decision.
+Do not add wrapper layer directories or another production project without an
+accepted architecture decision.
 
-## Compatibility and versioning
+- Common: all cross-project contracts, DTOs, interfaces, ports, options, enums,
+  and shared primitives; no implementations.
+- Services: routing, policy, execution, capability, gateway, and validation behavior.
+- Data: EF Core, entities, stores, migrations, leases, and persistence behavior.
+- Core: the small stable execution facade; no general business-logic dumping ground.
+- Runtime: the only executable/composition root, including API, worker,
+  migration, client, CLI, identity, and telemetry hosting.
+- Tests: architecture and behavior verification.
 
-The compatibility promise is defined in [docs/compatibility.md](docs/compatibility.md)
-and enforced against the v1 snapshot. In short:
+Services, Data, and Core reference only Common. Runtime references those four.
+Tests may reference all five production projects. Architecture tests enforce the
+graph and the single contract assembly.
 
-- Compatible additions remain optional.
-- Removal, renaming, type changes, stronger validation, or changed meaning are
-  breaking.
-- Breaking HTTP changes require a new API major and migration guide.
-- Stored task, capability, policy, and artifact semantics are versioned even
-  when their JSON shape does not change.
-- Never edit an established compatibility snapshot to make a breaking change
-  appear compatible.
+Keep provider-specific protocols behind the generic gateway, database entities
+inside Data, and HTTP/DI concerns inside Runtime. Organize by cohesive feature;
+split large responsibilities rather than hiding them in catch-all files or
+arbitrary partial classes.
 
-Every user-visible change adds an entry under `Unreleased` in
-[CHANGELOG.md](CHANGELOG.md). Maintainers assign the release version.
+## Contracts and compatibility
 
-## Verification expected by change type
+The public source of truth is `spec/`; Common is its .NET representation.
+Compatible `v1` additions remain optional. Removals, renames, narrowed values,
+stronger requirements, or changed meaning are breaking and require a new major
+contract. Never edit a compatibility snapshot just to silence a regression.
+
+Public changes update the implementation, OpenAPI/schema material, snapshot,
+tests, documentation, and `CHANGELOG.md` together. Stored-state changes include
+an additive migration and explicit upgrade/rollback evidence.
+
+## Evidence by change type
 
 | Change | Minimum evidence |
 |---|---|
-| Core/runtime behavior | Successful strict .NET build and focused review evidence |
-| Public HTTP or event contract | Updated OpenAPI and JSON Schema definitions |
-| Routing or model profile | Documented evaluation evidence |
-| Persistence or migration | Reviewed SQLite/PostgreSQL migration evidence |
-| .NET SDK or CLI | Successful .NET build and protocol review |
-| Container or Kubernetes | Successful image builds and manifest review |
-| Security boundary | Threat explanation and adversarial review in the pull request |
-
-Verification evidence must cover the failure path as well as the intended path.
-Do not change a published contract snapshot merely to silence a regression
-without explaining the compatibility impact.
+| Common/public contract | focused tests plus OpenAPI/schema/snapshot review |
+| Services/Core behavior | success, failure, cancellation, and deadline tests |
+| Data/migration | SQLite and PostgreSQL reasoning/tests plus rollback impact |
+| Runtime/API/identity | endpoint/startup validation and negative authorization tests |
+| CLI/client | protocol and failure behavior tests |
+| Container/Kubernetes | image build, command smoke test, and manifest validation |
+| Security boundary | threat explanation and adversarial negative tests |
+| Routing/model profile | measured or explicitly synthetic evaluation evidence |
 
 ## Pull requests
 
-Use the pull request template. A reviewable pull request:
+Use the template and list exact commands/results. Call out contract, migration,
+security, privacy, telemetry, cost, latency, provider, and rollback impact.
+Conventional Commit subjects are preferred, for example `feat(services): ...`,
+`fix(data): ...`, or `docs(operations): ...`.
 
-1. Explains the problem and the chosen boundary.
-2. Links its issue or ADR when required.
-3. Includes proportional verification evidence and documentation in the same change.
-4. Calls out public-contract, migration, security, privacy, cost, and rollback
-   impact explicitly.
-5. Passes the strict build, packaging, container, dependency-review,
-   secret-scanning, and other gates that apply.
-
-Use Conventional Commit subjects such as `feat(runtime): ...`, `fix(sdk): ...`,
-or `docs(operations): ...`. Maintainers may squash a pull request while
-preserving a thoughtful subject and body.
+Maintainers merge after applicable `required`, CodeQL, secret-scan, and review
+gates pass. They may request an ADR, split an oversized change, or reject a
+change that weakens tenant isolation, compatibility, safety, or project
+boundaries.
 
 ## Contribution terms
 
-Contributions are accepted under Apache-2.0 as described by section 5 of the
-[license](LICENSE). By submitting a contribution, you represent that you have
-the right to do so and that it is not confidential or encumbered by incompatible
-terms. Do not submit customer data, credentials, proprietary evaluation data,
-or code copied from a source whose license is incompatible with Apache-2.0.
-
-## Review and decisions
-
-Maintainers merge changes after required checks and review are complete. A
-maintainer may request an ADR, split an oversized change, or reject a change
-that weakens safety, compatibility, isolation, or the project boundary. Project
-roles and escalation are described in [GOVERNANCE.md](GOVERNANCE.md).
+Contributions are accepted under Apache-2.0 section 5. Do not submit customer
+data, credentials, proprietary evaluation data, private advisories, or code with
+an incompatible license. Governance and escalation are described in
+[GOVERNANCE.md](GOVERNANCE.md).

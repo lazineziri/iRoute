@@ -1,21 +1,28 @@
-# Public contract versioning
+# Contract versioning
 
-The adopter-facing support window, SDK, stored-state, configuration, and
-deployment guarantees are defined in [compatibility.md](compatibility.md).
+The public `v1` contract is the OpenAPI document, JSON Schemas, SSE event rules,
+and error taxonomy under `spec/`. `iRoute.Common` is the matching .NET contract
+assembly; it must not define a second wire shape.
 
-OpenAPI 3.1 and JSON Schema 2020-12 under `spec/` are the language-neutral public contract. The current public API major is `v1`; task definitions, capabilities, plans, and artifacts carry their own integer versions.
+## Compatible `v1` changes
 
-## Compatibility rules
+- Add an optional request or response property with a safe default.
+- Add an event type or error code that consumers may ignore or surface.
+- Add an endpoint without changing existing endpoint behavior.
+- Relax a validation rule without weakening tenant, permission, or safety boundaries.
 
-- Removing or renaming an endpoint, field, event, status, error code, or enum member is breaking.
-- Changing a field type, meaning, format, default, validation range, or optional field to required is breaking.
-- A breaking transport change requires `/v2`, a new schema identifier path, and a migration guide. The v1 contract remains supported for the documented compatibility window.
-- Adding an optional field is compatible. Additive fields remain optional until the official .NET SDK mapping has been reviewed.
-- New event types, error codes, and enum values may be added in v1. Consumers must ignore unknown events and fields and surface unknown status/error values safely.
-- A task or capability behavior change that would reinterpret stored state requires a new task or capability version even when the wire shape is unchanged.
-- Schema identifiers are immutable. A correction that narrows accepted v1 input is breaking unless it closes a documented security vulnerability.
-- Deprecation is documented before removal and does not silently change runtime behavior.
+## Breaking changes
 
-## Automated gate
+- Remove or rename an endpoint, field, event, enum value, or error code.
+- Make an optional field required or narrow a previously valid value range.
+- Change the meaning, identity scope, ordering, or terminal semantics of a field.
+- Reuse a persisted discriminator for a different concept.
 
-Review the current OpenAPI and JSON Schema surface against `spec/compatibility/v1/public-contract.snapshot.json`. The baseline records v1 operations, required fields, existing properties, event types, status values, resolution levels, and error codes. An intentional breaking change must introduce a new major baseline instead of editing the v1 snapshot in place.
+Breaking wire changes require a new API major and a new compatibility snapshot.
+Do not edit the `v1` snapshot to make an accidental break appear compatible.
+
+Stored-state migrations follow expand-and-contract rules: new code expands the
+schema additively, overlapping application versions can read it, and destructive
+contraction happens only after the compatibility window. Package versions use
+Semantic Versioning; prerelease versions may still introduce source-breaking
+changes when release notes and migration guidance state them explicitly.

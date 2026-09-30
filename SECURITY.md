@@ -37,8 +37,9 @@ severity and exploitability.
 
 | Version | Security fixes |
 |---|---|
-| `0.1.0-alpha.3` | Current prerelease; best-effort fixes |
-| Earlier commits and untagged builds | Not supported |
+| `0.1.0-alpha.3` | Latest tagged prerelease; best-effort fixes |
+| `0.1.0-alpha.4` development snapshots | Testing only; not a released support target |
+| Earlier releases and untagged builds | Not supported |
 
 Until a stable release, only the latest tagged prerelease receives security
 fixes. Upgrading may require following the documented migration procedure.
