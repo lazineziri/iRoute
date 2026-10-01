@@ -26,8 +26,10 @@ runs:
         volume="${container}-data"
         task_dir="$(mktemp -d)"
         cleanup() {
-          docker logs "${container}" 2>/dev/null || true
-          docker logs "${worker}" 2>/dev/null || true
+          docker inspect --format '{{json .State}}' "${container}" "${worker}" 2>/dev/null || true
+          docker stats --no-stream --format '{{.Name}} CPU={{.CPUPerc}} memory={{.MemUsage}}' "${container}" "${worker}" 2>/dev/null || true
+          docker logs --timestamps "${container}" 2>/dev/null || true
+          docker logs --timestamps "${worker}" 2>/dev/null || true
           docker rm --force "${container}" "${worker}" 2>/dev/null || true
           docker volume rm "${volume}" 2>/dev/null || true
           rm -rf "${task_dir}"

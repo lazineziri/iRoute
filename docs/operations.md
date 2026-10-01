@@ -39,6 +39,9 @@ the iRoute per-user data directory. Use an absolute path or mounted
 PostgreSQL is required for multiple API/worker replicas. Set
 `Storage__AutoInitialize=false` and run the migration command as a deployment
 step. Every process must use the same database and configuration policy.
+Startup initializes the EF model and opens the database connection before
+background workers start. `AutoInitialize=false` disables automatic migrations,
+not the startup connectivity check; an unavailable database fails startup.
 
 ### Identity
 
