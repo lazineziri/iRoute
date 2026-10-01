@@ -1,13 +1,14 @@
 using iRoute.Common;
 using iRoute.Core;
-using iRoute.Services;
 using Microsoft.Extensions.Options;
+
+using static iRoute.Runtime.Api.ExecutionEndpointSupport;
 
 namespace iRoute.Runtime.Api;
 
-public static partial class ExecutionEndpoints
+internal static class ApprovalEndpoints
 {
-    private static async Task<IResult> SubmitApprovalAsync(
+    internal static async Task<IResult> SubmitApprovalAsync(
         Guid executionId,
         ApprovalDecision decision,
         HttpRequest request,

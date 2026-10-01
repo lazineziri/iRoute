@@ -2,33 +2,11 @@ using iRoute.Common;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class ProjectStateExecutionService(
+    ProjectMemoryMaterializer projectMemory,
+    ExecutionPersistenceService persistence)
 {
-    private static Problem CapabilityProblem(CapabilityInvocationException exception)
-    {
-        var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["capabilityFailureKind"] = exception.FailureKind.ToString()
-        };
-        if (!string.IsNullOrWhiteSpace(exception.Capability))
-        {
-            metadata["capability"] = exception.Capability;
-        }
-
-        if (!string.IsNullOrWhiteSpace(exception.ConnectorId))
-        {
-            metadata["connectorId"] = exception.ConnectorId;
-        }
-
-        return new Problem(
-            exception.Code,
-            "Capability invocation failed",
-            exception.Message,
-            exception.Retryable,
-            metadata);
-    }
-
-    private async Task<IReadOnlyList<MemoryRecord>> MaterializeProjectMemoryAsync(
+    internal async Task<IReadOnlyList<MemoryRecord>> MaterializeProjectMemoryAsync(
         ExecutionSnapshot snapshot,
         TaskRequest request,
         CancellationToken cancellationToken)
@@ -41,7 +19,7 @@ public sealed partial class ExecutionService
         {
             if (result.Write.Created)
             {
-                await AppendEventAsync(
+                await persistence.AppendEventAsync(
                     snapshot.ExecutionId,
                     ExecutionEventTypes.MemoryMaterialized,
                     new
@@ -58,7 +36,7 @@ public sealed partial class ExecutionService
 
             if (result.Write.Previous is not null)
             {
-                await AppendEventAsync(
+                await persistence.AppendEventAsync(
                     snapshot.ExecutionId,
                     ExecutionEventTypes.MemorySuperseded,
                     new
@@ -74,7 +52,7 @@ public sealed partial class ExecutionService
 
             if (result.InvalidatedMemory.MemoryIds.Count > 0)
             {
-                await AppendEventAsync(
+                await persistence.AppendEventAsync(
                     snapshot.ExecutionId,
                     ExecutionEventTypes.MemoryInvalidated,
                     new
@@ -88,7 +66,7 @@ public sealed partial class ExecutionService
 
             if (result.InvalidatedArtifacts.ArtifactIds.Count > 0)
             {
-                await AppendEventAsync(
+                await persistence.AppendEventAsync(
                     snapshot.ExecutionId,
                     ExecutionEventTypes.ArtifactInvalidated,
                     new
@@ -103,5 +81,4 @@ public sealed partial class ExecutionService
 
         return results.Select(result => result.Write.Record).ToArray();
     }
-
 }

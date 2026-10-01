@@ -59,7 +59,8 @@ public sealed record ArtifactRecord(
     Guid? SupersededByArtifactId = null,
     IReadOnlyList<DependencyReference>? Dependencies = null,
     DateTimeOffset? InvalidatedAt = null,
-    string? InvalidationReason = null)
+    string? InvalidationReason = null,
+    decimal? Confidence = null)
 {
     public string EffectiveLogicalKey =>
         string.IsNullOrWhiteSpace(LogicalKey) ? TaskType : LogicalKey.Trim();
@@ -85,5 +86,6 @@ public sealed record ArtifactRecord(
         SupersededByArtifactId,
         EffectiveDependencies,
         InvalidatedAt,
-        InvalidationReason);
+        InvalidationReason,
+        Confidence);
 }

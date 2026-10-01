@@ -3,9 +3,13 @@ using iRoute.Common;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class ExternalActionExecutionService(
+    IExternalActionStore externalActions,
+    IExternalActionExecutor externalActionExecutor,
+    TimeProvider clock,
+    ExecutionPersistenceService persistence)
 {
-    private async Task<ModelGatewayResult> ExecuteExternalActionAsync(
+    internal async Task<ModelGatewayResult> ExecuteExternalActionAsync(
         ExecutionSnapshot snapshot,
         TaskRequest request,
         ExecutionPlanStep step,
@@ -37,7 +41,7 @@ public sealed partial class ExecutionService
                     ErrorCodes.ExternalActionFailed,
                     "External action result missing",
                     "The completed external action has no durable result.");
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.ExternalActionReused,
                 new
@@ -79,7 +83,7 @@ public sealed partial class ExecutionService
             throw new ExternalActionExecutionException(code, title, detail, retryable);
         }
 
-        await AppendEventAsync(
+        await persistence.AppendEventAsync(
             snapshot.ExecutionId,
             ExecutionEventTypes.ExternalActionStarted,
             new
@@ -119,7 +123,7 @@ public sealed partial class ExecutionService
                 result,
                 clock.GetUtcNow(),
                 CancellationToken.None);
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.ExternalActionCompleted,
                 new
@@ -140,7 +144,7 @@ public sealed partial class ExecutionService
         }
         catch (OperationCanceledException)
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.ExternalActionFailed,
                 new
@@ -167,7 +171,7 @@ public sealed partial class ExecutionService
                 problem,
                 clock.GetUtcNow(),
                 CancellationToken.None);
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.ExternalActionFailed,
                 new
@@ -187,129 +191,4 @@ public sealed partial class ExecutionService
                 innerException: exception);
         }
     }
-
-    private async Task<ApprovalRecord> CreateApprovalAsync(
-        ExecutionSnapshot snapshot,
-        TaskRequest request,
-        ExecutionPlan plan,
-        PolicyEvaluation policy,
-        CancellationToken cancellationToken)
-    {
-        var step = plan.Steps.LastOrDefault(item =>
-            string.Equals(item.Capability, policy.Capability, StringComparison.Ordinal) &&
-            item.SideEffectClass == policy.SideEffectClass)
-            ?? throw new InvalidExecutionPlanException(
-            [
-                new ExecutionPlanValidationIssue(
-                    "approval_action_missing",
-                    "steps",
-                    "The policy-selected approval action does not exist in the execution plan.")
-            ]);
-        var approval = new ApprovalRecord(
-            snapshot.ExecutionId,
-            snapshot.TenantId,
-            step.Id,
-            ApprovalStatus.Pending,
-            step.Capability,
-            step.SideEffectClass,
-            policy.RequiredPermissionScopes,
-            snapshot.ActorId,
-            null,
-            CanonicalJson.Hash(request.Input),
-            PolicyReferences.CreateActionIdempotencyReference(
-                snapshot.TenantId,
-                request.IdempotencyKey!,
-                step.Id,
-                step.Capability),
-            clock.GetUtcNow());
-        return await approvals.CreatePendingAsync(approval, cancellationToken);
-    }
-
-    private async Task AppendPolicyEventAsync(
-        ExecutionSnapshot snapshot,
-        PolicyEvaluation policy,
-        CancellationToken cancellationToken,
-        string? actorId = null)
-    {
-        var data = new
-        {
-            policyVersion = policy.PolicyVersion,
-            decision = policy.Decision,
-            capability = policy.Capability,
-            sideEffectClass = policy.SideEffectClass,
-            requiredPermissionScopes = policy.RequiredPermissionScopes,
-            missingPermissionScopes = policy.MissingPermissionScopes,
-            code = policy.Code,
-            actorId = actorId ?? snapshot.ActorId,
-            tenantId = snapshot.TenantId,
-            projectId = snapshot.ProjectId
-        };
-        await AppendEventAsync(
-            snapshot.ExecutionId,
-            ExecutionEventTypes.PolicyEvaluated,
-            data,
-            cancellationToken);
-        if (policy.Decision == PolicyDecisionKind.Denied)
-        {
-            await AppendEventAsync(
-                snapshot.ExecutionId,
-                ExecutionEventTypes.CapabilityDenied,
-                data,
-                cancellationToken);
-        }
-    }
-
-    private async Task<ExecutionSnapshot> HandleResumedFailureAsync(
-        ExecutionSnapshot snapshot,
-        Exception exception,
-        bool timedOut)
-    {
-        var (status, problem) = exception switch
-        {
-            OperationCanceledException when timedOut => (
-                ExecutionStatus.TimedOut,
-                new Problem(ErrorCodes.ExecutionTimedOut, "Execution timed out", "The execution exceeded its deadline.", true)),
-            OperationCanceledException => (
-                ExecutionStatus.Cancelled,
-                new Problem(ErrorCodes.ExecutionCancelled, "Execution cancelled", "The execution was cancelled.")),
-            TaskExecutionException task => (
-                ExecutionStatus.Failed,
-                new Problem(task.Code, task.Title, task.Message, task.Retryable)),
-            ContextCompilationException context => (
-                ExecutionStatus.Failed,
-                new Problem(context.Code, context.Title, context.Message)),
-            RoutingException routing => (
-                ExecutionStatus.Failed,
-                new Problem(routing.Code, routing.Title, routing.Message)),
-            ExternalActionExecutionException action => (
-                ExecutionStatus.Failed,
-                new Problem(action.Code, action.Title, action.Message, action.Retryable)),
-            CapabilityInvocationException capability => (
-                ExecutionStatus.Failed,
-                CapabilityProblem(capability)),
-            WorkflowStepTimedOutException step => (
-                ExecutionStatus.TimedOut,
-                new Problem(
-                    ErrorCodes.WorkflowStepTimedOut,
-                    "Workflow step timed out",
-                    step.Message,
-                    true,
-                    new Dictionary<string, string> { ["stepId"] = step.StepId })),
-            WorkflowStepExecutionException step => (
-                ExecutionStatus.Failed,
-                new Problem(
-                    ErrorCodes.WorkflowStepFailed,
-                    "Workflow step failed",
-                    step.Message,
-                    Metadata: new Dictionary<string, string> { ["stepId"] = step.StepId })),
-            ModelGatewayException gateway => (
-                ExecutionStatus.Failed,
-                new Problem(gateway.Code, "Model gateway failed", gateway.Message, gateway.Retryable)),
-            _ => (
-                ExecutionStatus.Failed,
-                new Problem(ErrorCodes.ExecutionFailed, "Execution failed", exception.Message))
-        };
-        return await TerminalAsync(snapshot, status, problem, CancellationToken.None);
-    }
-
 }

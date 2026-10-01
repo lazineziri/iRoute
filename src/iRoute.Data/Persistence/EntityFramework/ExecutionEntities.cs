@@ -82,6 +82,7 @@ public sealed class WorkflowStepEntity
 
 public sealed class ArtifactEntity
 {
+    public decimal? Confidence { get; set; }
     public Guid ArtifactId { get; set; }
     public string TenantId { get; set; } = null!;
     public string ProjectId { get; set; } = string.Empty;

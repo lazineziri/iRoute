@@ -42,6 +42,7 @@ Errors use a stable lowercase `snake_case` code. HTTP boundary failures use RFC 
 | `model_gateway_http_error` | execution | classified | The gateway returned a non-success HTTP status. |
 | `model_gateway_invalid_response` | execution | no | The gateway returned an invalid result, usage envelope, stream event, sequence, or completion boundary. |
 | `model_gateway_exhausted` | execution | no | No registered deployment remained eligible after deterministic policy, circuit, deadline, cost, and attempt-budget evaluation. |
+| `tenant_quota_exceeded` | execution | yes | Durable tenant admission refused a provider attempt. Retry after the indicated window; unknown usage remains reserved and provider fallback cannot bypass the limit. |
 
 `model_gateway_http_error` is classified as `InvalidRequest`, `Authentication`,
 `RateLimited`, `Timeout`, `Unavailable`, or `Internal`. Provider-resilience

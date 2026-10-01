@@ -144,19 +144,7 @@ public sealed class EfExecutionStore(
                     requestedAt.ToUnixTimeMilliseconds()),
                 cancellationToken);
 
-        if (written > 0)
-        {
-            return true;
-        }
-
-        // Nothing was written: the execution is missing, already terminal, or already cancelled.
-        var status = await context.Executions
-            .AsNoTracking()
-            .Where(x => x.ExecutionId == executionId)
-            .Select(x => (ExecutionStatus?)x.Status)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return status is not null && !ExecutionStatusFacts.IsTerminal(status.Value);
+        return written > 0;
     }
 
     public async IAsyncEnumerable<ExecutionEvent> ReadEventsAsync(

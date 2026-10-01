@@ -27,6 +27,8 @@ public sealed class InMemoryMemoryStore(LifecyclePolicy? lifecyclePolicy = null)
                 .ThenByDescending(item => item.MemoryId)
                 .ToArray();
             var active = lineage.FirstOrDefault(item => item.LifecycleStatus == MemoryLifecycleStatus.Active);
+            if (lineage.FirstOrDefault() is { } latest && MemorySourceOrdering.CannotReplace(record.Value, latest.Value))
+                return Task.FromResult(new MemoryWriteResult(latest, null, false));
             if (active is not null &&
                 string.Equals(active.ContentHash, record.ContentHash, StringComparison.Ordinal) &&
                 (active.ExpiresAt is null || active.ExpiresAt > record.CreatedAt))

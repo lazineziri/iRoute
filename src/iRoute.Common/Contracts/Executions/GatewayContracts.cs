@@ -14,7 +14,8 @@ public sealed record ModelGatewayRequest(
     decimal? MaximumCost = null,
     IReadOnlyList<string>? AllowedRegions = null,
     string? RequiredResidency = null,
-    int? MaximumAttempts = null);
+    int? MaximumAttempts = null,
+    string TenantId = "local");
 
 public sealed record ModelGatewayResult(
     JsonElement Output,
@@ -94,4 +95,7 @@ public sealed record UsageSummary(
     decimal Cost = 0,
     long DurationMilliseconds = 0,
     int ModelCalls = 0,
-    int ToolCalls = 0);
+    int ToolCalls = 0,
+    bool CostKnown = true,
+    int? CachedInputTokens = null,
+    int? ReasoningTokens = null);

@@ -109,16 +109,12 @@ public sealed class InMemoryExecutionStore : IExecutionStore
         lock (_statusGate)
         {
             if (!_executions.TryGetValue(executionId, out var current) ||
-                ExecutionStatusFacts.IsTerminal(current.Status))
+                ExecutionStatusFacts.IsTerminal(current.Status) || current.CancellationRequestedAt is not null)
             {
                 return Task.FromResult(false);
             }
 
-            if (current.CancellationRequestedAt is null)
-            {
-                _executions[executionId] = current with { CancellationRequestedAt = requestedAt };
-            }
-
+            _executions[executionId] = current with { CancellationRequestedAt = requestedAt };
             return Task.FromResult(true);
         }
     }

@@ -15,12 +15,19 @@ internal static class ApiHost
 {
     public static async Task RunAsync(string[] args)
     {
+        await using var app = Create(args);
+        await app.RunAsync();
+    }
+
+    internal static WebApplication Create(string[] args, Action<WebApplicationBuilder>? configure = null)
+    {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
             ContentRootPath = AppContext.BaseDirectory,
             WebRootPath = "wwwroot"
         });
+        configure?.Invoke(builder);
 
         builder.Services.AddProblemDetails();
         builder.Services.AddOpenApi("v1");
@@ -28,6 +35,7 @@ internal static class ApiHost
         var identityOptions = builder.Services.AddIRouteIdentity(
             builder.Configuration,
             builder.Environment.EnvironmentName);
+        builder.AddIRouteRequestLimits(identityOptions);
         builder.Services.AddIRouteRuntime(builder.Configuration);
         builder.Services.AddIRoutePlatform(builder.Configuration);
         var runBackgroundWorkers = builder.Configuration.GetValue<bool?>("Runtime:RunBackgroundWorkers")
@@ -59,9 +67,11 @@ internal static class ApiHost
 
         var app = builder.Build();
         app.UseExceptionHandler();
+        app.UseIRouteBodyLimit();
         app.UseDefaultFiles();
         app.UseStaticFiles();
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.MapOpenApi();
         app.MapHealthChecks("/health/live", new HealthCheckOptions
@@ -83,6 +93,6 @@ internal static class ApiHost
         }).AllowAnonymous().WithName("getModelGatewayHealth");
         app.MapIRouteEndpoints(identityOptions.UsesJwt);
         app.MapIRouteObservabilityEndpoints(identityOptions.UsesJwt);
-        await app.RunAsync();
+        return app;
     }
 }

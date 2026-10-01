@@ -29,6 +29,7 @@ public interface ITaskPolicyEngine
 
     PolicyEvaluation EvaluateApproval(
         ApprovalRecord approval,
+        string approverActorId,
         IReadOnlyCollection<string> approverPermissionScopes);
 }
 

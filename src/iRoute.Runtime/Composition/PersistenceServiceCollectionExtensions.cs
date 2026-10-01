@@ -28,6 +28,7 @@ internal static class PersistenceServiceCollectionExtensions
             }
         });
         services.AddSingleton<IExecutionStore, EfExecutionStore>();
+        services.AddSingleton<ITenantQuotaStore, EfTenantQuotaStore>();
         services.AddSingleton<IExecutionWorkStore, EfExecutionWorkStore>();
         services.AddSingleton<IWorkflowCheckpointStore, EfWorkflowCheckpointStore>();
         services.AddSingleton<IApprovalStore, EfApprovalStore>();

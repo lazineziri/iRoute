@@ -1,8 +1,17 @@
 using iRoute.Common;
+using static iRoute.Services.ExecutionValidation;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class ExecutionSubmissionService(
+    IExecutionStore store,
+    IInputFingerprint fingerprint,
+    IExecutionCancellationRegistry cancellations,
+    TimeProvider clock,
+    IExecutionTelemetry telemetry,
+    ExecutionPreparationService preparation,
+    PlanExecutionService plans,
+    ExecutionPersistenceService persistence)
 {
     public Task<ExecutionSnapshot> ExecuteAsync(TaskRequest request, CancellationToken cancellationToken) =>
         ExecuteCoreAsync(request, false, cancellationToken);
@@ -10,7 +19,7 @@ public sealed partial class ExecutionService
     public Task<ExecutionSnapshot> SubmitAsync(TaskRequest request, CancellationToken cancellationToken) =>
         ExecuteCoreAsync(request, true, cancellationToken);
 
-    private async Task<ExecutionSnapshot> ExecuteCoreAsync(
+    internal async Task<ExecutionSnapshot> ExecuteCoreAsync(
         TaskRequest request,
         bool deferExecution,
         CancellationToken cancellationToken)
@@ -45,7 +54,7 @@ public sealed partial class ExecutionService
             TenantId: tenantId,
             ActorId: actorId,
             ProjectId: request.ProjectId);
-        using var trace = _telemetry.StartExecution(
+        using var trace = telemetry.StartExecution(
             snapshot,
             request.PermissionScopes ?? [],
             "execute");
@@ -75,7 +84,7 @@ public sealed partial class ExecutionService
         var cancellationRegistered = false;
         try
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.Created,
                 new
@@ -90,216 +99,24 @@ public sealed partial class ExecutionService
 
             registeredCancellation = cancellations.Register(snapshot.ExecutionId, cancellationToken);
             cancellationRegistered = true;
-            deadlineSource = new CancellationTokenSource();
             var requestedDeadline = request.Constraints?.DeadlineMilliseconds ?? 30000;
-            deadlineSource.CancelAfter(TimeSpan.FromMilliseconds(requestedDeadline));
+            deadlineSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(requestedDeadline), clock);
             executionSource = CancellationTokenSource.CreateLinkedTokenSource(
                 registeredCancellation,
                 deadlineSource.Token);
             var executionToken = executionSource.Token;
 
-            var definition = await taskDefinitions.FindAsync(request.TaskType, executionToken)
-                ?? throw new TaskExecutionException(
-                    ErrorCodes.UnknownTaskType,
-                    "Unknown task type",
-                    $"No active task definition exists for '{request.TaskType}'.");
-            snapshot = snapshot with { TaskDefinitionVersion = definition.Version, UpdatedAt = clock.GetUtcNow() };
-            await store.UpdateAsync(snapshot, executionToken);
-
-            snapshot = await TransitionAsync(snapshot, ExecutionStatus.Resolving, executionToken);
-            if (definition.SideEffectClass >= SideEffectClass.ReversibleWrite)
-            {
-                foreach (var resolver in resolvers.OrderBy(item => item.Order))
-                {
-                    await AppendResolutionDecisionAsync(
-                        snapshot.ExecutionId,
-                        resolver.Name,
-                        new ResolutionDecision(
-                            false,
-                            ResolutionDecisionCodes.ExternalWriteBlocked,
-                            "External-write outcomes cannot bypass current permission and approval policy.",
-                            false,
-                            false,
-                            ["The task side-effect class was checked before state lookup."]),
-                        executionToken);
-                }
-            }
-            else
-            {
-                foreach (var resolver in resolvers.OrderBy(x => x.Order))
-                {
-                    var decision = await resolver.ResolveAsync(request, definition, executionToken);
-                    var candidate = decision.Candidate;
-                    OutcomeValidationResult? validation = null;
-                    if (decision.Accepted && candidate is not null)
-                    {
-                        var validator = validators.First(item => item.Supports(request.TaskType));
-                        validation = await validator.ValidateAsync(
-                            request,
-                            definition,
-                            new ModelGatewayResult(
-                                candidate.Output,
-                                candidate.Usage ?? new UsageSummary(),
-                                candidate.Confidence,
-                                candidate.Evidence),
-                            EmptyCompiledContext(),
-                            executionToken);
-                        if (!validation.Passed)
-                        {
-                            decision = decision with
-                            {
-                                Accepted = false,
-                                Code = ResolutionDecisionCodes.ValidationFailed,
-                                Reason = $"The reusable result failed task validation: {string.Join(" ", validation.Failures)}",
-                                Checks = decision.Checks.Concat(validation.Checks).ToArray(),
-                                Candidate = null
-                            };
-                            candidate = null;
-                        }
-                    }
-
-                    await AppendResolutionDecisionAsync(
-                        snapshot.ExecutionId,
-                        resolver.Name,
-                        decision,
-                        executionToken);
-                    if (!decision.Accepted || candidate is null || validation is null)
-                    {
-                        continue;
-                    }
-
-                    snapshot = await TransitionAsync(snapshot, ExecutionStatus.Validating, executionToken);
-                    await AppendEventAsync(
-                        snapshot.ExecutionId,
-                        ExecutionEventTypes.ValidationCompleted,
-                        new
-                        {
-                            validation.Passed,
-                            validation.Quality,
-                            checks = validation.Checks.Count,
-                            failures = validation.Failures.Count,
-                            source = resolver.Name
-                        },
-                        executionToken);
-                    var reusedValidation = new ValidationSummary(
-                        true,
-                        validation.Quality,
-                        decision.Checks.Concat(validation.Checks).Distinct(StringComparer.Ordinal).ToArray(),
-                        []);
-                    var reusedOutcome = new TaskOutcome(
-                        candidate.Output,
-                        candidate.Level,
-                        validation.Quality,
-                        candidate.Evidence,
-                        candidate.Usage ?? new UsageSummary(),
-                        candidate.Artifact is null ? [] : [candidate.Artifact],
-                        reusedValidation,
-                        new ContextManifest(
-                            0,
-                            0,
-                            0,
-                            0,
-                            false,
-                            false,
-                            [],
-                            new Dictionary<string, EvidenceReference>(StringComparer.Ordinal)));
-                    return await FinishAsync(snapshot, reusedOutcome, executionToken);
-                }
-            }
-
-            snapshot = await TransitionAsync(snapshot, ExecutionStatus.Planning, executionToken);
-            var routing = await taskRouter.RouteAsync(request, definition, executionToken);
-            var plan = routing.Plan;
-            EnsureModelBudgetAllows(request, plan);
-            planValidator.EnsureValid(plan);
-            await AppendRoutingEventsAsync(snapshot.ExecutionId, routing.Decision, executionToken);
-            await AppendEventAsync(
-                snapshot.ExecutionId,
-                ExecutionEventTypes.PlanValidated,
-                new
-                {
-                    plan.PlanId,
-                    plan.Version,
-                    steps = plan.Steps.Count,
-                    plan.Budget.MaxModelCalls,
-                    plan.Budget.MaxToolCalls,
-                    plan.Budget.MaxTaskDepth,
-                    plan.Budget.DeadlineMilliseconds
-                },
-                executionToken);
-            var initialization = await checkpoints.InitializeAsync(
-                snapshot.ExecutionId,
-                request,
-                plan,
-                routing.Decision,
-                clock.GetUtcNow(),
-                executionToken);
-            if (initialization.Created)
-            {
-                await AppendEventAsync(
-                    snapshot.ExecutionId,
-                    ExecutionEventTypes.WorkflowCheckpointed,
-                    new { plan.PlanId, steps = plan.Steps.Count },
-                    executionToken);
-            }
-
-            var policy = policyEngine.Evaluate(request, definition, plan);
-            await AppendPolicyEventAsync(snapshot, policy, executionToken);
-            if (policy.Decision == PolicyDecisionKind.Denied)
-            {
-                throw new TaskExecutionException(
-                    policy.Code ?? ErrorCodes.ExecutionFailed,
-                    "Task policy denied execution",
-                    policy.Reason ?? "The task policy denied execution.");
-            }
-
-            EnsurePlanMatchesDefinition(plan, definition);
-            if (policy.Decision == PolicyDecisionKind.ApprovalRequired)
-            {
-                var approval = await CreateApprovalAsync(
-                    snapshot,
-                    request,
-                    plan,
-                    policy,
-                    executionToken);
-                snapshot = await TransitionAsync(snapshot, ExecutionStatus.WaitingForApproval, executionToken);
-                await AppendEventAsync(
-                    snapshot.ExecutionId,
-                    ExecutionEventTypes.ApprovalRequired,
-                    new
-                    {
-                        actionId = approval.ActionId,
-                        capability = approval.Capability,
-                        sideEffectClass = approval.SideEffectClass,
-                        requiredPermissionScopes = approval.RequiredPermissionScopes,
-                        requestedByActorId = approval.RequestedByActorId,
-                        inputReference = approval.InputReference,
-                        idempotencyReference = approval.IdempotencyReference,
-                        policyVersion = policy.PolicyVersion
-                    },
-                    executionToken);
-                return snapshot;
-            }
-
-            if (deferExecution)
-            {
-                return await QueueAsync(snapshot, ExecutionStatus.Planning, executionToken);
-            }
-
-            return await RunPlanAsync(
-                snapshot,
-                request,
-                definition,
-                plan,
-                routing.Decision,
-                false,
-                executionToken);
+            var prepared = await preparation.PrepareAsync(snapshot, request, executionToken);
+            snapshot = prepared.Snapshot;
+            if (prepared.Plan is null || prepared.Routing is null) return snapshot;
+            if (deferExecution) return await persistence.QueueAsync(snapshot, ExecutionStatus.Planning, executionToken);
+            return await plans.RunPlanAsync(snapshot, request, prepared.Definition, prepared.Plan, prepared.Routing, false, executionToken);
         }
         catch (OperationCanceledException)
         {
             var timedOut = deadlineSource?.IsCancellationRequested is true &&
                 !registeredCancellation.IsCancellationRequested;
-            return await TerminalAsync(
+            return await persistence.TerminalAsync(
                 snapshot,
                 timedOut ? ExecutionStatus.TimedOut : ExecutionStatus.Cancelled,
                 timedOut
@@ -307,132 +124,9 @@ public sealed partial class ExecutionService
                     : new Problem(ErrorCodes.ExecutionCancelled, "Execution cancelled", "The execution was cancelled."),
                 CancellationToken.None);
         }
-        catch (ContextCompilationException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(exception.Code, exception.Title, exception.Message),
-                CancellationToken.None);
-        }
-        catch (RoutingException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(exception.Code, exception.Title, exception.Message),
-                CancellationToken.None);
-        }
-        catch (TaskExecutionException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(exception.Code, exception.Title, exception.Message, exception.Retryable),
-                CancellationToken.None);
-        }
-        catch (InvalidExecutionPlanException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(
-                    ErrorCodes.InvalidExecutionPlan,
-                    "Execution plan is invalid",
-                    exception.Message,
-                    Metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["issueCount"] = exception.Issues.Count.ToString(
-                            System.Globalization.CultureInfo.InvariantCulture)
-                    }),
-                CancellationToken.None);
-        }
-        catch (WorkflowStepTimedOutException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.TimedOut,
-                new Problem(
-                    ErrorCodes.WorkflowStepTimedOut,
-                    "Workflow step timed out",
-                    exception.Message,
-                    true,
-                    new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["stepId"] = exception.StepId
-                    }),
-                CancellationToken.None);
-        }
-        catch (WorkflowStepExecutionException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(
-                    ErrorCodes.WorkflowStepFailed,
-                    "Workflow step failed",
-                    exception.Message,
-                    Metadata: new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["stepId"] = exception.StepId
-                    }),
-                CancellationToken.None);
-        }
-        catch (ModelGatewayException exception)
-        {
-            var metadata = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["gatewayFailureKind"] = exception.FailureKind.ToString()
-            };
-            if (exception.StatusCode is { } statusCode)
-            {
-                metadata["gatewayStatusCode"] = statusCode.ToString(
-                    System.Globalization.CultureInfo.InvariantCulture);
-            }
-
-            if (!string.IsNullOrWhiteSpace(exception.GatewayId))
-            {
-                metadata["gatewayId"] = exception.GatewayId;
-            }
-
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(
-                    exception.Code,
-                    "Model gateway failed",
-                    exception.Message,
-                    exception.Retryable,
-                    metadata),
-                CancellationToken.None);
-        }
-        catch (CapabilityInvocationException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                CapabilityProblem(exception),
-                CancellationToken.None);
-        }
-        catch (ExternalActionExecutionException exception)
-        {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(
-                    exception.Code,
-                    exception.Title,
-                    exception.Message,
-                    exception.Retryable),
-                CancellationToken.None);
-        }
         catch (Exception exception)
         {
-            return await TerminalAsync(
-                snapshot,
-                ExecutionStatus.Failed,
-                new Problem(ErrorCodes.ExecutionFailed, "Execution failed", exception.Message),
-                CancellationToken.None);
+            return await persistence.HandleResumedFailureAsync(snapshot, exception, false);
         }
         finally
         {
@@ -444,5 +138,4 @@ public sealed partial class ExecutionService
             }
         }
     }
-
 }

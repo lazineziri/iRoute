@@ -1,8 +1,18 @@
 using iRoute.Common;
+using static iRoute.Services.ExecutionValidation;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class ExecutionApprovalService(
+    IExecutionStore store,
+    IApprovalStore approvals,
+    IWorkflowCheckpointStore checkpoints,
+    ITaskDefinitionRegistry taskDefinitions,
+    ITaskPolicyEngine policyEngine,
+    TimeProvider clock,
+    IExecutionTelemetry telemetry,
+    ApprovedExecutionService runner,
+    ExecutionPersistenceService persistence)
 {
     public Task<ApprovalResult> SubmitApprovalAsync(
         Guid executionId,
@@ -36,7 +46,7 @@ public sealed partial class ExecutionService
             true,
             cancellationToken);
 
-    private async Task<ApprovalResult> SubmitApprovalCoreAsync(
+    internal async Task<ApprovalResult> SubmitApprovalCoreAsync(
         Guid executionId,
         ApprovalDecision decision,
         string tenantId,
@@ -62,7 +72,7 @@ public sealed partial class ExecutionService
                 "The requested approval was not found.");
         }
 
-        using var trace = _telemetry.StartExecution(snapshot, permissionScopes, "resume");
+        using var trace = telemetry.StartExecution(snapshot, permissionScopes, "resume");
 
         var approval = await approvals.GetAsync(executionId, decision.ActionId, cancellationToken);
         if (approval is null || !string.Equals(approval.TenantId, tenantId, StringComparison.Ordinal))
@@ -81,8 +91,8 @@ public sealed partial class ExecutionService
                 $"Execution '{executionId}' is already {snapshot.Status}.");
         }
 
-        var approverPolicy = policyEngine.EvaluateApproval(approval, permissionScopes);
-        await AppendPolicyEventAsync(snapshot, approverPolicy, cancellationToken, actorId);
+        var approverPolicy = policyEngine.EvaluateApproval(approval, actorId, permissionScopes);
+        await persistence.AppendPolicyEventAsync(snapshot, approverPolicy, cancellationToken, actorId);
         if (approverPolicy.Decision == PolicyDecisionKind.Denied)
         {
             throw new ApprovalSubmissionException(
@@ -114,7 +124,7 @@ public sealed partial class ExecutionService
         approval = decisionResult.Approval;
         if (decisionResult.Applied)
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 executionId,
                 ExecutionEventTypes.ApprovalDecided,
                 new
@@ -134,7 +144,7 @@ public sealed partial class ExecutionService
         {
             if (!IsTerminal(snapshot.Status))
             {
-                snapshot = await TerminalAsync(
+                snapshot = await persistence.TerminalAsync(
                     snapshot,
                     ExecutionStatus.Failed,
                     new Problem(
@@ -175,10 +185,10 @@ public sealed partial class ExecutionService
             definition,
             checkpoint.Plan,
             approval);
-        await AppendPolicyEventAsync(snapshot, executionPolicy, cancellationToken, actorId);
+        await persistence.AppendPolicyEventAsync(snapshot, executionPolicy, cancellationToken, actorId);
         if (executionPolicy.Decision != PolicyDecisionKind.Allowed)
         {
-            snapshot = await TerminalAsync(
+            snapshot = await persistence.TerminalAsync(
                 snapshot,
                 ExecutionStatus.Failed,
                 new Problem(
@@ -191,86 +201,14 @@ public sealed partial class ExecutionService
 
         if (deferExecution)
         {
-            snapshot = await QueueAsync(
+            snapshot = await persistence.QueueAsync(
                 snapshot,
                 ExecutionStatus.WaitingForApproval,
                 cancellationToken);
             return new ApprovalResult(approval.ToSnapshot(), snapshot);
         }
 
-        var resumedAt = clock.GetUtcNow();
-        var claimed = await store.TryTransitionAsync(
-            executionId,
-            ExecutionStatus.WaitingForApproval,
-            ExecutionStatus.Running,
-            resumedAt,
-            cancellationToken);
-        if (claimed is null)
-        {
-            var current = await store.GetAsync(executionId, cancellationToken)
-                ?? throw new ApprovalSubmissionException(
-                    ErrorCodes.ApprovalNotFound,
-                    "Approval not found",
-                    "The approved execution no longer exists.");
-            if (current.Status != ExecutionStatus.WaitingForApproval)
-            {
-                return new ApprovalResult(approval.ToSnapshot(), current);
-            }
-
-            throw new ApprovalSubmissionException(
-                ErrorCodes.ApprovalAlreadyDecided,
-                "Execution is not awaiting approval",
-                $"Execution '{executionId}' could not be claimed for approved execution.");
-        }
-
-        snapshot = claimed;
-        var registeredCancellation = default(CancellationToken);
-        CancellationTokenSource? deadlineSource = null;
-        CancellationTokenSource? executionSource = null;
-        var cancellationRegistered = false;
-        try
-        {
-            await AppendEventAsync(
-                executionId,
-                ExecutionEventTypes.StatusChanged,
-                new { from = ExecutionStatus.WaitingForApproval, to = ExecutionStatus.Running },
-                cancellationToken);
-            registeredCancellation = cancellations.Register(executionId, cancellationToken);
-            cancellationRegistered = true;
-            deadlineSource = new CancellationTokenSource();
-            deadlineSource.CancelAfter(
-                TimeSpan.FromMilliseconds(checkpoint.Plan.Budget.DeadlineMilliseconds));
-            executionSource = CancellationTokenSource.CreateLinkedTokenSource(
-                registeredCancellation,
-                deadlineSource.Token);
-            snapshot = await RunPlanAsync(
-                snapshot,
-                checkpoint.Request,
-                definition,
-                checkpoint.Plan,
-                checkpoint.Routing,
-                false,
-                executionSource.Token);
-        }
-        catch (Exception exception)
-        {
-            snapshot = await HandleResumedFailureAsync(
-                snapshot,
-                exception,
-                deadlineSource?.IsCancellationRequested is true &&
-                    !registeredCancellation.IsCancellationRequested);
-        }
-        finally
-        {
-            executionSource?.Dispose();
-            deadlineSource?.Dispose();
-            if (cancellationRegistered)
-            {
-                cancellations.Complete(executionId);
-            }
-        }
-
+        snapshot = await runner.ResumeAsync(snapshot, checkpoint, definition, cancellationToken);
         return new ApprovalResult(approval.ToSnapshot(), snapshot);
     }
-
 }

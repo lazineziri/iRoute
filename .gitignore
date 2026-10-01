@@ -45,6 +45,7 @@ BenchmarkDotNet.Artifacts/
 !.env.example
 appsettings.*.local.json
 secrets.json
+credentials.json
 *.pfx
 *.p12
 *.pem

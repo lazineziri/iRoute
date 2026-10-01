@@ -22,6 +22,7 @@
       "items": { "type": "string", "minLength": 1, "maxLength": 200 }
     },
     "requiredResidency": { "type": ["string", "null"], "maxLength": 200 },
-    "maximumAttempts": { "type": ["integer", "null"], "minimum": 1, "maximum": 10 }
+    "maximumAttempts": { "type": ["integer", "null"], "minimum": 1, "maximum": 10 },
+    "tenantId": { "type": "string", "minLength": 1, "default": "local" }
   }
 }

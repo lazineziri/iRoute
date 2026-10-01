@@ -1,11 +1,17 @@
 using System.Text.Json;
 using iRoute.Common;
+using static iRoute.Services.ExecutionValidation;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class ExecutionPersistenceService(
+    IExecutionStore store,
+    IWorkflowCheckpointStore checkpoints,
+    IExecutionWorkStore executionWork,
+    TimeProvider clock,
+    IExecutionTelemetry telemetry)
 {
-    private async Task<ExecutionSnapshot> FinishAsync(
+    internal async Task<ExecutionSnapshot> FinishAsync(
         ExecutionSnapshot snapshot,
         TaskOutcome outcome,
         CancellationToken cancellationToken)
@@ -14,7 +20,7 @@ public sealed partial class ExecutionService
         return await FinishMaterializedAsync(snapshot, outcome, cancellationToken);
     }
 
-    private async Task<ExecutionSnapshot> FinishMaterializedAsync(
+    internal async Task<ExecutionSnapshot> FinishMaterializedAsync(
         ExecutionSnapshot snapshot,
         TaskOutcome outcome,
         CancellationToken cancellationToken)
@@ -33,11 +39,11 @@ public sealed partial class ExecutionService
                 artifacts = outcome.Artifacts.Count
             },
             cancellationToken);
-        _telemetry.RecordTerminal(snapshot);
+        telemetry.RecordTerminal(snapshot);
         return snapshot;
     }
 
-    private async Task<ExecutionSnapshot> QueueAsync(
+    internal async Task<ExecutionSnapshot> QueueAsync(
         ExecutionSnapshot snapshot,
         ExecutionStatus expectedStatus,
         CancellationToken cancellationToken)
@@ -64,7 +70,7 @@ public sealed partial class ExecutionService
         return queued;
     }
 
-    private Task CancelCheckpointAsync(Guid executionId, CancellationToken cancellationToken) =>
+    internal Task CancelCheckpointAsync(Guid executionId, CancellationToken cancellationToken) =>
         checkpoints.CancelIncompleteStepsAsync(
             executionId,
             new Problem(
@@ -74,7 +80,7 @@ public sealed partial class ExecutionService
             clock.GetUtcNow(),
             cancellationToken);
 
-    private async Task<TimeSpan> RemainingWorkerDeadlineAsync(
+    internal async Task<TimeSpan> RemainingWorkerDeadlineAsync(
         Guid executionId,
         int deadlineMilliseconds,
         CancellationToken cancellationToken)
@@ -92,7 +98,7 @@ public sealed partial class ExecutionService
         return startedAt.AddMilliseconds(deadlineMilliseconds) - clock.GetUtcNow();
     }
 
-    private async Task<ExecutionSnapshot> TerminalAsync(
+    internal async Task<ExecutionSnapshot> TerminalAsync(
         ExecutionSnapshot snapshot,
         ExecutionStatus terminal,
         Problem problem,
@@ -107,21 +113,28 @@ public sealed partial class ExecutionService
         ExecutionStateMachine.EnsureCanTransition(latest.Status, terminal);
         var updated = latest with { Status = terminal, UpdatedAt = clock.GetUtcNow(), Error = problem };
         await store.UpdateAsync(updated, cancellationToken);
+        return await RecordTerminalEventsAsync(updated, latest.Status, problem, cancellationToken);
+    }
+
+    internal async Task<ExecutionSnapshot> RecordTerminalEventsAsync(
+        ExecutionSnapshot updated, ExecutionStatus previousStatus, Problem problem, CancellationToken cancellationToken)
+    {
+        var terminal = updated.Status;
         await AppendEventAsync(
             updated.ExecutionId,
             ExecutionEventTypes.StatusChanged,
-            new { from = latest.Status, to = terminal },
+            new { from = previousStatus, to = terminal },
             cancellationToken);
         await AppendEventAsync(
             updated.ExecutionId,
             ExecutionEventTypes.Failed,
             new { status = terminal, problem.Code, problem.Title, problem.Retryable },
             cancellationToken);
-        _telemetry.RecordTerminal(updated);
+        telemetry.RecordTerminal(updated);
         return updated;
     }
 
-    private async Task<ExecutionSnapshot> TransitionAsync(
+    internal async Task<ExecutionSnapshot> TransitionAsync(
         ExecutionSnapshot snapshot,
         ExecutionStatus target,
         CancellationToken cancellationToken)
@@ -137,7 +150,7 @@ public sealed partial class ExecutionService
         return updated;
     }
 
-    private async Task<ExecutionEvent> AppendEventAsync(
+    internal async Task<ExecutionEvent> AppendEventAsync(
         Guid executionId,
         string eventType,
         object data,
@@ -149,11 +162,11 @@ public sealed partial class ExecutionService
             clock.GetUtcNow(),
             JsonSerializer.SerializeToElement(data),
             cancellationToken);
-        _telemetry.RecordEvent(eventType);
+        telemetry.RecordEvent(eventType);
         return executionEvent;
     }
 
-    private Task<ExecutionEvent> AppendResolutionDecisionAsync(
+    internal Task<ExecutionEvent> AppendResolutionDecisionAsync(
         Guid executionId,
         string resolver,
         ResolutionDecision decision,
@@ -174,7 +187,7 @@ public sealed partial class ExecutionService
             },
             cancellationToken);
 
-    private async Task AppendRoutingEventsAsync(
+    internal async Task AppendRoutingEventsAsync(
         Guid executionId,
         RoutingDecision decision,
         CancellationToken cancellationToken)
@@ -213,5 +226,43 @@ public sealed partial class ExecutionService
                 cancellationToken);
         }
     }
+    internal async Task AppendPolicyEventAsync(
+        ExecutionSnapshot snapshot,
+        PolicyEvaluation policy,
+        CancellationToken cancellationToken,
+        string? actorId = null)
+    {
+        var data = new
+        {
+            policyVersion = policy.PolicyVersion,
+            decision = policy.Decision,
+            capability = policy.Capability,
+            sideEffectClass = policy.SideEffectClass,
+            requiredPermissionScopes = policy.RequiredPermissionScopes,
+            missingPermissionScopes = policy.MissingPermissionScopes,
+            code = policy.Code,
+            actorId = actorId ?? snapshot.ActorId,
+            tenantId = snapshot.TenantId,
+            projectId = snapshot.ProjectId
+        };
+        await AppendEventAsync(
+            snapshot.ExecutionId,
+            ExecutionEventTypes.PolicyEvaluated,
+            data,
+            cancellationToken);
+        if (policy.Decision == PolicyDecisionKind.Denied)
+        {
+            await AppendEventAsync(
+                snapshot.ExecutionId,
+                ExecutionEventTypes.CapabilityDenied,
+                data,
+                cancellationToken);
+        }
+    }
 
+    internal Task<ExecutionSnapshot> HandleResumedFailureAsync(ExecutionSnapshot snapshot, Exception exception, bool timedOut)
+    {
+        var (status, problem) = ExecutionFailure.Map(exception, timedOut);
+        return TerminalAsync(snapshot, status, problem, CancellationToken.None);
+    }
 }

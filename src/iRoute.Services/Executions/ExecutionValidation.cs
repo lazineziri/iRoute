@@ -1,11 +1,12 @@
 using System.Text.Json;
 using iRoute.Common;
+using static iRoute.Services.ExecutionSerialization;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+internal static class ExecutionValidation
 {
-    private static CompiledContext EmptyCompiledContext()
+    internal static CompiledContext EmptyCompiledContext()
     {
         var content = JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
         return new CompiledContext(
@@ -23,7 +24,7 @@ public sealed partial class ExecutionService
             content);
     }
 
-    private static void EnsureModelBudgetAllows(TaskRequest request, ExecutionPlan plan)
+    internal static void EnsureModelBudgetAllows(TaskRequest request, ExecutionPlan plan)
     {
         if (request.Constraints?.MaxModelCalls is 0 &&
             plan.Steps.Any(step => step.Kind == ExecutionStepKind.Model))
@@ -35,7 +36,7 @@ public sealed partial class ExecutionService
         }
     }
 
-    private static Dictionary<string, ModelStepGatewayBudget> ModelGatewayBudgets(
+    internal static Dictionary<string, ModelStepGatewayBudget> ModelGatewayBudgets(
         ExecutionPlan plan)
     {
         var modelSteps = plan.Steps
@@ -62,7 +63,7 @@ public sealed partial class ExecutionService
             .ToDictionary(item => item.Id, item => item.Budget, StringComparer.Ordinal);
     }
 
-    private static ModelGatewayResult AggregateWorkflowResult(
+    internal static ModelGatewayResult AggregateWorkflowResult(
         ExecutionPlan plan,
         IReadOnlyDictionary<string, JsonElement> outputs,
         ModelGatewayResult finalResult)
@@ -84,7 +85,10 @@ public sealed partial class ExecutionService
             completed.Sum(item => item.Result.Usage.Cost),
             completed.Sum(item => item.Result.Usage.DurationMilliseconds),
             completed.Sum(item => item.Result.Usage.ModelCalls),
-            completed.Sum(item => item.Result.Usage.ToolCalls));
+            completed.Sum(item => item.Result.Usage.ToolCalls),
+            completed.All(item => item.Result.Usage.CostKnown),
+            SumKnown(completed.Select(item => item.Result.Usage).ToArray(), item => item.CachedInputTokens),
+            SumKnown(completed.Select(item => item.Result.Usage).ToArray(), item => item.ReasoningTokens));
         var evidence = completed
             .SelectMany(item => item.Result.Evidence)
             .DistinctBy(item => (item.Kind, item.Reference, item.ContentHash))
@@ -106,9 +110,15 @@ public sealed partial class ExecutionService
         };
     }
 
-    private static void EnsureUsageWithinBudget(TaskRequest request, ModelGatewayResult result)
+    private static int? SumKnown(UsageSummary[] usages, Func<UsageSummary, int?> detail)
     {
-        if (request.Constraints?.MaxCost is { } maxCost && result.Usage.Cost > maxCost)
+        var modelUsage = usages.Where(item => item.ModelCalls > 0).ToArray();
+        return modelUsage.All(item => detail(item).HasValue) ? modelUsage.Sum(item => detail(item)!.Value) : null;
+    }
+
+    internal static void EnsureUsageWithinBudget(TaskRequest request, ModelGatewayResult result)
+    {
+        if (request.Constraints?.MaxCost is { } maxCost && (!result.Usage.CostKnown || result.Usage.Cost > maxCost))
         {
             throw new TaskExecutionException(
                 ErrorCodes.CostBudgetExceeded,
@@ -133,7 +143,7 @@ public sealed partial class ExecutionService
         }
     }
 
-    private static void EnsurePlanMatchesDefinition(ExecutionPlan plan, TaskDefinition definition)
+    internal static void EnsurePlanMatchesDefinition(ExecutionPlan plan, TaskDefinition definition)
     {
         var issues = new List<ExecutionPlanValidationIssue>();
         if (!string.Equals(plan.TaskType, definition.TaskType, StringComparison.Ordinal) ||
@@ -183,7 +193,7 @@ public sealed partial class ExecutionService
         }
     }
 
-    private static ResolutionLevel ResolutionLevelFor(RoutingDecision routing) =>
+    internal static ResolutionLevel ResolutionLevelFor(RoutingDecision routing) =>
         routing.SelectedModelTier switch
         {
             ModelTier.Small => ResolutionLevel.SmallModel,
@@ -192,13 +202,13 @@ public sealed partial class ExecutionService
             _ => ResolutionLevel.StrongModel
         };
 
-    private static bool IsTerminal(ExecutionStatus status) => status is
+    internal static bool IsTerminal(ExecutionStatus status) => status is
         ExecutionStatus.Succeeded or
         ExecutionStatus.Failed or
         ExecutionStatus.Cancelled or
         ExecutionStatus.TimedOut;
 
-    private static bool IsExecutionFailure(Exception exception) => exception is
+    internal static bool IsExecutionFailure(Exception exception) => exception is
         TaskExecutionException or
         ContextCompilationException or
         RoutingException or
@@ -214,7 +224,7 @@ public sealed partial class ExecutionService
     /// different payload is a client bug and is reported rather than silently answered with an
     /// unrelated execution.
     /// </summary>
-    private static ExecutionSnapshot ReplayOrConflict(
+    internal static ExecutionSnapshot ReplayOrConflict(
         ExecutionSubmission existing,
         string idempotencyKey,
         string? submissionFingerprint)
@@ -231,7 +241,7 @@ public sealed partial class ExecutionService
         throw new IdempotencyKeyReusedException(idempotencyKey);
     }
 
-    private static void Validate(TaskRequest request)
+    internal static void Validate(TaskRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.TaskType))
         {
@@ -278,18 +288,5 @@ public sealed partial class ExecutionService
         }
     }
 
-    private sealed class TaskExecutionException(
-        string code,
-        string title,
-        string detail,
-        bool retryable = false) : Exception(detail)
-    {
-        public string Code { get; } = code;
-        public string Title { get; } = title;
-        public bool Retryable { get; } = retryable;
-    }
 
-    private sealed record ModelStepGatewayBudget(
-        int MaximumAttempts,
-        decimal? MaximumCost);
 }

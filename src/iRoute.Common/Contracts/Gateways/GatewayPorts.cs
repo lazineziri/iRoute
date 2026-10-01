@@ -42,7 +42,8 @@ public sealed class ModelGatewayException(
     string? correlationId = null,
     TimeSpan? retryAfter = null,
     GatewayFailureClass? failureClass = null,
-    GatewayResilienceTrace? resilience = null) : Exception(message, innerException)
+    GatewayResilienceTrace? resilience = null,
+    UsageSummary? reportedUsage = null) : Exception(message, innerException)
 {
     public string Code { get; } = code;
     public bool Retryable { get; } = retryable;
@@ -53,6 +54,7 @@ public sealed class ModelGatewayException(
     public TimeSpan? RetryAfter { get; } = retryAfter;
     public GatewayFailureClass? FailureClass { get; } = failureClass;
     public GatewayResilienceTrace? Resilience { get; } = resilience;
+    public UsageSummary? ReportedUsage { get; } = reportedUsage;
 
     public ModelGatewayFailure ToFailure() => new(
         Code,
@@ -119,7 +121,8 @@ public sealed record GatewayDeployment(
     decimal EstimatedCost,
     int ExpectedLatencyMilliseconds,
     int Priority = 100,
-    bool Enabled = true)
+    bool Enabled = true,
+    bool SubscriptionBilling = false)
 {
     public GatewayDeploymentReference ToReference() => new(
         GatewayId,

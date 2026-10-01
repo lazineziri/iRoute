@@ -1,21 +1,13 @@
-using System.Text.Json;
 using iRoute.Common;
 using iRoute.Core;
 using Microsoft.Extensions.Options;
 
+using static iRoute.Runtime.Api.ExecutionEndpointSupport;
+
 namespace iRoute.Runtime.Api;
 
-public static partial class ExecutionEndpoints
+public static class ExecutionEndpoints
 {
-    private static readonly JsonSerializerOptions EventJsonOptions = CreateEventJsonOptions();
-
-    private static JsonSerializerOptions CreateEventJsonOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        options.TypeInfoResolverChain.Add(IRouteApiJsonContext.Default);
-        return options;
-    }
-
     public static IEndpointRouteBuilder MapIRouteEndpoints(
         this IEndpointRouteBuilder endpoints,
         bool requireAuthorization)
@@ -34,22 +26,22 @@ public static partial class ExecutionEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        executions.MapGet("/{executionId:guid}", GetAsync)
+        executions.MapGet("/{executionId:guid}", ExecutionQueryEndpoints.GetAsync)
             .WithName("GetExecution")
             .Produces<ExecutionSnapshot>()
             .Produces(StatusCodes.Status404NotFound);
 
-        executions.MapGet("/{executionId:guid}/events", StreamEventsAsync)
+        executions.MapGet("/{executionId:guid}/events", ExecutionQueryEndpoints.StreamEventsAsync)
             .WithName("StreamExecutionEvents")
             .Produces(StatusCodes.Status404NotFound);
 
-        executions.MapPost("/{executionId:guid}/cancel", CancelAsync)
+        executions.MapPost("/{executionId:guid}/cancel", ExecutionQueryEndpoints.CancelAsync)
             .WithName("CancelExecution")
             .Produces(StatusCodes.Status202Accepted)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        executions.MapPost("/{executionId:guid}/approvals", SubmitApprovalAsync)
+        executions.MapPost("/{executionId:guid}/approvals", ApprovalEndpoints.SubmitApprovalAsync)
             .WithName("SubmitExecutionApproval")
             .Produces<ApprovalResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -57,20 +49,20 @@ public static partial class ExecutionEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        executions.MapGet("/{executionId:guid}/external-actions", ListUnresolvedActionsAsync)
+        executions.MapGet("/{executionId:guid}/external-actions", ExternalActionEndpoints.ListUnresolvedActionsAsync)
             .WithName("ListUnresolvedExternalActions")
             .Produces<IReadOnlyList<UnresolvedExternalAction>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        executions.MapPost("/{executionId:guid}/external-actions/{actionId}/reconcile", ReconcileActionAsync)
+        executions.MapPost("/{executionId:guid}/external-actions/{actionId}/reconcile", ExternalActionEndpoints.ReconcileActionAsync)
             .WithName("ReconcileExternalAction")
             .Produces<UnresolvedExternalAction>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        artifacts.MapGet("/{artifactId:guid}", GetArtifactAsync)
+        artifacts.MapGet("/{artifactId:guid}", ArtifactEndpoints.GetArtifactAsync)
             .WithName("GetArtifact")
             .Produces<ArtifactSnapshot>()
             .Produces(StatusCodes.Status404NotFound);

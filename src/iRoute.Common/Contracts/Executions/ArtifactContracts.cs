@@ -36,7 +36,8 @@ public sealed record ArtifactSnapshot(
     Guid? SupersededByArtifactId = null,
     IReadOnlyList<DependencyReference>? Dependencies = null,
     DateTimeOffset? InvalidatedAt = null,
-    string? InvalidationReason = null);
+    string? InvalidationReason = null,
+    decimal? Confidence = null);
 
 public sealed record MemorySnapshot(
     Guid MemoryId,

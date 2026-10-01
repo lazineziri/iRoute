@@ -1,33 +1,44 @@
-using System.Text.Json;
 using iRoute.Common;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService(
-    IExecutionStore store,
-    IArtifactStore artifacts,
-    ProjectMemoryMaterializer projectMemory,
-    IEnumerable<INoModelResolver> resolvers,
-    ITaskDefinitionRegistry taskDefinitions,
-    ITaskRouter taskRouter,
-    IExecutionPlanValidator planValidator,
-    ITaskPolicyEngine policyEngine,
-    IWorkflowCheckpointStore checkpoints,
-    IApprovalStore approvals,
-    IExternalActionStore externalActions,
-    BoundedDependencyScheduler scheduler,
-    ICapabilityExecutor capabilityExecutor,
-    IModelGateway modelGateway,
-    IExternalActionExecutor externalActionExecutor,
-    IContextCompiler contextCompiler,
-    IEnumerable<ITaskOutcomeValidator> validators,
-    IInputFingerprint fingerprint,
-    IExecutionCancellationRegistry cancellations,
-    TimeProvider clock,
-    IExecutionTelemetry? executionTelemetry = null,
-    IExecutionWorkStore? executionWork = null) : IExecutionService
+public sealed class ExecutionService(
+    ExecutionSubmissionService submissions,
+    ExecutionApprovalService approvals,
+    QueuedExecutionService queue,
+    ExecutionCancellationService cancellations,
+    ExternalActionReconciliationService reconciliationService) : IExecutionService
 {
-    private static readonly JsonSerializerOptions ContractJsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly IExecutionTelemetry _telemetry = executionTelemetry ?? NoOpExecutionTelemetry.Instance;
+    public Task<ExecutionSnapshot> ExecuteAsync(TaskRequest request, CancellationToken cancellationToken) =>
+        submissions.ExecuteAsync(request, cancellationToken);
 
+    public Task<ExecutionSnapshot> SubmitAsync(TaskRequest request, CancellationToken cancellationToken) =>
+        submissions.SubmitAsync(request, cancellationToken);
+
+    public Task<ApprovalResult> SubmitApprovalAsync(
+        Guid executionId, ApprovalDecision decision, string tenantId, string actorId,
+        IReadOnlyCollection<string> permissionScopes, CancellationToken cancellationToken) =>
+        approvals.SubmitApprovalAsync(executionId, decision, tenantId, actorId, permissionScopes, cancellationToken);
+
+    public Task<ApprovalResult> SubmitApprovalForQueueAsync(
+        Guid executionId, ApprovalDecision decision, string tenantId, string actorId,
+        IReadOnlyCollection<string> permissionScopes, CancellationToken cancellationToken) =>
+        approvals.SubmitApprovalForQueueAsync(executionId, decision, tenantId, actorId, permissionScopes, cancellationToken);
+
+    public Task<ExecutionSnapshot> ProcessQueuedAsync(Guid executionId, CancellationToken cancellationToken) =>
+        queue.ProcessQueuedAsync(executionId, cancellationToken);
+
+    public Task<ExecutionSnapshot?> CancelAsync(Guid executionId, string tenantId, CancellationToken cancellationToken) =>
+        cancellations.CancelAsync(executionId, tenantId, cancellationToken);
+
+    public Task<IReadOnlyList<UnresolvedExternalAction>?> ListUnresolvedActionsAsync(
+        Guid executionId, string tenantId, IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken) =>
+        reconciliationService.ListAsync(executionId, tenantId, permissionScopes, cancellationToken);
+
+    public Task<UnresolvedExternalAction?> ReconcileActionAsync(
+        Guid executionId, string actionId, ExternalActionReconciliation reconciliation,
+        string tenantId, string actorId, IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken) =>
+        reconciliationService.ReconcileAsync(executionId, actionId, reconciliation, tenantId, actorId, permissionScopes, cancellationToken);
 }

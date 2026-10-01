@@ -41,13 +41,14 @@ public sealed class ConfiguredGatewayDeploymentRegistry : IGatewayDeploymentRegi
                     RouteId = "legacy",
                     GatewayId = options.GatewayId,
                     DeploymentId = options.GatewayId,
-                    Provider = "generic",
+                    Adapter = options.Mode.Equals("Deterministic", StringComparison.OrdinalIgnoreCase) ? "Http" : options.Mode,
+                    Provider = options.Mode.Equals("Http", StringComparison.OrdinalIgnoreCase) ? "generic" : options.Mode,
                     Region = "unspecified",
                     Residency = "unspecified",
-                    ModelVersion = "unspecified",
+                    ModelVersion = options.Model ?? "unspecified",
                     Capabilities = ["*"],
                     ProfileIds = ["*"],
-                    ExpectedQuality = 1m,
+                    ExpectedQuality = options.Mode.Equals("Http", StringComparison.OrdinalIgnoreCase) ? 1m : options.ExpectedQuality,
                     EstimatedCost = 0m,
                     ExpectedLatencyMilliseconds = 0,
                     Priority = 100,
@@ -55,19 +56,27 @@ public sealed class ConfiguredGatewayDeploymentRegistry : IGatewayDeploymentRegi
                     Transport = options.Transport,
                     BaseUrl = options.BaseUrl,
                     ApiKey = options.ApiKey,
+                    ChatGPTAccessToken = options.ChatGPTAccessToken,
+                    ChatGPTAccountId = options.ChatGPTAccountId,
+                    Model = options.Model,
+                    ReasoningEffort = options.ReasoningEffort,
+                    ExecutablePath = options.ExecutablePath,
+                    SubscriptionTenantId = options.SubscriptionTenantId,
+                    InputCostPerMillionTokens = options.InputCostPerMillionTokens,
+                    OutputCostPerMillionTokens = options.OutputCostPerMillionTokens,
                     ExecutePath = options.ExecutePath,
                     StreamPath = options.StreamPath,
                     HealthPath = options.HealthPath
                 }
             ];
 
-    private static GatewayDeployment ToDeployment(ModelGatewayDeploymentOptions route)
+    internal static GatewayDeployment ToDeployment(ModelGatewayDeploymentOptions route)
     {
         var invalidFields = InvalidFields(route);
         if (invalidFields.Count > 0)
         {
             throw new InvalidOperationException(
-                $"Generic gateway route '{route.RouteId}' has invalid configuration fields: " +
+                $"Model gateway route '{route.RouteId}' has invalid configuration fields: " +
                 string.Join(", ", invalidFields) + ".");
         }
 
@@ -85,7 +94,8 @@ public sealed class ConfiguredGatewayDeploymentRegistry : IGatewayDeploymentRegi
             route.EstimatedCost,
             route.ExpectedLatencyMilliseconds,
             route.Priority,
-            route.Enabled);
+            route.Enabled,
+            ModelGatewayModes.IsSubscription(route.Adapter));
     }
 
     private static List<string> InvalidFields(ModelGatewayDeploymentOptions route)
@@ -114,7 +124,23 @@ public sealed class ConfiguredGatewayDeploymentRegistry : IGatewayDeploymentRegi
         if (route.EstimatedCost < 0m) invalid.Add(nameof(route.EstimatedCost));
         if (route.ExpectedLatencyMilliseconds < 0) invalid.Add(nameof(route.ExpectedLatencyMilliseconds));
         if (route.Priority < 0) invalid.Add(nameof(route.Priority));
-        if (route.Enabled && !IsHttpBaseUrl(route.BaseUrl)) invalid.Add(nameof(route.BaseUrl));
+        if (!ModelGatewayModes.IsAdapter(route.Adapter)) invalid.Add(nameof(route.Adapter));
+        if (route.Enabled && route.Adapter.Equals("Http", StringComparison.OrdinalIgnoreCase) && !IsHttpBaseUrl(route.BaseUrl))
+            invalid.Add(nameof(route.BaseUrl));
+        if (route.Enabled && !route.Adapter.Equals("Http", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(route.Model))
+            invalid.Add(nameof(route.Model));
+        if (route.InputCostPerMillionTokens < 0m) invalid.Add(nameof(route.InputCostPerMillionTokens));
+        if (route.OutputCostPerMillionTokens < 0m) invalid.Add(nameof(route.OutputCostPerMillionTokens));
+        if (!string.IsNullOrWhiteSpace(route.ReasoningEffort) &&
+            ((!route.Adapter.Equals("OpenAI", StringComparison.OrdinalIgnoreCase) &&
+              !route.Adapter.Equals("OpenAIChatGPT", StringComparison.OrdinalIgnoreCase)) ||
+             route.ReasoningEffort is not ("none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max")))
+            invalid.Add(nameof(route.ReasoningEffort));
+        if (!string.IsNullOrWhiteSpace(route.BaseUrl) && !IsHttpBaseUrl(route.BaseUrl)) invalid.Add(nameof(route.BaseUrl));
+        if (ModelGatewayModes.IsSubscription(route.Adapter) && string.IsNullOrWhiteSpace(route.SubscriptionTenantId))
+            invalid.Add(nameof(route.SubscriptionTenantId));
+        if (!route.Adapter.Equals("Http", StringComparison.OrdinalIgnoreCase) && route.Transport != ModelGatewayTransport.Buffered)
+            invalid.Add(nameof(route.Transport));
         return invalid;
     }
 

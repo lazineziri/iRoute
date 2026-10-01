@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace iRoute.Data;
 
 public sealed class EfExecutionWorkStore(
-    IDbContextFactory<IRouteDbContext> contextFactory) : IExecutionWorkStore
+    IDbContextFactory<IRouteDbContext> contextFactory,
+    TenantQuotaOptions? quotaOptions = null) : IExecutionWorkStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -66,6 +67,9 @@ public sealed class EfExecutionWorkStore(
     {
         EnsureWorker(workerId);
         EnsureLeaseDuration(leaseDuration);
+        var options = quotaOptions ?? new TenantQuotaOptions();
+        if (options.FairSchedulingEnabled || options.Enabled)
+            return await new EfFairExecutionClaim(contextFactory, options).TryClaimAsync(workerId, claimedAt, leaseDuration, cancellationToken);
         var now = claimedAt.ToUnixTimeMilliseconds();
         for (var scan = 0; scan < 8; scan++)
         {

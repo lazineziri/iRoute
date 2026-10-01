@@ -17,9 +17,15 @@ public sealed class ProjectMemoryMaterializer(
     {
         var tenantId = RequestScope.Tenant(request);
         var materialized = new List<ProjectMemoryMaterialization>();
-        foreach (var candidate in ExtractCandidates(request.Input))
+        var now = clock.GetUtcNow();
+        var candidates = ExtractCandidates(request.Input)
+            .Where(candidate => ContextSourceLifecycle.ExclusionReason(candidate.Value, now) is null)
+            .Select((candidate, order) => (Candidate: candidate, Order: order))
+            .GroupBy(item => (item.Candidate.Kind, item.Candidate.Key))
+            .Select(group => group.OrderByDescending(item => ContextSourceLifecycle.Version(item.Candidate.Value))
+                .ThenByDescending(item => item.Order).First().Candidate);
+        foreach (var candidate in candidates)
         {
-            var now = clock.GetUtcNow();
             var contentHash = CanonicalJson.Hash(candidate.Value);
             var evidence = new EvidenceReference(
                 "request.input",
@@ -39,7 +45,8 @@ public sealed class ProjectMemoryMaterializer(
                     MemoryLifecycleStatus.Active,
                     [evidence],
                     [new DependencyReference("request.input", $"{request.TaskType}:{candidate.Key}", contentHash)],
-                    now),
+                    now,
+                    ContextSourceLifecycle.ExpiresAt(candidate.Value)),
                 cancellationToken);
 
             var invalidatedMemory = new MemoryInvalidationResult([]);

@@ -7,15 +7,27 @@ public sealed record ModelGatewayOptions
     public ModelGatewayTransport Transport { get; init; } = ModelGatewayTransport.Buffered;
     public string? BaseUrl { get; init; }
     public string? ApiKey { get; init; }
+    public string? ChatGPTAccessToken { get; init; }
+    public Guid? ChatGPTAccountId { get; init; }
+    public string? Model { get; init; }
+    public string? ReasoningEffort { get; init; }
+    public decimal ExpectedQuality { get; init; } = 0.9m;
+    public string? ExecutablePath { get; init; }
+    public string SubscriptionTenantId { get; init; } = "local";
+    public decimal? InputCostPerMillionTokens { get; init; }
+    public decimal? OutputCostPerMillionTokens { get; init; }
     public string ExecutePath { get; init; } = "v1/execute";
     public string StreamPath { get; init; } = "v1/stream";
     public string HealthPath { get; init; } = "health";
     public List<ModelGatewayDeploymentOptions> Deployments { get; init; } = [];
     public GatewayResilienceOptions Resilience { get; init; } = new();
+
+    public override string ToString() => "ModelGatewayOptions { configuration = [redacted] }";
 }
 
 public sealed record ModelGatewayDeploymentOptions
 {
+    public string Adapter { get; init; } = "Http";
     public string RouteId { get; init; } = string.Empty;
     public string GatewayId { get; init; } = string.Empty;
     public string Provider { get; init; } = "generic";
@@ -33,9 +45,19 @@ public sealed record ModelGatewayDeploymentOptions
     public ModelGatewayTransport Transport { get; init; } = ModelGatewayTransport.Buffered;
     public string? BaseUrl { get; init; }
     public string? ApiKey { get; init; }
+    public string? ChatGPTAccessToken { get; init; }
+    public Guid? ChatGPTAccountId { get; init; }
+    public string? Model { get; init; }
+    public string? ReasoningEffort { get; init; }
+    public string? ExecutablePath { get; init; }
+    public string SubscriptionTenantId { get; init; } = "local";
+    public decimal? InputCostPerMillionTokens { get; init; }
+    public decimal? OutputCostPerMillionTokens { get; init; }
     public string ExecutePath { get; init; } = "v1/execute";
     public string StreamPath { get; init; } = "v1/stream";
     public string HealthPath { get; init; } = "health";
+
+    public override string ToString() => "ModelGatewayDeploymentOptions { configuration = [redacted] }";
 }
 
 public sealed record GatewayResilienceOptions

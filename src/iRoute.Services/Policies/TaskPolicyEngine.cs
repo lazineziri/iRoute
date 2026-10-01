@@ -1,12 +1,10 @@
-using System.Security.Cryptography;
-using System.Text;
 using iRoute.Common;
 
 namespace iRoute.Services;
 
 public sealed class TaskPolicyEngine : ITaskPolicyEngine
 {
-    public const string CurrentPolicyVersion = "w04.v1";
+    public const string CurrentPolicyVersion = "w04.v2";
     public const string ApprovalPermissionScope = "approval:grant";
 
     public PolicyEvaluation Evaluate(
@@ -101,6 +99,14 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
                 Reason: "The trusted task policy requires explicit approval before this action executes.");
         }
 
+        if (approval.Status == ApprovalStatus.Approved &&
+            (string.IsNullOrWhiteSpace(approval.DecidedByActorId) ||
+             string.Equals(approval.RequestedByActorId, approval.DecidedByActorId, StringComparison.Ordinal)))
+        {
+            return Denied(step.Capability, effectiveSideEffect, requiredScopes,
+                ErrorCodes.PermissionScopeDenied, "An actor cannot approve their own external action.");
+        }
+
         return approval.Status == ApprovalStatus.Approved
             ? Allowed(step.Capability, effectiveSideEffect, requiredScopes)
             : Denied(
@@ -119,8 +125,16 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
 
     public PolicyEvaluation EvaluateApproval(
         ApprovalRecord approval,
+        string approverActorId,
         IReadOnlyCollection<string> approverPermissionScopes)
     {
+        if (string.IsNullOrWhiteSpace(approverActorId) ||
+            string.Equals(approval.RequestedByActorId, approverActorId, StringComparison.Ordinal))
+        {
+            return Denied(approval.Capability, approval.SideEffectClass, approval.RequiredPermissionScopes,
+                ErrorCodes.PermissionScopeDenied, "Approval decisions require an actor other than the requester.");
+        }
+
         var requiredScopes = approval.RequiredPermissionScopes
             .Append(ApprovalPermissionScope)
             .Distinct(StringComparer.Ordinal)
@@ -170,38 +184,4 @@ public sealed class TaskPolicyEngine : ITaskPolicyEngine
             [],
             code,
             reason);
-}
-
-internal static class PolicyReferences
-{
-    public static string CreateActionIdempotencyReference(
-        string tenantId,
-        string requestIdempotencyKey,
-        string actionId,
-        string capability)
-    {
-        var value = string.Join('\n', tenantId, requestIdempotencyKey, actionId, capability);
-        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-    }
-}
-
-public sealed class ApprovalSubmissionException(
-    string code,
-    string title,
-    string message) : Exception(message)
-{
-    public string Code { get; } = code;
-    public string Title { get; } = title;
-}
-
-public sealed class ExternalActionExecutionException(
-    string code,
-    string title,
-    string message,
-    bool retryable = false,
-    Exception? innerException = null) : Exception(message, innerException)
-{
-    public string Code { get; } = code;
-    public string Title { get; } = title;
-    public bool Retryable { get; } = retryable;
 }

@@ -96,6 +96,7 @@ public sealed class InMemoryArtifactStore(LifecyclePolicy? lifecyclePolicy = nul
             if (active is not null &&
                 string.Equals(active.InputHash, artifact.InputHash, StringComparison.Ordinal) &&
                 string.Equals(active.ContentHash, artifact.ContentHash, StringComparison.Ordinal) &&
+                active.Confidence == artifact.Confidence &&
                 (active.ExpiresAt is null || active.ExpiresAt > artifact.CreatedAt))
             {
                 return Task.FromResult(active);

@@ -62,9 +62,16 @@ public sealed partial class ResilientModelGateway(
         GatewayFailureClass? finalFailureClass = null;
         TimeSpan? finalRetryAfter = null;
         var fallbackSuppressed = false;
+        var subscriptionRouting = eligible.FirstOrDefault()?.SubscriptionBilling;
         for (var deploymentIndex = 0; deploymentIndex < eligible.Count; deploymentIndex++)
         {
             var deployment = eligible[deploymentIndex];
+            if (subscriptionRouting is { } subscription && deployment.SubscriptionBilling != subscription)
+            {
+                candidates.Add(Rejected(deployment, circuitStates,
+                    "A request cannot silently switch between subscription and API-dollar billing."));
+                continue;
+            }
             if (fallbackSuppressed)
             {
                 candidates.Add(Rejected(
@@ -238,6 +245,7 @@ public sealed partial class ResilientModelGateway(
                 circuitStates[deployment.DeploymentId] = observation.Circuit;
                 finalFailureClass = observation.Attempt.FailureClass;
                 finalRetryAfter = exception.RetryAfter;
+                if (observation.Attempt.FailureClass == GatewayFailureClass.Policy) throw;
                 if (observation.Attempt.FailureClass == GatewayFailureClass.Permanent)
                 {
                     fallbackSuppressed = true;

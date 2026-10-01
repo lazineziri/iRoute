@@ -128,7 +128,7 @@ public sealed class RuntimeTelemetry : IExecutionTelemetry, IDisposable
             var quality = outcome.Validation?.Quality ?? outcome.Confidence;
             _completed.Add(1, tags);
             _quality.Record((double)quality, tags);
-            _cost.Record((double)outcome.Usage.Cost, tags);
+            if (outcome.Usage.CostKnown) _cost.Record((double)outcome.Usage.Cost, tags);
             _inputTokens.Record(outcome.Usage.InputTokens, tags);
             _outputTokens.Record(outcome.Usage.OutputTokens, tags);
             if (IsMemoryHit(outcome.ResolutionLevel))
@@ -155,7 +155,8 @@ public sealed class RuntimeTelemetry : IExecutionTelemetry, IDisposable
         activity?.SetTag("iroute.quality", outcome is null
             ? null
             : outcome.Validation?.Quality ?? outcome.Confidence);
-        activity?.SetTag("iroute.cost", outcome?.Usage.Cost);
+        activity?.SetTag("iroute.cost", outcome?.Usage.CostKnown is true ? outcome.Usage.Cost : null);
+        activity?.SetTag("iroute.cost.known", outcome?.Usage.CostKnown);
         activity?.SetTag("iroute.input_tokens", outcome?.Usage.InputTokens);
         activity?.SetTag("iroute.output_tokens", outcome?.Usage.OutputTokens);
         activity?.SetTag("iroute.model_calls", outcome?.Usage.ModelCalls);

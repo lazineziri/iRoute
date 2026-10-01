@@ -2,16 +2,18 @@ using iRoute.Common;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class GatewayEvidenceService(
+    ExecutionPersistenceService persistence,
+    IExecutionTelemetry telemetry)
 {
-    private async Task AppendGatewayResilienceEvidenceAsync(
+    internal async Task AppendGatewayResilienceEvidenceAsync(
         Guid executionId,
         GatewayResilienceTrace trace,
         CancellationToken cancellationToken)
     {
         foreach (var candidate in trace.Candidates)
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 executionId,
                 ExecutionEventTypes.GatewayCandidateEvaluated,
                 new
@@ -33,8 +35,8 @@ public sealed partial class ExecutionService
         foreach (var attempt in trace.Attempts)
         {
             var fallbackSelected = IsGatewayFallback(trace, attempt);
-            _telemetry.RecordGatewayAttempt(attempt, fallbackSelected);
-            await AppendEventAsync(
+            telemetry.RecordGatewayAttempt(attempt, fallbackSelected);
+            await persistence.AppendEventAsync(
                 executionId,
                 ExecutionEventTypes.GatewayAttempted,
                 new
@@ -59,7 +61,7 @@ public sealed partial class ExecutionService
                 cancellationToken);
             if (fallbackSelected)
             {
-                await AppendEventAsync(
+                await persistence.AppendEventAsync(
                     executionId,
                     ExecutionEventTypes.GatewayFallbackSelected,
                     new
@@ -77,7 +79,7 @@ public sealed partial class ExecutionService
 
             if (attempt.CircuitStateBefore != attempt.CircuitStateAfter)
             {
-                await AppendEventAsync(
+                await persistence.AppendEventAsync(
                     executionId,
                     ExecutionEventTypes.GatewayCircuitChanged,
                     new
@@ -97,7 +99,7 @@ public sealed partial class ExecutionService
 
         if (trace.ExhaustionReason is not null)
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 executionId,
                 ExecutionEventTypes.GatewayExhausted,
                 new
@@ -110,7 +112,7 @@ public sealed partial class ExecutionService
                 cancellationToken);
         }
 
-        await AppendEventAsync(
+        await persistence.AppendEventAsync(
             executionId,
             ExecutionEventTypes.GatewayResilienceDecided,
             new
@@ -130,7 +132,7 @@ public sealed partial class ExecutionService
             cancellationToken);
     }
 
-    private static bool IsGatewayFallback(
+    internal static bool IsGatewayFallback(
         GatewayResilienceTrace trace,
         GatewayAttemptEvidence attempt)
     {
@@ -159,12 +161,12 @@ public sealed partial class ExecutionService
         return false;
     }
 
-    private async Task AppendGatewayFailureAsync(
+    internal async Task AppendGatewayFailureAsync(
         Guid executionId,
         ExecutionPlanStep step,
         ModelGatewayFailure failure,
         long durationMilliseconds) =>
-        await AppendEventAsync(
+        await persistence.AppendEventAsync(
             executionId,
             ExecutionEventTypes.GatewayFailed,
             new
@@ -182,15 +184,4 @@ public sealed partial class ExecutionService
                 durationMilliseconds
             },
             CancellationToken.None);
-
-    private ModelGatewayException InvalidGatewayStream(
-        ModelGatewayRequest request,
-        string message) =>
-        new(
-            ErrorCodes.ModelGatewayInvalidResponse,
-            message,
-            false,
-            failureKind: ModelGatewayFailureKind.InvalidResponse,
-            gatewayId: modelGateway.GatewayId,
-            correlationId: request.CorrelationId);
 }

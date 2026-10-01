@@ -45,7 +45,8 @@
         "model_gateway_unavailable",
         "model_gateway_http_error",
         "model_gateway_invalid_response",
-        "model_gateway_exhausted"
+        "model_gateway_exhausted",
+        "tenant_quota_exceeded"
       ]
     },
     "title": { "type": "string", "minLength": 1, "maxLength": 200 },

@@ -40,6 +40,7 @@ public static class ErrorCodes
     public const string ModelGatewayHttpError = "model_gateway_http_error";
     public const string ModelGatewayInvalidResponse = "model_gateway_invalid_response";
     public const string ModelGatewayExhausted = "model_gateway_exhausted";
+    public const string TenantQuotaExceeded = "tenant_quota_exceeded";
 
     public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -80,6 +81,7 @@ public static class ErrorCodes
         ModelGatewayUnavailable,
         ModelGatewayHttpError,
         ModelGatewayInvalidResponse,
-        ModelGatewayExhausted
+        ModelGatewayExhausted,
+        TenantQuotaExceeded
     };
 }
