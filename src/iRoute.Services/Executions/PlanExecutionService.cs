@@ -1,11 +1,20 @@
 using System.Text.Json;
 using iRoute.Common;
+using static iRoute.Services.ExecutionSerialization;
+using static iRoute.Services.ExecutionValidation;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class PlanExecutionService(
+    IContextCompiler contextCompiler,
+    BoundedDependencyScheduler scheduler,
+    ModelStepExecutionService models,
+    CapabilityStepExecutionService capabilities,
+    ExternalActionExecutionService externalActions,
+    ExecutionOutcomeService outcomes,
+    ExecutionPersistenceService persistence)
 {
-    private async Task<ExecutionSnapshot> RunPlanAsync(
+    internal async Task<ExecutionSnapshot> RunPlanAsync(
         ExecutionSnapshot snapshot,
         TaskRequest request,
         TaskDefinition definition,
@@ -16,10 +25,10 @@ public sealed partial class ExecutionService
     {
         if (snapshot.Status != ExecutionStatus.Running)
         {
-            snapshot = await TransitionAsync(snapshot, ExecutionStatus.Running, cancellationToken);
+            snapshot = await persistence.TransitionAsync(snapshot, ExecutionStatus.Running, cancellationToken);
         }
         var context = await contextCompiler.CompileAsync(request, definition, cancellationToken);
-        await AppendEventAsync(
+        await persistence.AppendEventAsync(
             snapshot.ExecutionId,
             ExecutionEventTypes.ContextCompiled,
             new
@@ -46,7 +55,7 @@ public sealed partial class ExecutionService
             {
                 var result = step.Kind switch
                 {
-                    ExecutionStepKind.Model => await ExecuteModelStepAsync(
+                    ExecutionStepKind.Model => await models.ExecuteModelStepAsync(
                         snapshot.ExecutionId,
                         request,
                         definition,
@@ -56,14 +65,14 @@ public sealed partial class ExecutionService
                         dependencyOutputs,
                         stepCancellationToken),
                     ExecutionStepKind.Tool when step.SideEffectClass < SideEffectClass.ReversibleWrite =>
-                        await ExecuteCapabilityStepAsync(
+                        await capabilities.ExecuteCapabilityStepAsync(
                             snapshot,
                             request,
                             definition,
                             step,
                             stepCancellationToken),
                     ExecutionStepKind.Tool when step.SideEffectClass >= SideEffectClass.ReversibleWrite =>
-                        await ExecuteExternalActionAsync(
+                        await externalActions.ExecuteExternalActionAsync(
                             snapshot,
                             request,
                             step,
@@ -100,7 +109,7 @@ public sealed partial class ExecutionService
         EnsureUsageWithinBudget(request, capabilityResult);
         if (usage.ModelCalls > 0)
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 snapshot.ExecutionId,
                 ExecutionEventTypes.GatewayCompleted,
                 new
@@ -118,6 +127,7 @@ public sealed partial class ExecutionService
                     inputTokens = usage.InputTokens,
                     outputTokens = usage.OutputTokens,
                     cost = usage.Cost,
+                    costKnown = usage.CostKnown,
                     durationMilliseconds = usage.DurationMilliseconds,
                     modelCalls = usage.ModelCalls,
                     fallbackAttempts = capabilityResult.Resilience?.Attempts.Count ?? 0,
@@ -128,109 +138,6 @@ public sealed partial class ExecutionService
                 cancellationToken);
         }
 
-        snapshot = await TransitionAsync(snapshot, ExecutionStatus.Validating, cancellationToken);
-        var validator = validators.First(x => x.Supports(request.TaskType));
-        var validation = await validator.ValidateAsync(
-            request,
-            definition,
-            capabilityResult,
-            context,
-            cancellationToken);
-        await AppendEventAsync(
-            snapshot.ExecutionId,
-            ExecutionEventTypes.ValidationCompleted,
-            new
-            {
-                validation.Passed,
-                validation.Quality,
-                checks = validation.Checks.Count,
-                failures = validation.Failures.Count
-            },
-            cancellationToken);
-        if (!validation.Passed)
-        {
-            throw new TaskExecutionException(
-                ErrorCodes.ValidationFailed,
-                "Task validation failed",
-                string.Join(" ", validation.Failures));
-        }
-
-        snapshot = await TransitionAsync(snapshot, ExecutionStatus.Materializing, cancellationToken);
-        var memory = await MaterializeProjectMemoryAsync(snapshot, request, cancellationToken);
-        var combinedEvidence = capabilityResult.Evidence
-            .Concat(context.Evidence)
-            .DistinctBy(x => (x.Kind, x.Reference))
-            .ToArray();
-        var createdAt = clock.GetUtcNow();
-        var dependencies = combinedEvidence
-            .Select(item => new DependencyReference(item.Kind, item.Reference, item.ContentHash))
-            .Concat(memory.Select(item => new DependencyReference(
-                "memory",
-                item.MemoryId.ToString(),
-                item.ContentHash)))
-            .DistinctBy(item => (item.Kind, item.Reference))
-            .ToArray();
-        var logicalKey = request.Metadata?.GetValueOrDefault("artifactKey")?.Trim();
-        var artifact = await artifacts.SaveAsync(
-            new ArtifactRecord(
-                Guid.CreateVersion7(),
-                snapshot.TenantId,
-                request.ProjectId,
-                request.TaskType,
-                definition.Version,
-                definition.ArtifactType,
-                1,
-                fingerprint.Create(request, definition.Version),
-                CanonicalJson.Hash(capabilityResult.Output),
-                capabilityResult.Output.Clone(),
-                combinedEvidence,
-                createdAt,
-                definition.ArtifactTimeToLive is { } ttl ? createdAt.Add(ttl) : null,
-                true,
-                string.IsNullOrWhiteSpace(logicalKey) ? request.TaskType : logicalKey,
-                Dependencies: dependencies),
-            cancellationToken);
-        await AppendEventAsync(
-            snapshot.ExecutionId,
-            ExecutionEventTypes.ArtifactMaterialized,
-            new
-            {
-                artifact.ArtifactId,
-                artifact.ArtifactType,
-                artifact.Version,
-                artifact.ContentHash,
-                artifact.LogicalKey,
-                artifact.LifecycleStatus,
-                artifact.SupersedesArtifactId,
-                dependencies = artifact.EffectiveDependencies.Count
-            },
-            cancellationToken);
-        if (artifact.SupersedesArtifactId is not null)
-        {
-            await AppendEventAsync(
-                snapshot.ExecutionId,
-                ExecutionEventTypes.ArtifactSuperseded,
-                new
-                {
-                    artifact.ArtifactId,
-                    artifact.SupersedesArtifactId,
-                    artifact.LogicalKey,
-                    artifact.Version
-                },
-                cancellationToken);
-        }
-
-        var outcome = new TaskOutcome(
-            capabilityResult.Output,
-            ResolutionLevelFor(routing),
-            validation.Quality,
-            combinedEvidence,
-            usage,
-            [artifact.ToReference()],
-            validation.ToContract(),
-            context.Manifest,
-            routing);
-        return await FinishMaterializedAsync(snapshot, outcome, cancellationToken);
+        return await outcomes.MaterializeAsync(snapshot, request, definition, context, routing, capabilityResult, cancellationToken);
     }
-
 }

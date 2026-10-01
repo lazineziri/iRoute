@@ -210,7 +210,8 @@
         "supersededByArtifactId",
         "dependencies",
         "invalidatedAt",
-        "invalidationReason"
+        "invalidationReason",
+        "confidence"
       ]
     },
     "MemorySnapshot": {
@@ -479,7 +480,10 @@
         "cost",
         "durationMilliseconds",
         "modelCalls",
-        "toolCalls"
+        "toolCalls",
+        "costKnown",
+        "cachedInputTokens",
+        "reasoningTokens"
       ]
     },
     "ValidationSummary": {
@@ -1020,7 +1024,8 @@
       "model_gateway_unavailable",
       "model_gateway_http_error",
       "model_gateway_invalid_response",
-      "model_gateway_exhausted"
+      "model_gateway_exhausted",
+      "tenant_quota_exceeded"
     ]
   },
   "jsonSchemas": {
@@ -1087,6 +1092,7 @@
       ],
       "properties": [
         "artifact",
+        "confidence",
         "content",
         "createdAt",
         "dependencies",
@@ -1480,12 +1486,13 @@
         "correlationId",
         "deadlineMilliseconds",
         "input",
+        "maxOutputTokens",
         "maximumAttempts",
         "maximumCost",
-        "maxOutputTokens",
         "minimumQuality",
         "profileId",
-        "requiredResidency"
+        "requiredResidency",
+        "tenantId"
       ]
     },
     "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json": {
@@ -2280,6 +2287,11 @@
       "artifact": {
         "$ref": "#/components/schemas/ArtifactReference"
       },
+      "confidence": {
+        "type": ["number", "null"],
+        "minimum": 0,
+        "maximum": 1
+      },
       "tenantId": {
         "type": "string"
       },
@@ -2832,6 +2844,23 @@
       "toolCalls": {
         "type": "integer",
         "minimum": 0
+      },
+      "costKnown": {
+        "type": "boolean",
+        "default": true,
+        "description": "False means cost is unknown or subscription quota rather than a priced API estimate. A zero cost with costKnown=false is not free usage."
+      },
+      "cachedInputTokens": {
+        "type": "integer",
+        "nullable": true,
+        "minimum": 0,
+        "description": "Provider-reported subset of inputTokens; null means unknown. Do not subtract from token totals."
+      },
+      "reasoningTokens": {
+        "type": "integer",
+        "nullable": true,
+        "minimum": 0,
+        "description": "Provider-reported subset of outputTokens; null means unknown. Do not add again to token totals."
       }
     },
     "ValidationSummary": {
@@ -3572,6 +3601,11 @@
       }
     },
     "https://schemas.iroute.dev/v1/artifact-snapshot.schema.json": {
+      "confidence": {
+        "type": ["number", "null"],
+        "minimum": 0,
+        "maximum": 1
+      },
       "artifact": {
         "type": "object",
         "additionalProperties": false,
@@ -4032,6 +4066,18 @@
           },
           "toolCalls": {
             "type": "integer",
+            "minimum": 0
+          },
+          "costKnown": {
+            "type": "boolean",
+            "default": true
+          },
+          "cachedInputTokens": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "reasoningTokens": {
+            "type": ["integer", "null"],
             "minimum": 0
           }
         }
@@ -4923,6 +4969,11 @@
           "null"
         ],
         "maxLength": 200
+      },
+      "tenantId": {
+        "type": "string",
+        "minLength": 1,
+        "default": "local"
       }
     },
     "https://schemas.iroute.dev/v1/model-gateway-failure.schema.json": {
@@ -5231,6 +5282,18 @@
           "toolCalls": {
             "type": "integer",
             "minimum": 0
+          },
+          "costKnown": {
+            "type": "boolean",
+            "default": true
+          },
+          "cachedInputTokens": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "reasoningTokens": {
+            "type": ["integer", "null"],
+            "minimum": 0
           }
         }
       }
@@ -5301,6 +5364,18 @@
           },
           "toolCalls": {
             "type": "integer",
+            "minimum": 0
+          },
+          "costKnown": {
+            "type": "boolean",
+            "default": true
+          },
+          "cachedInputTokens": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "reasoningTokens": {
+            "type": ["integer", "null"],
             "minimum": 0
           }
         }
@@ -5484,7 +5559,8 @@
           "model_gateway_unavailable",
           "model_gateway_http_error",
           "model_gateway_invalid_response",
-          "model_gateway_exhausted"
+          "model_gateway_exhausted",
+          "tenant_quota_exceeded"
         ]
       },
       "detail": {
@@ -5990,6 +6066,18 @@
           },
           "toolCalls": {
             "type": "integer",
+            "minimum": 0
+          },
+          "costKnown": {
+            "type": "boolean",
+            "default": true
+          },
+          "cachedInputTokens": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          },
+          "reasoningTokens": {
+            "type": ["integer", "null"],
             "minimum": 0
           }
         }

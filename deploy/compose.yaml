@@ -15,6 +15,9 @@ services:
       ModelGateway__Mode: ${IROUTE_MODEL_GATEWAY_MODE:-Deterministic}
       ModelGateway__BaseUrl: ${IROUTE_MODEL_GATEWAY_URL:-}
       ModelGateway__ApiKey: ${IROUTE_MODEL_GATEWAY_KEY:-}
+      ModelGateway__Model: ${IROUTE_MODEL_GATEWAY_MODEL:-}
+      ModelGateway__InputCostPerMillionTokens: ${IROUTE_MODEL_INPUT_COST_PER_MILLION:-}
+      ModelGateway__OutputCostPerMillionTokens: ${IROUTE_MODEL_OUTPUT_COST_PER_MILLION:-}
       ModelGateway__GatewayId: ${IROUTE_MODEL_GATEWAY_ID:-external}
       ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
       ModelGateway__Resilience__Enabled: ${IROUTE_GATEWAY_RESILIENCE_ENABLED:-true}
@@ -72,6 +75,9 @@ services:
       ModelGateway__Mode: ${IROUTE_MODEL_GATEWAY_MODE:-Deterministic}
       ModelGateway__BaseUrl: ${IROUTE_MODEL_GATEWAY_URL:-}
       ModelGateway__ApiKey: ${IROUTE_MODEL_GATEWAY_KEY:-}
+      ModelGateway__Model: ${IROUTE_MODEL_GATEWAY_MODEL:-}
+      ModelGateway__InputCostPerMillionTokens: ${IROUTE_MODEL_INPUT_COST_PER_MILLION:-}
+      ModelGateway__OutputCostPerMillionTokens: ${IROUTE_MODEL_OUTPUT_COST_PER_MILLION:-}
       ModelGateway__GatewayId: ${IROUTE_MODEL_GATEWAY_ID:-external}
       ModelGateway__Transport: ${IROUTE_MODEL_GATEWAY_TRANSPORT:-Buffered}
       ModelGateway__Resilience__Enabled: ${IROUTE_GATEWAY_RESILIENCE_ENABLED:-true}

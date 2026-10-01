@@ -24,4 +24,15 @@ public interface IExecutionService
         CancellationToken cancellationToken);
 
     Task<ExecutionSnapshot> ProcessQueuedAsync(Guid executionId, CancellationToken cancellationToken);
+
+    Task<ExecutionSnapshot?> CancelAsync(Guid executionId, string tenantId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<UnresolvedExternalAction>?> ListUnresolvedActionsAsync(
+        Guid executionId, string tenantId, IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken);
+
+    Task<UnresolvedExternalAction?> ReconcileActionAsync(
+        Guid executionId, string actionId, ExternalActionReconciliation reconciliation,
+        string tenantId, string actorId, IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken);
 }

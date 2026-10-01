@@ -7,8 +7,30 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.4] - 2026-10-01
+
 ### Added
 
+- Experimental tenant provider-attempt quotas, serializable SQLite/PostgreSQL
+  reservation/reconciliation, crash-expiry recovery, and fair durable dispatch.
+- Native ASP.NET body limits and verified-identity HTTP rate partitions, plus
+  PostgreSQL contention/fencing/upgrade coverage enabled in CI.
+- Repeated opt-in ChatGPT and Claude subscription correctness checks with
+  field-specific factual/status/action-claim rubrics and negative controls.
+
+- Opt-in product benchmarks comparing native direct-model calls with the full
+  iRoute pipeline, retaining synthetic outputs, provider token breakdowns,
+  elapsed times, factual checks, and observed inference-call counts.
+- Optional nullable cached-input and reasoning token breakdowns in normalized
+  usage, JSON Schemas, OpenAPI, and the public contract snapshot.
+- Native .NET OpenAI Responses and Anthropic Messages structured-output adapters,
+  local official Claude CLI subscription access, and native ChatGPT dynamic
+  registration/sign-in, account selection, rotating refresh, and revocation on
+  macOS/Linux. ChatGPT plan requests use bounded Responses event streams.
+- Explicit optional `usage.costKnown` and owner-tenant subscription routing, with
+  no silent subscription-to-API billing fallback.
+- Durable execution, cancellation, reconciliation, approval security, provider
+  protocol, subscription, adapter composition, and gateway contract regression tests.
 - Added `iRoute.Common`, `iRoute.Services`, `iRoute.Data`, `iRoute.Core`,
   `iRoute.Runtime`, and `iRoute.Tests` as the complete six-project solution.
 - Added architecture tests for allowed project references and the single Common
@@ -25,6 +47,11 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ### Changed
 
+- Replaced the large partial execution class with focused services and a small
+  dispatcher. Core remains a facade; Runtime endpoints no longer own cancellation
+  or reconciliation business rules.
+- Approval decisions now require a different actor from the requester, and
+  approval/action exceptions live with the other Common contracts.
 - The active repository and `alpha.4` release line are strictly .NET-only.
 - All cross-project DTOs, interfaces, ports, options, enums, and primitives now
   live in `iRoute.Common`; Services owns behavior, Data owns persistence, Core is
@@ -43,6 +70,30 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ### Fixed
 
+- Gateway configuration records redact credentials and endpoint configuration
+  in diagnostic string formatting. Release verification runs PostgreSQL
+  contention/migration tests as well as the container smoke checks.
+- Older/equal producer versions cannot overwrite newer project state or win
+  context selection; relevance ranking uses decoded Unicode text.
+- Artifact reuse preserves the original validated confidence. Nullable legacy
+  confidence triggers regeneration instead of invented certainty.
+- Context and native output budgets cannot exceed task-definition limits.
+- PostgreSQL retries recognize wrapped serialization failures and rerun complete
+  transactions; additive confidence migration rollback works on both providers.
+- Claude CLI and Anthropic usage include cache reads/writes in input totals;
+  cache reads and reasoning remain optional subsets, never extra totals.
+
+- Artifact reuse now fingerprints output-affecting constraints and metadata;
+  idempotent submissions cannot silently change their constraints. Previous
+  persisted hashes are not silently reused; see the benchmark upgrade note.
+- Sources excluded by lifecycle checks cannot be materialized as active project
+  memory, and explicit source expiry is preserved for no-model lookups.
+- Provider cached-input and reasoning detail counts are validated and retained
+  without double-counting totals; partially known workflow details remain unknown.
+- ChatGPT plan requests now use array-shaped input and omit the unsupported
+  output-token parameter. Bounded Responses streams accept missing media headers,
+  reconstruct indexed text when terminal output is empty, and reject conflicting
+  snapshots, refusals, tools, malformed frames, and premature termination.
 - Anchored the root build-artifact ignore rules so the legitimate
   `iRoute.Common/Contracts/Artifacts` source folder is included in Git and the
   Docker build context.

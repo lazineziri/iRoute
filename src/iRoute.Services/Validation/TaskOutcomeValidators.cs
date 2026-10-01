@@ -33,11 +33,11 @@ public sealed class EmailDraftOutcomeValidator : ITaskOutcomeValidator
             definition.MinimumQuality);
         if (result.Confidence >= qualityFloor)
         {
-            checks.Add("The measured confidence meets the task quality floor.");
+            checks.Add("The reported confidence meets the task quality floor; this is not proof of measured model quality.");
         }
         else
         {
-            failures.Add($"Measured confidence {result.Confidence:0.###} is below the quality floor {qualityFloor:0.###}.");
+            failures.Add($"Reported confidence {result.Confidence:0.###} is below the quality floor {qualityFloor:0.###}.");
         }
 
         var evidenceRequired = request.Constraints?.RequireEvidence is true || definition.RequiresEvidence;

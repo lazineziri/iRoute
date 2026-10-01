@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using iRoute.Common;
@@ -127,40 +128,7 @@ public sealed partial class BoundedContextCompiler
         candidate.Rank,
         outputPath);
 
-    private string? InactiveReason(JsonElement value)
-    {
-        if (value.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (value.TryGetProperty("isActive", out var isActive) &&
-            isActive.ValueKind == JsonValueKind.False)
-        {
-            return "Excluded because the source is not active.";
-        }
-
-        var lifecycle = ReadString(value, "lifecycleStatus") ?? ReadString(value, "status");
-        if (lifecycle is not null &&
-            (string.Equals(lifecycle, "Superseded", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(lifecycle, "Invalidated", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(lifecycle, "Expired", StringComparison.OrdinalIgnoreCase)))
-        {
-            return $"Excluded because the source lifecycle is {lifecycle}.";
-        }
-
-        if (ReadString(value, "supersededBy") is not null ||
-            ReadString(value, "supersededByMemoryId") is not null ||
-            ReadString(value, "supersededByArtifactId") is not null)
-        {
-            return "Excluded because the source has been superseded.";
-        }
-
-        var expiresAt = ReadDateTimeOffset(value, "expiresAt");
-        return expiresAt is not null && expiresAt <= clock.GetUtcNow()
-            ? "Excluded because the source is expired."
-            : null;
-    }
+    private string? InactiveReason(JsonElement value) => ContextSourceLifecycle.ExclusionReason(value, clock.GetUtcNow());
 
     private static JsonElement ReadPayload(JsonElement value)
     {
@@ -188,13 +156,6 @@ public sealed partial class BoundedContextCompiler
             ? property.GetString()!.Trim()
             : null;
 
-    private static int ReadInt32(JsonElement value, string propertyName) =>
-        value.ValueKind == JsonValueKind.Object &&
-        value.TryGetProperty(propertyName, out var property) &&
-        property.TryGetInt32(out var number)
-            ? number
-            : 0;
-
     private static DateTimeOffset? ReadDateTimeOffset(JsonElement value, string propertyName) =>
         ReadString(value, propertyName) is { } text && DateTimeOffset.TryParse(text, out var result)
             ? result
@@ -219,18 +180,18 @@ public sealed partial class BoundedContextCompiler
                 ? request.Input.EnumerateObject()
                     .Where(property => property.Name is not
                         ("projectHistory" or "contextArtifacts" or "authoritativeSources" or "context"))
-                    .Select(property => property.Value.GetRawText())
-                : [request.Input.GetRawText()]);
+                    .Select(property => SearchText(property.Value))
+                : [SearchText(request.Input)]);
         return WordPattern()
-            .Matches(text.ToLowerInvariant())
+            .Matches(text.Normalize(NormalizationForm.FormKC).ToLowerInvariant())
             .Select(match => match.Value)
-            .Where(word => word.Length >= 3)
+            .Where(word => word.Length >= 2)
             .ToHashSet(StringComparer.Ordinal);
     }
 
     private static int CalculateRelevance(JsonElement value, IReadOnlySet<string> keywords) =>
         WordPattern()
-            .Matches(value.GetRawText().ToLowerInvariant())
+            .Matches(SearchText(value).Normalize(NormalizationForm.FormKC).ToLowerInvariant())
             .Select(match => match.Value)
             .Distinct(StringComparer.Ordinal)
             .Count(keywords.Contains);
@@ -238,7 +199,33 @@ public sealed partial class BoundedContextCompiler
     private static string EscapeJsonPointer(string value) =>
         value.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal);
 
-    [GeneratedRegex("[a-z0-9]+", RegexOptions.CultureInvariant)]
+    private static string SearchText(JsonElement value)
+    {
+        var builder = new StringBuilder();
+        Append(value);
+        return builder.ToString();
+
+        void Append(JsonElement item)
+        {
+            switch (item.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    foreach (var property in item.EnumerateObject()) Append(property.Value);
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var element in item.EnumerateArray()) Append(element);
+                    break;
+                case JsonValueKind.String:
+                    builder.Append(item.GetString()).Append(' ');
+                    break;
+                case JsonValueKind.Number:
+                    builder.Append(item.GetRawText()).Append(' ');
+                    break;
+            }
+        }
+    }
+
+    [GeneratedRegex("[\\p{L}\\p{M}\\p{N}]+", RegexOptions.CultureInvariant)]
     private static partial Regex WordPattern();
 
     private sealed record ContextCandidate(

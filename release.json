@@ -1,7 +1,7 @@
 {
   "version": "0.1.0-alpha.4",
   "channel": "alpha",
-  "releaseDate": null,
+  "releaseDate": "2026-10-01",
   "apiVersion": "v1",
   "schemaDraft": "2020-12",
   "minimumDotNetSdk": "10.0.100",

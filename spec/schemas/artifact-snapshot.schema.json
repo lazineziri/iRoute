@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": ["artifact", "tenantId", "taskType", "taskDefinitionVersion", "content", "evidence", "createdAt", "isActive"],
   "properties": {
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
     "artifact": {
       "type": "object",
       "additionalProperties": false,

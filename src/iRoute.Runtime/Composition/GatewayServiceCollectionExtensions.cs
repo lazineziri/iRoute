@@ -10,8 +10,12 @@ internal static class GatewayServiceCollectionExtensions
     {
         services.AddSingleton<DeterministicModelGateway>();
         services.AddSingleton<IGatewayDeploymentRegistry, ConfiguredGatewayDeploymentRegistry>();
-        services.AddSingleton<IGatewayDeploymentClientFactory, ConfiguredGatewayDeploymentClientFactory>();
-        services.AddHttpClient("iroute-generic-gateway");
+        services.AddSingleton<IProviderCliRunner, ProviderCliRunner>();
+        services.AddIRouteChatGPTAuthentication();
+        services.AddSingleton<ConfiguredGatewayDeploymentClientFactory>();
+        services.AddSingleton<IGatewayDeploymentClientFactory>(provider => provider.GetRequiredService<ConfiguredGatewayDeploymentClientFactory>());
+        services.AddHttpClient("iroute-generic-gateway")
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddHttpClient<GenericHttpModelGateway>((provider, client) =>
         {
             var options = provider.GetRequiredService<IOptions<ModelGatewayOptions>>().Value;
@@ -24,14 +28,14 @@ internal static class GatewayServiceCollectionExtensions
         services.AddTransient<IModelGateway>(provider =>
         {
             var options = provider.GetRequiredService<IOptions<ModelGatewayOptions>>().Value;
-            if (!string.Equals(options.Mode, "Http", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(options.Mode, "Deterministic", StringComparison.OrdinalIgnoreCase))
             {
                 return provider.GetRequiredService<DeterministicModelGateway>();
             }
 
             return options.Resilience.Enabled
                 ? provider.GetRequiredService<ResilientModelGateway>()
-                : provider.GetRequiredService<GenericHttpModelGateway>();
+                : provider.GetRequiredService<ConfiguredGatewayDeploymentClientFactory>().GetDefaultClient();
         });
         services.AddHealthChecks().AddCheck<ModelGatewayHealthCheck>(
             "model_gateway",

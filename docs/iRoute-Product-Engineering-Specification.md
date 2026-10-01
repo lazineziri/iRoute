@@ -27,24 +27,25 @@ iRoute owns:
 
 iRoute does not own:
 
-- model hosting or provider-specific SDKs/protocols;
+- model hosting or third-party SDK implementations;
 - organization identity issuance, billing reconciliation, or secret storage;
 - arbitrary autonomous browser/computer control;
 - unbounded conversation/history storage;
 - production connector credentials or downstream-system authorization policy.
 
 Provider and connector adaptation belongs behind registered, bounded contracts.
+Native provider protocol adapters live in Services behind Common ports.
 
 ## 3. Users
 
 - A developer runs the deterministic SQLite profile and submits tasks without a
   provider key.
 - A platform team deploys the same runtime with PostgreSQL, JWT, workers,
-  migrations, generic gateways, telemetry, and managed secrets.
+  migrations, native or generic API gateways, telemetry, and managed secrets.
 - An operator observes tenant-scoped executions, quality, latency, reported
   cost, reuse, gateway health, and circuit behavior.
 - An approver explicitly accepts or rejects external writes allowed by task
-  policy and permission scope.
+  policy and permission scope. They must not be the request's originating actor.
 
 ## 4. Product principles
 
@@ -95,6 +96,20 @@ libraries. Tests may depend on all. Reverse references and cycles are forbidden.
 Contracts exist in Common only. Implementation projects do not export alternate
 interfaces, records, or enums. Feature folders organize cohesive behavior inside
 the owning project; wrapper layer directories are not used.
+
+Execution submission, preparation, approval, queue processing, cancellation,
+action reconciliation, step execution, persistence/audit, and outcome
+materialization have focused owners in Services. The facade does not accumulate
+their dependencies. HTTP endpoints translate transport and identity, not policy
+or persistence decisions.
+
+Native OpenAI/Anthropic adapters normalize structured output and token usage.
+Cost estimates require configured prices; unpriced or subscription usage is
+marked unknown, not free. Local subscription access cannot become a shared
+hosted billing route. Native ChatGPT sign-in uses dynamic registration, isolated
+account records, rotating refresh, revocation, and bounded Responses streaming on
+macOS/Linux. Live entitlement validation and Windows credential storage remain
+outstanding. See [model providers](model-providers.md).
 
 ## 7. Runtime modes
 

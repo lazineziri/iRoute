@@ -78,6 +78,13 @@ public sealed class EfMemoryStore(
             .ThenByDescending(item => item.MemoryId)
             .ToListAsync(cancellationToken);
         var active = lineage.FirstOrDefault(item => item.LifecycleStatus == MemoryLifecycleStatus.Active);
+        if (lineage.FirstOrDefault() is { } latest && MemorySourceOrdering.CannotReplace(record.Value,
+                JsonSerializer.Deserialize<JsonElement>(latest.ValueJson, JsonOptions)))
+        {
+            var existing = await ToRecordAsync(context, latest, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new MemoryWriteResult(existing, null, false);
+        }
         if (active is not null &&
             string.Equals(active.ContentHash, record.ContentHash, StringComparison.Ordinal) &&
             (active.ExpiresAtUnixMilliseconds is null ||

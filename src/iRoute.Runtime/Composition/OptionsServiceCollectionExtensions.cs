@@ -9,6 +9,9 @@ internal static class OptionsServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddOptions<TenantQuotaOptions>().Bind(configuration.GetSection("TenantQuotas"))
+            .Validate(options => { options.EnsureValid(); return true; }).ValidateOnStart();
+        services.AddSingleton(provider => provider.GetRequiredService<IOptions<TenantQuotaOptions>>().Value);
         services.AddSingleton<IValidateOptions<ModelGatewayOptions>, ModelGatewayOptionsValidator>();
         services.AddOptions<ModelGatewayOptions>()
             .Bind(configuration.GetSection("ModelGateway"))

@@ -64,7 +64,7 @@ public sealed partial class BoundedContextCompiler
                 continue;
             }
 
-            var key = ReadString(item.Value, "key") ??
+            var key = ReadString(item.Value, "key") ?? ReadString(item.Value, "id") ??
                 (kind is "decision" or "fact" or "history"
                     ? $"{propertyName}[{item.Index}]"
                     : null);
@@ -78,7 +78,7 @@ public sealed partial class BoundedContextCompiler
                 value.Clone(),
                 contentHash,
                 rank,
-                ReadInt32(item.Value, "version"),
+                ContextSourceLifecycle.Version(item.Value),
                 item.Index,
                 identity,
                 ReadDateTimeOffset(item.Value, "observedAt")));
@@ -100,7 +100,7 @@ public sealed partial class BoundedContextCompiler
             memory.Value.Clone(),
             memory.ContentHash,
             isHistory ? StoredHistoryRank : memory.Kind == MemoryKind.Decision ? ActiveDecisionRank : ActiveFactRank,
-            memory.Version,
+            ContextSourceLifecycle.Version(memory.Value),
             memory.Version,
             $"{(kind == "history" ? "fact" : kind)}:{memory.Key}",
             memory.CreatedAt);

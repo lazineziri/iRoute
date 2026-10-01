@@ -35,7 +35,10 @@
         "cost": { "type": "number", "minimum": 0 },
         "durationMilliseconds": { "type": "integer", "minimum": 0 },
         "modelCalls": { "type": "integer", "minimum": 0 },
-        "toolCalls": { "type": "integer", "minimum": 0 }
+        "toolCalls": { "type": "integer", "minimum": 0 },
+        "costKnown": { "type": "boolean", "default": true },
+        "cachedInputTokens": { "type": ["integer", "null"], "minimum": 0 },
+        "reasoningTokens": { "type": ["integer", "null"], "minimum": 0 }
       }
     },
     "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact" } },

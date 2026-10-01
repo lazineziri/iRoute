@@ -1,21 +1,30 @@
 using iRoute.Common;
 using iRoute.Data;
+using iRoute.Services;
 using Microsoft.Extensions.Options;
 
 namespace iRoute.Runtime.Composition;
 
-internal sealed class ModelGatewayOptionsValidator : IValidateOptions<ModelGatewayOptions>
+internal sealed class ModelGatewayOptionsValidator(IHostEnvironment environment) : IValidateOptions<ModelGatewayOptions>
 {
     public ValidateOptionsResult Validate(string? name, ModelGatewayOptions options)
     {
-        if (!string.Equals(options.Mode, "Deterministic", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(options.Mode, "Http", StringComparison.OrdinalIgnoreCase))
+        if (!ModelGatewayModes.IsSupported(options.Mode))
         {
             return ValidateOptionsResult.Fail(
-                "ModelGateway:Mode must be either Deterministic or Http.");
+                "ModelGateway:Mode must be Deterministic, Http, OpenAI, Anthropic, OpenAIChatGPT, or ClaudeCode.");
         }
 
-        return OptionsValidation.From(options.Resilience.EnsureValid);
+        if (!environment.IsDevelopment() && (ModelGatewayModes.IsSubscription(options.Mode) ||
+            options.Deployments.Any(route => ModelGatewayModes.IsSubscription(route.Adapter))))
+            return ValidateOptionsResult.Fail("Personal subscription routes are local-development only. Use per-tenant API deployments in hosted environments.");
+
+        return OptionsValidation.From(() =>
+        {
+            options.Resilience.EnsureValid();
+            if (!options.Mode.Equals("Deterministic", StringComparison.OrdinalIgnoreCase))
+                _ = new ConfiguredGatewayDeploymentRegistry(Options.Create(options));
+        });
     }
 }
 

@@ -16,9 +16,21 @@ public sealed class IRouteDbContext(DbContextOptions<IRouteDbContext> options) :
     public DbSet<DependencyEdgeEntity> DependencyEdges => Set<DependencyEdgeEntity>();
     public DbSet<LifecycleArchiveEntity> LifecycleArchives => Set<LifecycleArchiveEntity>();
     public DbSet<GatewayCircuitEntity> GatewayCircuits => Set<GatewayCircuitEntity>();
+    public DbSet<TenantQuotaAccountEntity> TenantQuotaAccounts => Set<TenantQuotaAccountEntity>();
+    public DbSet<TenantQuotaReservationEntity> TenantQuotaReservations => Set<TenantQuotaReservationEntity>();
+    public DbSet<TenantDispatchEntity> TenantDispatch => Set<TenantDispatchEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<TenantQuotaAccountEntity>().ToTable("TenantQuotaAccounts").HasKey(item => item.TenantId);
+        modelBuilder.Entity<TenantQuotaAccountEntity>().Property(item => item.TenantId).HasMaxLength(200);
+        modelBuilder.Entity<TenantDispatchEntity>().ToTable("TenantDispatch").HasKey(item => item.TenantId);
+        modelBuilder.Entity<TenantDispatchEntity>().Property(item => item.TenantId).HasMaxLength(200);
+        var quota = modelBuilder.Entity<TenantQuotaReservationEntity>();
+        quota.ToTable("TenantQuotaReservations").HasKey(item => item.ReservationId);
+        quota.Property(item => item.TenantId).HasMaxLength(200);
+        quota.HasIndex(item => new { item.TenantId, item.WindowStartUnixMilliseconds });
+        quota.HasIndex(item => new { item.TenantId, item.LeaseExpiresAtUnixMilliseconds });
         var execution = modelBuilder.Entity<ExecutionEntity>();
         execution.ToTable("Executions");
         execution.HasKey(x => x.ExecutionId);

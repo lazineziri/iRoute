@@ -5,10 +5,10 @@ work from trusted state first, routes only unresolved work to registered
 capabilities or model gateways, validates the result, and stores reusable
 artifacts with evidence, quality, latency, and cost metadata.
 
-> **Experimental alpha:** `0.1.0-alpha.4` is the current development line and is
-> not published yet. Breaking changes are expected before `1.0`; production
-> connectors, tenant quotas, sustained load testing, and a security SLA are not
-> included.
+> **Experimental alpha:** `0.1.0-alpha.4` is the current .NET release line.
+> Breaking changes are expected before `1.0`; production
+> connectors, sustained load testing, and a security SLA are not included.
+> Tenant quotas and fair dispatch are experimental; quotas require explicit enablement.
 
 ## One runtime, six projects
 
@@ -42,17 +42,26 @@ ownership rules.
 
 - Durable asynchronous executions, ordered events, cancellation, deadlines,
   approvals, external-action reconciliation, and restart-safe checkpoints.
+- Database-backed tenant model-attempt reservations/reconciliation, fair queued
+  execution dispatch, and native ASP.NET body/rate safeguards. See
+  [quota configuration and limits](docs/tenant-quotas.md).
 - Deterministic artifact, fact, decision, and handler resolution before model
   use, with dependency-aware invalidation and bounded context compilation.
 - Explainable routing and planning with model-profile provenance, quality
   escalation, provider-neutral HTTP gateways, deterministic fallback, and
   durable circuit state.
+- Direct .NET OpenAI Responses and Anthropic Messages adapters for structured
+  email drafts and summaries. Optional local Claude subscription access uses the
+  official CLI. Native ChatGPT sign-in, account selection, and token refresh are
+  implemented for local macOS/Linux use. The corrected ChatGPT adapter has been
+  exercised through the full pipeline on four non-Astra models; see the
+  [exploratory product benchmark](docs/product-benchmark.md) for results and limits.
 - Normalized capability execution for reference email, calendar, database,
   OpenAPI, MCP, and agent-result connectors. Write examples are simulated and
   approval-gated; they are not production integrations.
 - SQLite for local single-process use and PostgreSQL for API/worker deployments,
   including explicit schema migration commands.
-- JWT identity in deployed environments, development headers on loopback,
+- JWT identity in deployed environments, development headers for locally bound use,
   tenant-scoped storage, permission scopes, OpenTelemetry, health endpoints,
   redacted observability views, and the `/dashboard/` operator UI.
 - One installable `iroute` .NET tool and one OCI image. Both expose `serve`,
@@ -104,6 +113,14 @@ dotnet run --project src/iRoute.Runtime -- \
 See [installation](docs/installation.md) and [client/CLI usage](docs/client-usage.md)
 for the complete lifecycle.
 
+To use your subscription locally, use iRoute's own `auth chatgpt login` and
+`ModelGateway__Mode=OpenAIChatGPT`, or sign into the official Claude Code CLI and
+select `ModelGateway__Mode=ClaudeCode`. API keys are optional: the separate
+`OpenAI`/`Anthropic` modes use `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` and API billing.
+Set a model available to your account and see
+[provider setup and subscription limits](docs/model-providers.md). Unpriced
+API/subscription usage is explicitly marked unknown, not reported as free.
+
 ## Container quick start
 
 The repository builds one non-root runtime image. The image defaults to
@@ -135,6 +152,7 @@ iroute migrate status                show schema state
 iroute migrate up [target]           apply migrations
 iroute migrate down <target> --confirm
 iroute client <command>              call a running server
+iroute auth chatgpt <command>        sign in, select accounts, or revoke a local session
 iroute <client-command>              client-command shorthand
 ```
 
@@ -191,6 +209,7 @@ identity and JWT mode rejects missing authority or audience.
 - `release` is a manual dry-run on branches. A verified annotated `v<version>`
   tag publishes five NuGet packages through OIDC, a multi-architecture GHCR
   image with provenance/SBOM, and then the immutable GitHub prerelease.
+  Release verification includes the PostgreSQL contention/migration suite.
 - Dependabot tracks NuGet, Docker, and GitHub Actions dependencies weekly.
 
 The version in `release.json`, every production project, release notes, package

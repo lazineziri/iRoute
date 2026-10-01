@@ -77,6 +77,7 @@ internal static class PersistenceMapping
 
     public static ArtifactEntity ToEntity(ArtifactRecord artifact) => new()
     {
+        Confidence = artifact.Confidence,
         ArtifactId = artifact.ArtifactId,
         TenantId = artifact.TenantId,
         ProjectId = artifact.ProjectId ?? string.Empty,
@@ -126,7 +127,8 @@ internal static class PersistenceMapping
         entity.InvalidatedAtUnixMilliseconds is { } invalidatedAt
             ? DateTimeOffset.FromUnixTimeMilliseconds(invalidatedAt)
             : null,
-        entity.InvalidationReason);
+        entity.InvalidationReason,
+        entity.Confidence);
 
     private static string? Serialize<T>(T? value) where T : class =>
         value is null ? null : JsonSerializer.Serialize(value, JsonOptions);

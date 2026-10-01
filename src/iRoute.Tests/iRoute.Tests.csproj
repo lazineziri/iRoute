@@ -17,4 +17,8 @@
     <ProjectReference Include="../iRoute.Core/iRoute.Core.csproj" />
     <ProjectReference Include="../iRoute.Runtime/iRoute.Runtime.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../spec/schemas/*.json" Link="spec/schemas/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../spec/compatibility/v1/public-contract.snapshot.json" Link="spec/public-contract.snapshot.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

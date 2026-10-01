@@ -45,9 +45,9 @@ internal static class PersistenceContention
             {
                 return await action();
             }
-            catch (Exception exception) when (attempt < 6 && IsRetryable(exception))
+            catch (Exception exception) when (attempt < 10 && IsRetryable(exception))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(attempt * 5), cancellationToken);
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(200, 5 * (1 << Math.Min(attempt, 5))) + Random.Shared.Next(1, 10)), cancellationToken);
             }
         }
     }
@@ -58,6 +58,8 @@ internal static class PersistenceContention
         Npgsql.PostgresException { SqlState: "23505" or "40001" or "40P01" } => true,
         Microsoft.Data.Sqlite.SqliteException { SqliteErrorCode: 5 or 6 } => true,
         Microsoft.Data.Sqlite.SqliteException { SqliteExtendedErrorCode: 1555 or 2067 } => true,
-        _ => false
+        // Npgsql's execution strategy wraps serialization/deadlock failures in InvalidOperationException.
+        // Inspect the cause, not exception text, and rerun the entire transaction with a fresh context.
+        _ => exception.InnerException is { } inner && IsRetryable(inner)
     };
 }

@@ -48,7 +48,7 @@ public sealed class ExactResultResolver(
             new ResolutionCandidate(
                 ResolutionLevel.ExactArtifact,
                 artifact.Content.Clone(),
-                1m,
+                artifact.Confidence ?? 0m,
                 ResolutionChecks.ArtifactEvidence(artifact),
                 artifact.ToReference()),
             "Authenticated permission scopes were checked.",

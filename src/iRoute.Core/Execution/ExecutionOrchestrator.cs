@@ -48,4 +48,18 @@ public sealed class ExecutionOrchestrator(IExecutionService executions)
         Guid executionId,
         CancellationToken cancellationToken) =>
         executions.ProcessQueuedAsync(executionId, cancellationToken);
+
+    public Task<ExecutionSnapshot?> CancelAsync(Guid executionId, string tenantId, CancellationToken cancellationToken) =>
+        executions.CancelAsync(executionId, tenantId, cancellationToken);
+
+    public Task<IReadOnlyList<UnresolvedExternalAction>?> ListUnresolvedActionsAsync(
+        Guid executionId, string tenantId, IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken) =>
+        executions.ListUnresolvedActionsAsync(executionId, tenantId, permissionScopes, cancellationToken);
+
+    public Task<UnresolvedExternalAction?> ReconcileActionAsync(
+        Guid executionId, string actionId, ExternalActionReconciliation request,
+        string tenantId, string actorId, IReadOnlyCollection<string> permissionScopes,
+        CancellationToken cancellationToken) =>
+        executions.ReconcileActionAsync(executionId, actionId, request, tenantId, actorId, permissionScopes, cancellationToken);
 }

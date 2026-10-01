@@ -1,12 +1,16 @@
 using System.Diagnostics;
 using System.Text.Json;
 using iRoute.Common;
+using static iRoute.Services.CapabilityOutputProjection;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class ModelStepExecutionService(
+    IModelGateway modelGateway,
+    ExecutionPersistenceService persistence,
+    GatewayEvidenceService evidence)
 {
-    private async Task<ModelGatewayResult> ExecuteModelStepAsync(
+    internal async Task<ModelGatewayResult> ExecuteModelStepAsync(
         Guid executionId,
         TaskRequest request,
         TaskDefinition definition,
@@ -26,7 +30,7 @@ public sealed partial class ExecutionService
             step.Capability,
             context.ProjectedInput,
             modelContext,
-            request.Constraints?.MaxOutputTokens ?? definition.DefaultMaxOutputTokens,
+            RoutingBudgets.MaximumOutputTokens(request, definition),
             executionId.ToString(),
             step.ProfileId,
             step.TimeoutMilliseconds,
@@ -36,8 +40,9 @@ public sealed partial class ExecutionService
             MaximumCost: gatewayBudget.MaximumCost,
             AllowedRegions: request.Constraints?.AllowedRegions,
             RequiredResidency: request.Constraints?.RequiredResidency,
-            MaximumAttempts: gatewayBudget.MaximumAttempts);
-        await AppendEventAsync(
+            MaximumAttempts: gatewayBudget.MaximumAttempts,
+            TenantId: request.TenantId ?? "local");
+        await persistence.AppendEventAsync(
             executionId,
             ExecutionEventTypes.GatewayStarted,
             new
@@ -105,12 +110,12 @@ public sealed partial class ExecutionService
             stopwatch.Stop();
             if (exception.Resilience is { } resilience)
             {
-                await AppendGatewayResilienceEvidenceAsync(
+                await evidence.AppendGatewayResilienceEvidenceAsync(
                     executionId,
                     resilience,
                     CancellationToken.None);
             }
-            await AppendGatewayFailureAsync(
+            await evidence.AppendGatewayFailureAsync(
                 executionId,
                 step,
                 exception.ToFailure(),
@@ -120,7 +125,7 @@ public sealed partial class ExecutionService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             stopwatch.Stop();
-            await AppendGatewayFailureAsync(
+            await evidence.AppendGatewayFailureAsync(
                 executionId,
                 step,
                 new ModelGatewayFailure(
@@ -145,14 +150,14 @@ public sealed partial class ExecutionService
         };
         if (normalized.Resilience is { } resilienceTrace)
         {
-            await AppendGatewayResilienceEvidenceAsync(
+            await evidence.AppendGatewayResilienceEvidenceAsync(
                 executionId,
                 resilienceTrace,
                 cancellationToken);
         }
         if (normalized.Transport == ModelGatewayTransport.Streaming)
         {
-            await AppendEventAsync(
+            await persistence.AppendEventAsync(
                 executionId,
                 ExecutionEventTypes.GatewayStreamed,
                 new
@@ -169,5 +174,14 @@ public sealed partial class ExecutionService
 
         return normalized;
     }
-
+    private ModelGatewayException InvalidGatewayStream(
+        ModelGatewayRequest request,
+        string message) =>
+        new(
+            ErrorCodes.ModelGatewayInvalidResponse,
+            message,
+            false,
+            failureKind: ModelGatewayFailureKind.InvalidResponse,
+            gatewayId: modelGateway.GatewayId,
+            correlationId: request.CorrelationId);
 }

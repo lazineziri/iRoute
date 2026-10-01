@@ -13,8 +13,8 @@ uses the exact version from `release.json` and the production project files.
 | `ghcr.io/lazineziri/iroute` | GitHub Container Registry | unified multi-mode Linux runtime image |
 | source archive/checksums | GitHub Release | reproducible source handoff and integrity manifest |
 
-`0.1.0-alpha.4` is the current development version and is not published until
-its verified tag workflow completes. Older registry entries—including previous
+`0.1.0-alpha.4` is the coordinated .NET release version. Registry publication is
+confirmed only when its verified-tag workflow completes. Older registry entries—including previous
 package IDs and non-.NET clients—are immutable historical releases, not current
 support targets.
 

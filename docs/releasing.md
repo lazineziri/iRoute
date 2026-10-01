@@ -5,7 +5,9 @@ One workflow owns package verification and publication:
 
 Manual dispatch is a dry run: it validates metadata, formatting, build, tests,
 five packages, source archive, release notes, checksums, and the runtime image
-with SQLite and PostgreSQL migrations and API/worker execution. A verified
+with SQLite and PostgreSQL migrations and API/worker execution. The release
+test job also runs PostgreSQL contention/fencing/fairness/upgrade tests against
+a disposable service database. A verified
 annotated tag additionally publishes NuGet and GHCR, then
 creates the GitHub prerelease only after both registries succeed.
 

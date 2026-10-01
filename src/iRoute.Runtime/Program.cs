@@ -30,6 +30,8 @@ internal static class RuntimeCommand
                 return await MigrationCli.RunAsync(commandArguments);
             case "client":
                 return await ClientCli.RunAsync(commandArguments);
+            case "auth":
+                return await ChatGPTAuthCli.RunAsync(commandArguments);
             default:
                 return await ClientCli.RunAsync(args);
         }
@@ -43,6 +45,7 @@ internal static class RuntimeCommand
           iroute worker                       Run background workers only
           iroute migrate <command>             Manage the database schema
           iroute client <command>              Call a running iRoute server
+          iroute auth chatgpt <command>         Manage native ChatGPT sign-in
           iroute <client-command>              Client command shorthand
 
         Run 'iroute client help' or 'iroute migrate help' for command details.

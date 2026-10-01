@@ -7,6 +7,22 @@ want the canonical .NET DTOs.
 
 ## Connection and identity
 
+Local provider sign-in is separate from the iRoute server's JWT identity:
+
+```bash
+iroute auth chatgpt login
+iroute auth chatgpt accounts
+iroute auth chatgpt select <account-id>
+iroute auth chatgpt login <account-id>   # reauthorize the same registration
+iroute auth chatgpt logout <account-id>
+```
+
+Open the printed authorization URL, review access, and complete the browser
+callback within ten minutes. These commands do not make inference requests.
+Credentials belong to iRoute alone and are stored in owner-only local files on
+macOS/Linux. Windows credential storage is not implemented. See
+[provider setup](model-providers.md) for limits and runtime configuration.
+
 Client commands accept these options:
 
 | Option | Environment variable | Default |
@@ -67,7 +83,10 @@ iroute deny <execution-id> <action-id> --reason 'Not authorized'
 ```
 
 Cancellation is cooperative and durable. Approval requires the relevant
-permission scope and cannot bypass the task policy. External actions that lose
+task permission scopes, `approval:grant`, and an actor different from the
+requester; even a fully privileged requester cannot decide their own proposal.
+Use `--actor reviewer` with development headers, or a different authenticated
+JWT subject in production. Approval cannot bypass task policy. External actions that lose
 their acknowledgement can be inspected/reconciled through the HTTP endpoints;
 that operation is intentionally not hidden behind automatic client retries.
 

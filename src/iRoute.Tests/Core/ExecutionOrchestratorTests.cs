@@ -61,9 +61,14 @@ public sealed class ExecutionOrchestratorTests
         Assert.Same(
             snapshot,
             await orchestrator.ProcessQueuedAsync(snapshot.ExecutionId, cancellation.Token));
+        Assert.Same(snapshot, await orchestrator.CancelAsync(snapshot.ExecutionId, "tenant", cancellation.Token));
+        Assert.Empty((await orchestrator.ListUnresolvedActionsAsync(
+            snapshot.ExecutionId, "tenant", ["approval:grant"], cancellation.Token))!);
+        Assert.Null(await orchestrator.ReconcileActionAsync(snapshot.ExecutionId, "send",
+            new ExternalActionReconciliation("succeeded"), "tenant", "actor", ["approval:grant"], cancellation.Token));
 
         Assert.Equal(
-            ["execute", "submit", "approve", "approve-queue", "process"],
+            ["execute", "submit", "approve", "approve-queue", "process", "cancel", "actions", "reconcile"],
             service.Calls);
         Assert.Same(request, service.Request);
         Assert.Same(decision, service.Decision);
@@ -142,6 +147,35 @@ public sealed class ExecutionOrchestratorTests
             Calls.Add("process");
             ExecutionId = executionId;
             return Task.FromResult(snapshot);
+        }
+
+        public Task<ExecutionSnapshot?> CancelAsync(Guid executionId, string tenantId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Calls.Add("cancel");
+            ExecutionId = executionId;
+            return Task.FromResult<ExecutionSnapshot?>(snapshot);
+        }
+
+        public Task<IReadOnlyList<UnresolvedExternalAction>?> ListUnresolvedActionsAsync(
+            Guid executionId, string tenantId, IReadOnlyCollection<string> permissionScopes,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Calls.Add("actions");
+            ExecutionId = executionId;
+            return Task.FromResult<IReadOnlyList<UnresolvedExternalAction>?>([]);
+        }
+
+        public Task<UnresolvedExternalAction?> ReconcileActionAsync(
+            Guid executionId, string actionId, ExternalActionReconciliation reconciliation,
+            string tenantId, string actorId, IReadOnlyCollection<string> permissionScopes,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Calls.Add("reconcile");
+            ExecutionId = executionId;
+            return Task.FromResult<UnresolvedExternalAction?>(null);
         }
 
         private Task<ApprovalResult> RecordApproval(

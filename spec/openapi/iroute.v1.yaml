@@ -621,6 +621,7 @@ components:
         - createdAt
         - isActive
       properties:
+        confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
         artifact: { $ref: '#/components/schemas/ArtifactReference' }
         tenantId: { type: string }
         projectId: { type: [string, 'null'] }
@@ -837,6 +838,9 @@ components:
         durationMilliseconds: { type: integer, format: int64, minimum: 0 }
         modelCalls: { type: integer, minimum: 0 }
         toolCalls: { type: integer, minimum: 0 }
+        costKnown: { type: boolean, default: true, description: 'False means cost is unknown or subscription quota rather than a priced API estimate. A zero cost with costKnown=false is not free usage.' }
+        cachedInputTokens: { type: integer, nullable: true, minimum: 0, description: 'Provider-reported subset of inputTokens; null means unknown. Do not subtract from token totals.' }
+        reasoningTokens: { type: integer, nullable: true, minimum: 0, description: 'Provider-reported subset of outputTokens; null means unknown. Do not add again to token totals.' }
     ValidationSummary:
       type: object
       additionalProperties: false
@@ -1232,6 +1236,7 @@ components:
         - model_gateway_http_error
         - model_gateway_invalid_response
         - model_gateway_exhausted
+        - tenant_quota_exceeded
     ExecutionProblem:
       type: object
       additionalProperties: false

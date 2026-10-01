@@ -22,6 +22,19 @@ jobs:
     name: verify-release
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:18.4-alpine
+        env:
+          POSTGRES_DB: iroute_tests
+          POSTGRES_USER: iroute_test
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U iroute_test -d iroute_tests"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      IROUTE_POSTGRES_TEST_CONNECTION: Host=127.0.0.1;Port=5432;Database=iroute_tests;Username=iroute_test;Password=ci-only-password
     outputs:
       channel: ${{ steps.metadata.outputs.channel }}
       version: ${{ steps.metadata.outputs.version }}

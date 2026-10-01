@@ -43,7 +43,7 @@ public sealed partial class BoundedContextCompiler(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var budget = Math.Max(1, request.Constraints?.MaxInputTokens ?? definition.DefaultMaxInputTokens);
+        var budget = Math.Max(1, RoutingBudgets.MaximumInputTokens(request, definition));
         var projectedInput = ProjectInput(request.Input);
         var projectedInputTokens = TokenEstimator.Estimate(projectedInput);
         var emptyContextTokens = TokenEstimator.Estimate(SerializeContext(
@@ -89,13 +89,16 @@ public sealed partial class BoundedContextCompiler(
                      .Where(candidate => candidate.Identity is not null)
                      .GroupBy(candidate => candidate.Identity!, StringComparer.Ordinal))
         {
-            foreach (var candidate in group.Skip(1))
+            foreach (var candidate in group.OrderByDescending(candidate => candidate.Version)
+                         .ThenByDescending(candidate => candidate.Rank)
+                         .ThenByDescending(candidate => candidate.Relevance)
+                         .ThenByDescending(candidate => candidate.Order).Skip(1))
             {
                 superseded.Add(candidate);
                 entries.Add(ToEntry(
                     candidate,
                     false,
-                    "Excluded because a higher-ranked active source superseded this candidate."));
+                    "Excluded because a newer version or higher-ranked active source superseded this candidate."));
             }
         }
 

@@ -103,8 +103,9 @@ public interface IExecutionStore
     /// Records a cancellation request without touching any other column.
     /// </summary>
     /// <returns>
-    /// <see langword="false"/> when the execution is missing or already terminal, in which case
-    /// nothing is written and the recorded outcome is preserved.
+    /// <see langword="true"/> only when a new cancellation request is recorded.
+    /// <see langword="false"/> when the execution is missing, already terminal, or already has
+    /// a cancellation request. Nothing is written and the recorded outcome is preserved.
     /// </returns>
     Task<bool> TryRequestCancellationAsync(
         Guid executionId,

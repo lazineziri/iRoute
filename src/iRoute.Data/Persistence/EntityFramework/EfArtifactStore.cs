@@ -104,6 +104,7 @@ public sealed class EfArtifactStore(
         if (active is not null &&
             string.Equals(active.InputHash, artifact.InputHash, StringComparison.Ordinal) &&
             string.Equals(active.ContentHash, artifact.ContentHash, StringComparison.Ordinal) &&
+            active.Confidence == artifact.Confidence &&
             (active.ExpiresAtUnixMilliseconds is null ||
                 active.ExpiresAtUnixMilliseconds > artifact.CreatedAt.ToUnixTimeMilliseconds()))
         {

@@ -1,8 +1,16 @@
 using iRoute.Common;
+using static iRoute.Services.ExecutionValidation;
 
 namespace iRoute.Services;
 
-public sealed partial class ExecutionService
+public sealed class QueuedExecutionService(
+    IExecutionStore store,
+    IWorkflowCheckpointStore checkpoints,
+    ITaskDefinitionRegistry taskDefinitions,
+    TimeProvider clock,
+    IExecutionTelemetry telemetry,
+    ExecutionPersistenceService persistence,
+    PlanExecutionService plans)
 {
     public async Task<ExecutionSnapshot> ProcessQueuedAsync(
         Guid executionId,
@@ -27,18 +35,18 @@ public sealed partial class ExecutionService
         var definition = await taskDefinitions.FindAsync(checkpoint.Request.TaskType, cancellationToken)
             ?? throw new InvalidOperationException(
                 $"No active task definition exists for '{checkpoint.Request.TaskType}'.");
-        using var trace = _telemetry.StartExecution(
+        using var trace = telemetry.StartExecution(
             snapshot,
             checkpoint.Request.PermissionScopes ?? [],
             "worker");
-        var remainingDeadline = await RemainingWorkerDeadlineAsync(
+        var remainingDeadline = await persistence.RemainingWorkerDeadlineAsync(
             executionId,
             checkpoint.Plan.Budget.DeadlineMilliseconds,
             cancellationToken);
         if (remainingDeadline <= TimeSpan.Zero)
         {
-            await CancelCheckpointAsync(executionId, CancellationToken.None);
-            return await TerminalAsync(
+            await persistence.CancelCheckpointAsync(executionId, CancellationToken.None);
+            return await persistence.TerminalAsync(
                 snapshot,
                 ExecutionStatus.TimedOut,
                 new Problem(
@@ -49,7 +57,7 @@ public sealed partial class ExecutionService
                 CancellationToken.None);
         }
 
-        using var deadline = new CancellationTokenSource(remainingDeadline);
+        using var deadline = new CancellationTokenSource(remainingDeadline, clock);
         using var execution = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             deadline.Token);
@@ -57,8 +65,8 @@ public sealed partial class ExecutionService
         {
             if (snapshot.CancellationRequestedAt is not null)
             {
-                await CancelCheckpointAsync(executionId, CancellationToken.None);
-                return await TerminalAsync(
+                await persistence.CancelCheckpointAsync(executionId, CancellationToken.None);
+                return await persistence.TerminalAsync(
                     snapshot,
                     ExecutionStatus.Cancelled,
                     new Problem(
@@ -68,7 +76,7 @@ public sealed partial class ExecutionService
                     CancellationToken.None);
             }
 
-            return await RunPlanAsync(
+            return await plans.RunPlanAsync(
                 snapshot,
                 checkpoint.Request,
                 definition,
@@ -79,8 +87,8 @@ public sealed partial class ExecutionService
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
         {
-            await CancelCheckpointAsync(executionId, CancellationToken.None);
-            return await TerminalAsync(
+            await persistence.CancelCheckpointAsync(executionId, CancellationToken.None);
+            return await persistence.TerminalAsync(
                 snapshot,
                 ExecutionStatus.TimedOut,
                 new Problem(
@@ -98,8 +106,8 @@ public sealed partial class ExecutionService
                 throw;
             }
 
-            await CancelCheckpointAsync(executionId, CancellationToken.None);
-            return await TerminalAsync(
+            await persistence.CancelCheckpointAsync(executionId, CancellationToken.None);
+            return await persistence.TerminalAsync(
                 latest,
                 ExecutionStatus.Cancelled,
                 new Problem(
@@ -110,8 +118,7 @@ public sealed partial class ExecutionService
         }
         catch (Exception exception) when (IsExecutionFailure(exception))
         {
-            return await HandleResumedFailureAsync(snapshot, exception, false);
+            return await persistence.HandleResumedFailureAsync(snapshot, exception, false);
         }
     }
-
 }
