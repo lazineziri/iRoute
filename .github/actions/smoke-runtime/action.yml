@@ -37,6 +37,7 @@ runs:
         docker run --rm "${IROUTE_TEST_IMAGE}" help
         docker run --rm "${IROUTE_TEST_IMAGE}" client help
         docker run --rm "${IROUTE_TEST_IMAGE}" migrate help
+        docker run --rm "${IROUTE_TEST_IMAGE}" auth chatgpt help
 
         docker volume create "${volume}" >/dev/null
         runtime_options=(
@@ -48,6 +49,7 @@ runs:
           --env Storage__AutoInitialize=false
           --env "ConnectionStrings__iRoute=${IROUTE_TEST_CONNECTION}"
           --env ModelGateway__Mode=Deterministic
+          --env TenantQuotas__Enabled=true
         )
 
         docker run --rm "${runtime_options[@]}" "${IROUTE_TEST_IMAGE}" migrate up
@@ -125,3 +127,53 @@ runs:
           --header 'X-Tenant-Id: another-tenant' --output /dev/null --write-out '%{http_code}' \
           "${base_url}/v1/executions/${execution_id}")"
         test "${status}" = 404
+
+        # Security and command behavior go through Runtime -> Core -> Services.
+        send_identity=("${identity[@]}" --header 'X-Permission-Scopes: email:send approval:grant')
+        send_request='{"taskType":"email.send","input":{"to":"ci@example.com","subject":"Smoke","body":"Simulated only."},"constraints":{"allowExternalWrites":true,"maxModelCalls":0,"maxToolCalls":1}}'
+        send_id="$(curl --fail --silent --show-error --max-time 30 \
+          "${send_identity[@]}" --header 'Content-Type: application/json' \
+          --header 'Idempotency-Key: approval-ci' --data "${send_request}" \
+          "${base_url}/v1/executions/" | jq -er '.executionId')"
+
+        status="$(curl --silent --show-error --max-time 30 \
+          "${send_identity[@]}" --header 'Content-Type: application/json' \
+          --data '{"actionId":"execute","approved":true}' \
+          --output "${task_dir}/self-approval.json" --write-out '%{http_code}' \
+          "${base_url}/v1/executions/${send_id}/approvals")"
+        test "${status}" = 403
+        jq -e '.code == "permission_scope_denied"' "${task_dir}/self-approval.json"
+
+        reviewer=(--header 'X-Tenant-Id: ci' --header 'X-Actor-Id: reviewer' \
+          --header 'X-Permission-Scopes: email:send approval:grant')
+        curl --fail --silent --show-error --max-time 30 "${reviewer[@]}" \
+          --header 'Content-Type: application/json' \
+          --data '{"actionId":"execute","approved":true}' \
+          "${base_url}/v1/executions/${send_id}/approvals" >/dev/null
+        for _ in {1..30}; do
+          curl --fail --silent --show-error --max-time 10 "${identity[@]}" \
+            "${base_url}/v1/executions/${send_id}" > "${task_dir}/approved.json"
+          status="$(jq -r '.status' "${task_dir}/approved.json")"
+          case "${status}" in
+            Succeeded|Failed|Cancelled|TimedOut) break ;;
+          esac
+          sleep 2
+        done
+        test "${status}" = Succeeded
+
+        cancel_id="$(curl --fail --silent --show-error --max-time 30 \
+          "${send_identity[@]}" --header 'Content-Type: application/json' \
+          --header 'Idempotency-Key: cancel-ci' --data "${send_request}" \
+          "${base_url}/v1/executions/" | jq -er '.executionId')"
+        curl --fail --silent --show-error --max-time 30 "${identity[@]}" \
+          --request POST "${base_url}/v1/executions/${cancel_id}/cancel" >/dev/null
+        curl --fail --silent --show-error --max-time 10 "${identity[@]}" \
+          "${base_url}/v1/executions/${cancel_id}" | \
+          jq -e '.status == "Cancelled" and .error.code == "execution_cancelled"'
+
+        status="$(curl --silent --show-error --max-time 10 "${identity[@]}" \
+          --output /dev/null --write-out '%{http_code}' \
+          "${base_url}/v1/executions/${send_id}/external-actions")"
+        test "${status}" = 403
+        curl --fail --silent --show-error --max-time 10 "${reviewer[@]}" \
+          "${base_url}/v1/executions/${send_id}/external-actions" | jq -e 'length == 0'
