@@ -22,13 +22,16 @@ public sealed partial class PersistenceInitializer(
             LogSingleNodeStorage(logger, storageProvider.Name, environment.EnvironmentName);
         }
 
-        if (!storageOptions.Value.AutoInitialize)
-        {
-            return;
-        }
-
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await context.Database.MigrateAsync(cancellationToken);
+        // .NET 10 starts BackgroundService execution concurrently. Initialize the shared EF
+        // model and provider connection before execution and lifecycle workers can use them.
+        // AutoInitialize controls migrations, not whether durable storage is ready at startup.
+        _ = context.Model;
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        if (storageOptions.Value.AutoInitialize)
+        {
+            await context.Database.MigrateAsync(cancellationToken);
+        }
     }
 
     [LoggerMessage(

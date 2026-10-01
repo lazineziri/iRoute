@@ -70,6 +70,9 @@ additional public-contract promises in `docs/compatibility.md`.
 
 ### Fixed
 
+- Durable storage initializes its EF model and connection before background
+  workers start, even when automatic migrations are disabled. Unavailable
+  storage fails startup instead of leaving a running but inactive worker.
 - Gateway configuration records redact credentials and endpoint configuration
   in diagnostic string formatting. Release verification runs PostgreSQL
   contention/migration tests as well as the container smoke checks.
