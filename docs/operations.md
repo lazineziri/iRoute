@@ -62,6 +62,10 @@ derived from claims and request payloads cannot override them.
 
 ### Execution worker
 
+Tenant admission, fair dispatch, request/body limits, and their configuration are
+documented in [tenant quotas](tenant-quotas.md). Quota enforcement is opt-in;
+do not mistake local HTTP rate limits for a distributed billing ceiling.
+
 The worker leases queued executions from storage, renews ownership, observes
 distributed cancellation, and resumes from durable checkpoints. Important keys
 are `ExecutionWorker__Enabled`, `PollInterval`, `LeaseDuration`,
@@ -99,6 +103,18 @@ Circuit behavior is controlled by `ModelGateway__Resilience`: maximum attempts,
 failure threshold, initial/max open duration, and half-open probe lease. Circuit
 state is shared in PostgreSQL. A provider `Retry-After` may extend the open
 interval. Secrets and raw provider bodies are never written to execution events.
+
+`OpenAI` and `Anthropic` modes call the native provider APIs with `Model` and
+their own keys. Deployment entries select the implementation with `Adapter`.
+`ClaudeCode` and `OpenAIChatGPT` are owner-tenant, Development-only subscription
+routes and cannot silently fall back to API billing. ChatGPT native sign-in and
+refresh use iRoute's own owner-only macOS/Linux credential files; never mount
+another app's credentials. See [model providers](model-providers.md) for setup,
+token lifecycle limits, unknown-cost handling, and unprobed health semantics.
+
+Approval decisions require a separate actor, every task permission scope, and
+`approval:grant`. Even an actor with those scopes cannot decide their own
+proposal. Reconciliation also requires `approval:grant` and remains tenant-scoped.
 
 ### Lifecycle and observability
 
@@ -180,7 +196,8 @@ rollback concurrently with active API or worker writes.
 
 ## Production gaps
 
-The current alpha does not claim validated tenant quota/fair scheduling,
-production-grade connector adapters, sustained load/soak limits, multi-region
-failover, or an operational SLA. Treat reference connectors and deterministic
-model profiles as development fixtures until measured evidence is registered.
+The current alpha includes experimentally tested quota reservation and fair
+dispatch, not production-scale guarantees. It does not claim production-grade
+connector adapters, sustained load/soak limits, multi-region failover, or an
+operational SLA. Treat reference connectors and deterministic model profiles
+as development fixtures until measured evidence is registered.

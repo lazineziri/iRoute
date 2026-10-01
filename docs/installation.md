@@ -1,7 +1,8 @@
 # Installation
 
-`0.1.0-alpha.4` is the current development line. Until its verified release tag
-completes, use a source checkout or build the container locally.
+`0.1.0-alpha.4` is the .NET-only release line. Its verified-tag workflow publishes
+the packages and image described below. A source checkout and local container
+build remain available independently of registry publication.
 
 ## Requirements
 
@@ -33,9 +34,16 @@ Readiness should return HTTP 200:
 curl --fail http://localhost:8080/health/ready
 ```
 
+The default model gateway is deterministic and does not call a provider. For
+OpenAI/Anthropic API keys and supported subscription access, follow
+[model-provider setup](model-providers.md). Local macOS/Linux users can run
+`iroute auth chatgpt login`; registration happens during OpenAI's authorization
+flow, not on the Platform agent-builder page. Account eligibility and plan limits
+remain provider-controlled. Windows credential storage is not implemented yet.
+
 ## .NET tool
 
-After `alpha.4` is published, install the complete Runtime/CLI tool from NuGet:
+Install the published Runtime/CLI tool from NuGet:
 
 ```bash
 dotnet tool install --global iRoute --version 0.1.0-alpha.4
@@ -62,7 +70,7 @@ docker compose -f deploy/compose.sqlite.yaml up --build --wait
 curl --fail http://localhost:8080/health/ready
 ```
 
-After release, the equivalent image is
+The published image is
 `ghcr.io/lazineziri/iroute:0.1.0-alpha.4`. It runs `serve` by default:
 
 ```bash

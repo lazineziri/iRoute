@@ -7,10 +7,13 @@ repository as it existed at each tag and are not current architecture guidance.
 ## Start here
 
 - [Installation](installation.md) — source, tool, and container setup
+- [Model providers](model-providers.md) — OpenAI/Anthropic keys, local subscriptions, and billing limits
 - [Architecture](architecture.md) — six projects, allowed dependencies, and request flow
 - [Client and CLI usage](client-usage.md) — submitting, polling, streaming, approvals, and errors
 - [Operations](operations.md) — configuration, identity, storage, workers, gateways, telemetry, and rollback
+- [Tenant quotas](tenant-quotas.md) — admission, accounting, fairness, HTTP limits, and operational caveats
 - [Project status](project-status.md) — implemented capabilities and known gaps
+- [Product benchmark](product-benchmark.md) — opt-in live comparisons, token accounting, results, and limits
 
 ## Contracts and compatibility
 
