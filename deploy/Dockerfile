@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0-alpine AS build
 WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props iRoute.slnx ./
 COPY src/iRoute.Common/iRoute.Common.csproj src/iRoute.Common/
